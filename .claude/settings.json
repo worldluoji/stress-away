@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "defaultMode": "plan",
+    "allow": [
+      "Read(*.tsx)",
+      "Read(*.ts)",
+      "Read(*.css)",
+      "Read(*.mjs)",
+      "Read(package.json)",
+      "Read(pnpm-lock.yaml)",
+      "Read(README.md)",
+      "Read(constitution.md)",
+      "Read(specs/**)",
+      "Grep",
+      "Glob",
+      "LS",
+      "Bash(pnpm:build)",
+      "Bash(pnpm:dev)",
+      "Bash(pnpm:add:*)",
+      "Bash(pnpm:lint)",
+      "Bash(git:add:*)",
+      "Bash(git:commit:*)",
+      "Write",
+      "Edit",
+      "MultiEdit",
+      "Bash(pnpm:install)"
+    ],
+    "ask": [
+      "Bash(git:push:*)"
+    ],
+    "deny": [
+      "Read(./.env*)",
+      "Read(*.pem)",
+      "Read(*.key)",
+      "Bash(rm:*)",
+      "WebFetch"
+    ]
+  }
+}
