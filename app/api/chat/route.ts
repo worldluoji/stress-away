@@ -1,8 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { chatWithAI, type ChatMessage } from "@/lib/models";
+import { checkRateLimit, RATE_LIMITS, extractClientInfo } from "@/lib/ratelimit";
 
 export async function POST(request: NextRequest) {
   try {
+    const { deviceId } = extractClientInfo(request);
+    const { ip } = extractClientInfo(request, deviceId);
+    const config = RATE_LIMITS.chat;
+
+    const rateLimitResult = await checkRateLimit(deviceId, ip, config);
+
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        {
+          error: 'rate_limit_exceeded',
+          message: '请求过于频繁，请稍后再试',
+          resetAt: rateLimitResult.resetAt,
+        },
+        {
+          status: 429,
+          headers: {
+            'X-RateLimit-Remaining': '0',
+            'X-RateLimit-Reset': rateLimitResult.resetAt.toString(),
+            'Retry-After': Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000).toString(),
+          },
+        }
+      );
+    }
+
     const body = await request.json();
     const { messages } = body as { messages: ChatMessage[] };
 
@@ -14,7 +39,16 @@ export async function POST(request: NextRequest) {
     }
 
     const reply = await chatWithAI(messages);
-    return NextResponse.json({ reply });
+
+    return NextResponse.json(
+      { reply },
+      {
+        headers: {
+          'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+          'X-RateLimit-Reset': rateLimitResult.resetAt.toString(),
+        },
+      }
+    );
   } catch (error) {
     console.error("Chat API error:", error);
     return NextResponse.json(

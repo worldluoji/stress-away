@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getActivationCode, consumeActivationCode, setSubscription, getSubscription, PAID_LIMIT } from '@/lib/redis';
+import { checkRateLimit, RATE_LIMITS, extractClientInfo } from '@/lib/ratelimit';
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,6 +9,28 @@ export async function POST(request: NextRequest) {
 
     if (!deviceId) {
       return NextResponse.json({ error: 'Device ID required' }, { status: 400 });
+    }
+
+    // Rate limit check
+    const { ip } = extractClientInfo(request, deviceId);
+    const rateLimitResult = await checkRateLimit(deviceId, ip, RATE_LIMITS.activate);
+
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        {
+          error: 'rate_limit_exceeded',
+          message: '请求过于频繁，请稍后再试',
+          resetAt: rateLimitResult.resetAt,
+        },
+        {
+          status: 429,
+          headers: {
+            'X-RateLimit-Remaining': '0',
+            'X-RateLimit-Reset': rateLimitResult.resetAt.toString(),
+            'Retry-After': Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000).toString(),
+          },
+        }
+      );
     }
 
     const { order_id, activation_code } = body;
@@ -44,17 +67,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: consumeResult.error });
     }
 
-    // Activate subscription with PAID_LIMIT remaining codes
     await setSubscription(deviceId, {
       status: 'active',
       remainingCodes: PAID_LIMIT,
       activatedAt: Date.now(),
     });
 
-    return NextResponse.json({
-      success: true,
-      remaining_codes: consumeResult.remainingCodes ?? 0,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        remaining_codes: consumeResult.remainingCodes ?? 0,
+      },
+      {
+        headers: {
+          'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+          'X-RateLimit-Reset': rateLimitResult.resetAt.toString(),
+        },
+      }
+    );
   } catch (error) {
     console.error('Activate error:', error);
     return NextResponse.json(

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkUsage } from '@/lib/subscription';
+import { checkRateLimit, RATE_LIMITS, extractClientInfo } from '@/lib/ratelimit';
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,9 +10,39 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Device ID required' }, { status: 400 });
     }
 
+    // Rate limit check
+    const { ip } = extractClientInfo(request, deviceId);
+    const rateLimitResult = await checkRateLimit(deviceId, ip, RATE_LIMITS.usage);
+
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        {
+          error: 'rate_limit_exceeded',
+          message: '请求过于频繁，请稍后再试',
+          resetAt: rateLimitResult.resetAt,
+        },
+        {
+          status: 429,
+          headers: {
+            'X-RateLimit-Remaining': '0',
+            'X-RateLimit-Reset': rateLimitResult.resetAt.toString(),
+            'Retry-After': Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000).toString(),
+          },
+        }
+      );
+    }
+
     const usage = await checkUsage(deviceId);
 
-    return NextResponse.json(usage);
+    return NextResponse.json(
+      usage,
+      {
+        headers: {
+          'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+          'X-RateLimit-Reset': rateLimitResult.resetAt.toString(),
+        },
+      }
+    );
   } catch (error) {
     console.error('Usage check error:', error);
     return NextResponse.json(

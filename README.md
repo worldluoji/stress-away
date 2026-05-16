@@ -8,6 +8,7 @@
 - **聊天历史持久化**：对话记录保存在浏览器本地，刷新页面后保留
 - **免费试用**：每天 1 次免费对话额度
 - **激活码订阅**：购买后获得 50 次对话额度，支持 2 台设备
+- **限流保护**：设备 ID + IP 双重限制，防止恶意攻击
 - **模型配置**：通过环境变量选择 DeepSeek V4 Flash / MiniMax 2.7
 
 ## 开始使用
@@ -43,7 +44,7 @@ UPSTASH_REDIS_REST_TOKEN=your_redis_token
 USE_LOCAL_STORAGE=true
 
 # 使用限制配置
-FREE_LIMIT_PER_DAY=3
+FREE_LIMIT_PER_DAY=1
 PAID_LIMIT=50
 ```
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getActivationCode, setActivationCodes, setUsedOrderTTL } from '@/lib/redis';
 import { queryOrder, generateActivationCode } from '@/lib/mbaodu';
+import { checkRateLimit, RATE_LIMITS, extractClientInfo } from '@/lib/ratelimit';
 
 function maskCode(code: string): string {
   if (code.length <= 4) return code;
@@ -14,6 +15,28 @@ export async function POST(request: NextRequest) {
 
     if (!order_id) {
       return NextResponse.json({ error: 'Missing order_id' }, { status: 400 });
+    }
+
+    // Rate limit check - use IP and order_id for combined key
+    const { ip, deviceId } = extractClientInfo(request, 'query-codes:' + order_id);
+    const rateLimitResult = await checkRateLimit(deviceId, ip, RATE_LIMITS.queryCodes);
+
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        {
+          error: 'rate_limit_exceeded',
+          message: '请求过于频繁，请稍后再试',
+          resetAt: rateLimitResult.resetAt,
+        },
+        {
+          status: 429,
+          headers: {
+            'X-RateLimit-Remaining': '0',
+            'X-RateLimit-Reset': rateLimitResult.resetAt.toString(),
+            'Retry-After': Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000).toString(),
+          },
+        }
+      );
     }
 
     const [code1, code2] = await Promise.all([
@@ -30,13 +53,21 @@ export async function POST(request: NextRequest) {
           await setActivationCodes(order_id, newCode1, newCode2);
           await setUsedOrderTTL(order_id, 30);
 
-          return NextResponse.json({
-            success: true,
-            codes: [
-              { code: maskCode(newCode1), used: false },
-              { code: maskCode(newCode2), used: false },
-            ],
-          });
+          return NextResponse.json(
+            {
+              success: true,
+              codes: [
+                { code: maskCode(newCode1), used: false },
+                { code: maskCode(newCode2), used: false },
+              ],
+            },
+            {
+              headers: {
+                'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+                'X-RateLimit-Reset': rateLimitResult.resetAt.toString(),
+              },
+            }
+          );
         }
       } catch (error) {
         console.error('Mbaodu query failed:', error);
@@ -49,13 +80,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Order not found or no codes generated' }, { status: 404 });
     }
 
-    return NextResponse.json({
-      success: true,
-      codes: [
-        code1 ? { code: maskCode(code1.code), used: code1.used } : null,
-        code2 ? { code: maskCode(code2.code), used: code2.used } : null,
-      ].filter(Boolean),
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        codes: [
+          code1 ? { code: maskCode(code1.code), used: code1.used } : null,
+          code2 ? { code: maskCode(code2.code), used: code2.used } : null,
+        ].filter(Boolean),
+      },
+      {
+        headers: {
+          'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+          'X-RateLimit-Reset': rateLimitResult.resetAt.toString(),
+        },
+      }
+    );
   } catch (error) {
     console.error('Query codes error:', error);
     return NextResponse.json(

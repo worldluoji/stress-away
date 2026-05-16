@@ -46,6 +46,31 @@ stress-away 是高压青年的职场反PUA助手。当用户在职场中遭遇�
 - 设备已激活时，无法再激活其他订单（返回 `device_already_activated` 错误）
 - 需要先在其他设备上被挤占，腾出设备名额
 
+### 限流规则
+
+**维度：** 设备 ID + IP 地址双重限制
+
+**限制配置：**
+| API | 限制 |
+|-----|------|
+| /api/chat | 20 次/分钟 |
+| /api/subscription/activate | 10 次/分钟 |
+| /api/subscription/query-codes | 10 次/分钟 |
+| /api/usage | 30 次/分钟 |
+| /api/subscription/callback | 5 次/分钟 |
+
+**限流响应：**
+- 返回 HTTP 429 状态码
+- 响应头包含 `X-RateLimit-Remaining`、`X-RateLimit-Reset`、`Retry-After`
+- 触发限流时返回：
+```json
+{
+  "error": "rate_limit_exceeded",
+  "message": "请求过于频繁，请稍后再试",
+  "resetAt": 1234567890
+}
+```
+
 ## 文件结构
 
 ```
@@ -67,7 +92,9 @@ stress-away 是高压青年的职场反PUA助手。当用户在职场中遭遇�
 │   ├── storage.ts                  # LocalStorage 持久化
 │   ├── redis.ts                    # 存储层（Redis/LocalStorage）
 │   ├── mbaodu.ts                   # 面包多 API
-│   └── subscription.ts            # 订阅逻辑
+│   ├── subscription.ts             # 订阅逻辑
+│   ├── ratelimit.ts                # 限流工具
+│   └── ratelimit-helper.ts        # 限流辅助函数
 ├── .env.local.example              # 环境变量模板
 └── package.json
 ```
