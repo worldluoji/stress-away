@@ -1,22 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { chatWithAI, type ModelProvider, type ChatMessage } from "@/lib/models";
+import { chatWithAI, type ChatMessage } from "@/lib/models";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { messages, model } = body as {
-      messages: ChatMessage[];
-      model: ModelProvider;
-    };
+    const { messages } = body as { messages: ChatMessage[] };
 
-    if (!messages || !model) {
+    if (!messages) {
       return NextResponse.json(
-        { error: "Missing messages or model" },
+        { error: "Missing messages" },
         { status: 400 }
       );
     }
 
-    const reply = await chatWithAI(messages, model);
+    const reply = await chatWithAI(messages);
     return NextResponse.json({ reply });
   } catch (error) {
     console.error("Chat API error:", error);

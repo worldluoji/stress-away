@@ -1,4 +1,4 @@
-# stress-away Spec
+# Stress Away Spec
 
 ## 概念与愿景
 
@@ -15,7 +15,7 @@ stress-away 是高压青年的职场反PUA助手。当用户在职场中遭遇�
 
 ### MVP
 - [x] 聊天界面：用户输入职场困境 → AI 输出反PUA建议
-- [x] 模型切换：DeepSeek V4 Flash / MiniMax 2.7 可选
+- [x] 模型配置：通过 DEFAULT_MODEL 环境变量选择模型
 - [x] API Key 配置：通过 .env.local 管理
 
 ## 文件结构
@@ -38,8 +38,7 @@ stress-away 是高压青年的职场反PUA助手。当用户在职场中遭遇�
 请求：
 ```json
 {
-  "messages": [{ "role": "user", "content": "领导当着全组的面说我的方案是垃圾..." }],
-  "model": "deepseek"
+  "messages": [{ "role": "user", "content": "领导当着全组的面说我的方案是垃圾..." }]
 }
 ```
 

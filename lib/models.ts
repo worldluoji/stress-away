@@ -1,4 +1,19 @@
-export type ModelProvider = "deepseek" | "minimax";
+export const AI_MODELS = {
+  deepseek: {
+    name: 'DeepSeek V4 Flash',
+    endpoint: 'https://api.deepseek.com/v1/chat/completions',
+    model: 'deepseek-v4-flash',
+    apiKeyEnv: 'DEEPSEEK_API_KEY',
+  },
+  minimax: {
+    name: 'MiniMax M2.7',
+    endpoint: 'https://api.minimax.chat/v1/chat/completions',
+    model: 'MiniMax-M2.7',
+    apiKeyEnv: 'MINIMAX_API_KEY',
+  },
+} as const;
+
+export type ModelProvider = keyof typeof AI_MODELS;
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -14,35 +29,31 @@ const SYSTEM_PROMPT = `你是"职场反PUA顾问"，专为高压青年提供职�
 
 保持专业、共情、实用的风格，用温暖而有力的语气回应。`;
 
-export async function chatWithAI(
-  messages: ChatMessage[],
-  model: ModelProvider
-): Promise<string> {
-  const apiKey =
-    model === "deepseek"
-      ? process.env.DEEPSEEK_API_KEY
-      : process.env.MINIMAX_API_KEY;
+function getModelConfig() {
+  const modelName = process.env.DEFAULT_MODEL || "deepseek";
+  const config = AI_MODELS[modelName as ModelProvider];
+  if (!config) {
+    throw new Error(`Invalid DEFAULT_MODEL: ${modelName}`);
+  }
+  return config;
+}
+
+export async function chatWithAI(messages: ChatMessage[]): Promise<string> {
+  const config = getModelConfig();
+  const apiKey = process.env[config.apiKeyEnv];
 
   if (!apiKey) {
-    throw new Error(`${model} API key is not configured`);
+    throw new Error(`${config.apiKeyEnv} is not configured`);
   }
 
-  const endpoint =
-    model === "deepseek"
-      ? "https://api.deepseek.com/v1/chat/completions"
-      : "https://api.minimax.chat/v1/chat/completions";
-
-  const modelName =
-    model === "deepseek" ? "deepseek-chat" : "MINIMAX2";
-
-  const response = await fetch(endpoint, {
+  const response = await fetch(config.endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: modelName,
+      model: config.model,
       messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
       stream: false,
     }),
