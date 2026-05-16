@@ -71,6 +71,21 @@ stress-away 是高压青年的职场反PUA助手。当用户在职场中遭遇�
 }
 ```
 
+### 激活码防暴力破解
+
+**机制：**
+- 连续 5 次激活失败后，该 IP+设备组合被封禁 15 分钟
+- 每次激活失败返回 `remainingAttempts` 提示剩余次数
+- 激活成功后自动重置失败计数
+- 封禁期间返回 HTTP 429：
+```json
+{
+  "error": "activation_blocked",
+  "message": "激活尝试次数过多，请15分钟后再试",
+  "remainingSeconds": 900
+}
+```
+
 ## 文件结构
 
 ```
@@ -94,7 +109,8 @@ stress-away 是高压青年的职场反PUA助手。当用户在职场中遭遇�
 │   ├── mbaodu.ts                   # 面包多 API
 │   ├── subscription.ts             # 订阅逻辑
 │   ├── ratelimit.ts                # 限流工具
-│   └── ratelimit-helper.ts        # 限流辅助函数
+│   ├── ratelimit-helper.ts        # 限流辅助函数
+│   └── activation-security.ts     # 激活码防暴力破解
 ├── .env.local.example              # 环境变量模板
 └── package.json
 ```

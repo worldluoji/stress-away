@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getActivationCode, consumeActivationCode, setSubscription, getSubscription, PAID_LIMIT } from '@/lib/redis';
 import { checkRateLimit, RATE_LIMITS, extractClientInfo } from '@/lib/ratelimit';
+import { checkActivationBlocked, recordFailedAttempt, resetFailedAttempts, getRemainingAttempts } from '@/lib/activation-security';
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,6 +34,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if IP/device is blocked due to failed attempts
+    const blockStatus = checkActivationBlocked(ip, deviceId);
+    if (blockStatus.blocked) {
+      return NextResponse.json(
+        {
+          error: 'activation_blocked',
+          message: '激活尝试次数过多，请15分钟后再试',
+          remainingSeconds: blockStatus.remainingSeconds,
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': blockStatus.remainingSeconds.toString(),
+          },
+        }
+      );
+    }
+
     const { order_id, activation_code } = body;
 
     if (!order_id || !activation_code) {
@@ -59,8 +78,20 @@ export async function POST(request: NextRequest) {
     }
 
     if (matchIndex === null) {
-      return NextResponse.json({ success: false, error: 'invalid_code' });
+      // Record failed attempt
+      recordFailedAttempt(ip, deviceId);
+      const remaining = getRemainingAttempts(ip, deviceId);
+      return NextResponse.json(
+        { success: false, error: 'invalid_code', remainingAttempts: remaining },
+        {
+          status: 400,
+          headers: remaining > 0 ? { 'X-Remaining-Attempts': remaining.toString() } : {},
+        }
+      );
     }
+
+    // Success - reset failed attempts
+    resetFailedAttempts(ip, deviceId);
 
     const consumeResult = await consumeActivationCode(order_id, matchIndex, deviceId);
     if (!consumeResult.success) {
