@@ -1,9 +1,24 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
+import FingerprintJS from "@fingerprintjs/fingerprintjs";
 import type { ChatMessage } from "@/lib/models";
 import { loadMessages, saveMessages } from "@/lib/storage";
+import { SubscriptionActivate } from "./components/SubscriptionActivate";
+
+interface UsageStatus {
+  allowed: boolean;
+  remaining: number;
+  isPaid: boolean;
+  total: number;
+}
+
+async function getDeviceId(): Promise<string> {
+  const fp = await FingerprintJS.load();
+  const result = await fp.get();
+  return result.visitorId;
+}
 
 export default function Home() {
   const [messages, setMessages] = useState<ChatMessage[]>(() => loadMessages());
@@ -11,10 +26,48 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [usage, setUsage] = useState<UsageStatus | null>(null);
+  const [showActivate, setShowActivate] = useState(false);
+  const [deviceId, setDeviceId] = useState<string>("");
 
   useEffect(() => {
     saveMessages(messages);
   }, [messages]);
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const id = await getDeviceId();
+        setDeviceId(id);
+        const res = await fetch("/api/usage", {
+          headers: { "x-device-id": id },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setUsage(data);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    init();
+  }, []);
+
+  const handleActivated = useCallback(() => {
+    setShowActivate(false);
+    // Re-check usage
+    const recheck = async () => {
+      if (!deviceId) return;
+      const res = await fetch("/api/usage", {
+        headers: { "x-device-id": deviceId },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUsage(data);
+      }
+    };
+    recheck();
+  }, [deviceId]);
 
   const handleCopy = async (content: string, index: number) => {
     await navigator.clipboard.writeText(content);
@@ -25,6 +78,11 @@ export default function Home() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || loading) return;
+
+    if (!usage?.allowed) {
+      setShowActivate(true);
+      return;
+    }
 
     const userMessage: ChatMessage = { role: "user", content: input };
     const newMessages = [...messages, userMessage];
@@ -46,6 +104,26 @@ export default function Home() {
         .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
         .trim();
       setMessages([...newMessages, { role: "assistant", content: reply }]);
+
+      // Consume usage after successful response
+      if (deviceId) {
+        const usageRes = await fetch("/api/usage/consume", {
+          method: "POST",
+          headers: { "x-device-id": deviceId },
+        });
+        if (usageRes.ok) {
+          const usageData = await usageRes.json();
+          setUsage((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  remaining: usageData.remaining,
+                  isPaid: usageData.isPaid,
+                }
+              : null
+          );
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -58,16 +136,47 @@ export default function Home() {
       {/* Header */}
       <header className="sticky top-0 z-10 w-full border-b border-amber-100 bg-white/80 backdrop-blur-sm">
         <div className="mx-auto max-w-3xl px-4 py-4">
-          <div className="flex flex-col gap-1">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent">
-              Stress Away
-            </h1>
-            <p className="text-sm sm:text-base text-amber-600">
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-1">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent">
+                Stress Away
+              </h1>
+              <p className="text-sm sm:text-base text-amber-600">
                 你的职场反PUA专家
-            </p>
+              </p>
+            </div>
+            {usage && (
+              <button
+                onClick={() => (usage.isPaid ? null : setShowActivate(true))}
+                className={`text-sm px-3 py-1 rounded-full ${
+                  usage.isPaid
+                    ? "bg-green-100 text-green-700"
+                    : "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                }`}
+              >
+                {usage.isPaid
+                  ? `付费版 · 剩余 ${usage.remaining} 次`
+                  : `免费版 · 剩余 ${usage.remaining}/${usage.total} 次`}
+              </button>
+            )}
           </div>
         </div>
       </header>
+
+      {/* Activation Modal */}
+      {showActivate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md">
+            <button
+              onClick={() => setShowActivate(false)}
+              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-white/80 hover:bg-white text-gray-500"
+            >
+              ✕
+            </button>
+            <SubscriptionActivate onActivated={handleActivated} />
+          </div>
+        </div>
+      )}
 
       {/* Chat Area */}
       <main className="mx-auto flex flex-1 flex-col justify-between gap-6 px-4 py-8 max-w-3xl w-full">
@@ -168,7 +277,11 @@ export default function Home() {
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="输入你的职场困境..."
+                placeholder={
+                  usage?.allowed
+                    ? "输入你的职场困境..."
+                    : "今日免费次数已用完，请先激活..."
+                }
                 disabled={loading}
                 autoComplete="off"
                 autoCorrect="off"
