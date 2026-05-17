@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getActivationCode, setActivationCodes, setUsedOrderTTL, canQueryOrder } from '@/lib/redis';
-import { queryOrder, generateActivationCode } from '@/lib/mbaodu';
+import { queryOrder, generateActivationCode, MbaoduApiError } from '@/lib/mbaodu';
 import { checkRateLimit, RATE_LIMITS, extractClientInfo } from '@/lib/ratelimit';
 
 function maskCode(code: string): string {
@@ -88,7 +88,18 @@ export async function POST(request: NextRequest) {
         }
       } catch (error) {
         console.error('Mbaodu query failed:', error);
-        // API call failed - don't assume order is paid
+        if (error instanceof MbaoduApiError) {
+          if (error.code === 403) {
+            return NextResponse.json(
+              { error: 'mbaodu_auth_error', message: '激活码服务配置错误，请联系管理员' },
+              { status: 503 }
+            );
+          }
+          return NextResponse.json(
+            { error: 'mbaodu_api_error', message: '激活码服务暂不可用，请稍后再试' },
+            { status: 503 }
+          );
+        }
         return NextResponse.json(
           { error: 'mbaodu_api_error', message: '激活码服务暂不可用，请稍后再试' },
           { status: 503 }

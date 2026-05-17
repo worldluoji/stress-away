@@ -42,6 +42,8 @@ export function SubscriptionActivate({ onActivated }: Props) {
       if (!response.ok) {
         if (data.error === 'query_expired') {
           setError('激活码查询窗口已过期（购买后48小时内可查询，超时后将无法获取）');
+        } else if (data.error === 'mbaodu_auth_error') {
+          setError('激活码服务配置错误，请联系管理员');
         } else if (data.error === 'mbaodu_api_error') {
           setError('激活码服务暂不可用，请稍后再试');
         } else {

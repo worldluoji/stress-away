@@ -10,9 +10,19 @@ export interface MbaoduOrderDetail {
   orderamount?: number;
 }
 
+export class MbaoduApiError extends Error {
+  constructor(
+    message: string,
+    public code: number
+  ) {
+    super(message);
+    this.name = 'MbaoduApiError';
+  }
+}
+
 export async function queryOrder(orderId: string): Promise<MbaoduOrderDetail | null> {
   if (!MBAODU_APP_KEY) {
-    throw new Error('Mbaodu not configured');
+    throw new MbaoduApiError('Mbaodu not configured', 500);
   }
 
   const url = `${MBAODU_ORDER_QUERY_URL}?order_id=${encodeURIComponent(orderId)}`;
@@ -25,23 +35,37 @@ export async function queryOrder(orderId: string): Promise<MbaoduOrderDetail | n
     },
   });
 
-  if (!response.ok) {
-    throw new Error(`Mbaodu API error: ${response.status}`);
+  if (response.status === 403) {
+    throw new MbaoduApiError('Mbaodu authentication failed', 403);
+  }
+
+  if (response.status !== 200) {
+    throw new MbaoduApiError(`Mbaodu API error: ${response.status}`, response.status);
   }
 
   const data = await response.json();
 
   if (data.code !== 200) {
+    // code 400 means bad request (missing order_id)
+    // code 403 means auth failed
+    if (data.code === 400 || data.code === 403) {
+      throw new MbaoduApiError(`Mbaodu API error: ${data.code}`, data.code);
+    }
+    return null;
+  }
+
+  const result = data.result;
+  if (!result) {
     return null;
   }
 
   return {
-    order_id: data.result.orderid,
-    status: data.result.state,
-    paid_at: data.result.ordertime,
-    expire_at: data.result.expire_at,
-    rounds: data.result.rounds,
-    orderamount: data.result.orderamount,
+    order_id: result.orderid,
+    status: result.state,
+    paid_at: result.ordertime,
+    expire_at: result.expire_at,
+    rounds: result.rounds,
+    orderamount: result.orderamount,
   };
 }
 
