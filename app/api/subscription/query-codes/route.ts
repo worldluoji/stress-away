@@ -82,16 +82,18 @@ export async function POST(request: NextRequest) {
               },
             }
           );
+        } else {
+          // Order not found or not paid
+          return NextResponse.json({ error: 'Order not found or payment not completed' }, { status: 404 });
         }
       } catch (error) {
         console.error('Mbaodu query failed:', error);
+        // API call failed - don't assume order is paid
         return NextResponse.json(
-          { message: '订单已付款，激活码稍后生成，请稍后再试' },
+          { error: 'mbaodu_api_error', message: '激活码服务暂不可用，请稍后再试' },
           { status: 503 }
         );
       }
-
-      return NextResponse.json({ error: 'Order not found or no codes generated' }, { status: 404 });
     }
 
     return NextResponse.json(
