@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { setActivationCodes, markOrderActivated, isOrderActivated } from '@/lib/redis';
+import { setActivationCodes, markOrderActivated, isOrderActivated, setOrderCreatedTime } from '@/lib/redis';
 import { generateActivationCode } from '@/lib/mbaodu';
 
 interface CallbackBody {
@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
 
     await setActivationCodes(order_id, code1, code2);
     await markOrderActivated(order_id);
+    await setOrderCreatedTime(order_id, Date.now());
 
     return NextResponse.json({ success: true });
   } catch (error) {

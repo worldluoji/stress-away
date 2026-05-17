@@ -296,3 +296,42 @@ export async function setUsedOrderTTL(orderId: string, ttlDays = 30): Promise<vo
   const key = `used_order:${orderId}`;
   await getRedis().expire(key, ttlDays * 24 * 60 * 60);
 }
+
+// Order creation time tracking for 48-hour query restriction
+export async function setOrderCreatedTime(orderId: string, timestamp: number): Promise<void> {
+  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
+    lsSet(`order_created:${orderId}`, timestamp);
+    return;
+  }
+  const key = `order_created:${orderId}`;
+  await getRedis().set(key, timestamp, { ex: 60 * 60 * 24 * 60 }); // 60 days TTL
+}
+
+export async function getOrderCreatedTime(orderId: string): Promise<number | null> {
+  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
+    return lsGet<number>(`order_created:${orderId}`);
+  }
+  const key = `order_created:${orderId}`;
+  const data = await getRedis().get<number>(key);
+  return data ?? null;
+}
+
+export async function canQueryOrder(orderId: string): Promise<{ allowed: boolean; remainingSeconds: number }> {
+  const createdTime = await getOrderCreatedTime(orderId);
+  if (createdTime === null) {
+    // No creation time means callback not called - allow query
+    return { allowed: true, remainingSeconds: 0 };
+  }
+
+  const now = Date.now();
+  const elapsed = now - createdTime;
+  const LIMIT_MS = 48 * 60 * 60 * 1000; // 48 hours
+
+  if (elapsed >= LIMIT_MS) {
+    // Beyond 48 hours, cannot query
+    return { allowed: false, remainingSeconds: 0 };
+  }
+
+  // Within 48 hours, allow query
+  return { allowed: true, remainingSeconds: Math.ceil((LIMIT_MS - elapsed) / 1000) };
+}

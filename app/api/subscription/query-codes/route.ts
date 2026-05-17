@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getActivationCode, setActivationCodes, setUsedOrderTTL } from '@/lib/redis';
+import { getActivationCode, setActivationCodes, setUsedOrderTTL, canQueryOrder } from '@/lib/redis';
 import { queryOrder, generateActivationCode } from '@/lib/mbaodu';
 import { checkRateLimit, RATE_LIMITS, extractClientInfo } from '@/lib/ratelimit';
 
@@ -35,6 +35,20 @@ export async function POST(request: NextRequest) {
             'X-RateLimit-Reset': rateLimitResult.resetAt.toString(),
             'Retry-After': Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000).toString(),
           },
+        }
+      );
+    }
+
+    // 48-hour query window check
+    const queryStatus = await canQueryOrder(order_id);
+    if (!queryStatus.allowed) {
+      return NextResponse.json(
+        {
+          error: 'query_expired',
+          message: `激活码查询窗口已过期（购买后48小时内可查询）`,
+        },
+        {
+          status: 403,
         }
       );
     }

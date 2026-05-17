@@ -40,7 +40,11 @@ export function SubscriptionActivate({ onActivated }: Props) {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || data.message || '查询失败');
+        if (data.error === 'query_expired') {
+          setError('激活码查询窗口已过期（购买后48小时内可查询，超时后将无法获取）');
+        } else {
+          setError(data.error || data.message || '查询失败');
+        }
         return;
       }
 
@@ -130,9 +134,12 @@ export function SubscriptionActivate({ onActivated }: Props) {
       {/* Display Codes */}
       {step === 'activate' && codes.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
-          <p className="text-amber-700 font-medium mb-4 flex items-center gap-2">
+          <p className="text-amber-700 font-medium mb-2 flex items-center gap-2">
             <span>⚠️</span>
             激活码只显示一次，请妥善保存
+          </p>
+          <p className="text-amber-600 text-sm mb-4">
+            重要：购买后48小时内可查询激活码，超时后将无法获取，请尽快绑定设备
           </p>
           <div className="space-y-2">
             {codes.map((code, index) => (
