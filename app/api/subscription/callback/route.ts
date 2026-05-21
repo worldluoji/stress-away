@@ -7,6 +7,34 @@ interface CallbackBody {
   state: number;
 }
 
+/**
+ * @swagger
+ * /api/subscription/callback:
+ *   post:
+ *     summary: 支付回调
+ *     tags: [Subscription]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - order_id
+ *               - state
+ *             properties:
+ *               order_id:
+ *                 type: string
+ *               state:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: 回调处理成功
+ *       400:
+ *         description: 支付未完成或缺少参数
+ *       500:
+ *         description: 服务器内部错误
+ */
 export async function POST(request: NextRequest) {
   try {
     const body: CallbackBody = await request.json();

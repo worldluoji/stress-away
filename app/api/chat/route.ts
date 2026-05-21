@@ -2,6 +2,48 @@ import { NextRequest, NextResponse } from "next/server";
 import { chatWithAI, type ChatMessage } from "@/lib/models";
 import { checkRateLimit, RATE_LIMITS, extractClientInfo } from "@/lib/ratelimit";
 
+/**
+ * @swagger
+ * /api/chat:
+ *   post:
+ *     summary: 与AI对话
+ *     tags: [Chat]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - messages
+ *             properties:
+ *               messages:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     role:
+ *                       type: string
+ *                       enum: [user, assistant]
+ *                     content:
+ *                       type: string
+ *     responses:
+ *       200:
+ *         description: AI回复
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 reply:
+ *                   type: string
+ *       400:
+ *         description: 缺少必要参数
+ *       429:
+ *         description: 请求过于频繁
+ *       500:
+ *         description: 服务器内部错误
+ */
 export async function POST(request: NextRequest) {
   try {
     const { deviceId } = extractClientInfo(request);

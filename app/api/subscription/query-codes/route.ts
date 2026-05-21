@@ -8,6 +8,39 @@ function maskCode(code: string): string {
   return code.slice(0, 2) + '****' + code.slice(-2);
 }
 
+/**
+ * @swagger
+ * /api/subscription/query-codes:
+ *   post:
+ *     summary: 查询激活码
+ *     tags: [Subscription]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - order_id
+ *             properties:
+ *               order_id:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: 激活码信息
+ *       400:
+ *         description: 缺少order_id
+ *       403:
+ *         description: 查询窗口已过期
+ *       404:
+ *         description: 订单未找到
+ *       429:
+ *         description: 请求过于频繁
+ *       500:
+ *         description: 服务器内部错误
+ *       503:
+ *         description: 激活码服务暂不可用
+ */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

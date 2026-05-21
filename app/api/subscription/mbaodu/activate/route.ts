@@ -3,6 +3,38 @@ import { getActivationCode, consumeActivationCode, setSubscription, getSubscript
 import { checkRateLimit, RATE_LIMITS, extractClientInfo } from '@/lib/ratelimit';
 import { checkActivationBlocked, recordFailedAttempt, resetFailedAttempts, getRemainingAttempts } from '@/lib/activation-security';
 
+/**
+ * @swagger
+ * /api/subscription/mbaodu/activate:
+ *   post:
+ *     summary: 激活订阅
+ *     tags: [Subscription]
+ *     security:
+ *       - DeviceId: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - order_id
+ *               - activation_code
+ *             properties:
+ *               order_id:
+ *                 type: string
+ *               activation_code:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: 激活成功
+ *       400:
+ *         description: 缺少参数或激活码无效
+ *       429:
+ *         description: 请求过于频繁或激活被阻止
+ *       500:
+ *         description: 服务器内部错误
+ */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

@@ -2,6 +2,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkUsage } from '@/lib/subscription';
 import { checkRateLimit, RATE_LIMITS, extractClientInfo } from '@/lib/ratelimit';
 
+/**
+ * @swagger
+ * /api/usage:
+ *   get:
+ *     summary: 查询用量
+ *     tags: [Usage]
+ *     security:
+ *       - DeviceId: []
+ *     responses:
+ *       200:
+ *         description: 用量信息
+ *       400:
+ *         description: 缺少设备ID
+ *       429:
+ *         description: 请求过于频繁
+ *       500:
+ *         description: 服务器内部错误
+ */
 export async function GET(request: NextRequest) {
   try {
     const deviceId = request.headers.get('x-device-id');
