@@ -139,7 +139,7 @@ export default function Home() {
           <div className="flex items-center justify-between">
             <div className="flex flex-col gap-1">
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent">
-                Stress Away
+                反PUA手册
               </h1>
               <p className="text-sm sm:text-base text-amber-600">
                 你的职场反PUA专家

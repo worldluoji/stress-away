@@ -4,7 +4,7 @@ const options: swaggerJsdoc.Options = {
   definition: {
     openapi: '3.1.0',
     info: {
-      title: 'Stress Away API',
+      title: '反PUA手册 API',
       version: '1.0.0',
       description: 'API 文档',
     },

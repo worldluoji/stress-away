@@ -1,6 +1,6 @@
 import type { ChatMessage } from "./models";
 
-const STORAGE_KEY = "stress-away-messages";
+const STORAGE_KEY = "fanpua-messages";
 
 export function loadMessages(): ChatMessage[] {
   if (typeof window === "undefined") return [];
