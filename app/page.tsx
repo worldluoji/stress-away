@@ -6,6 +6,9 @@ import FingerprintJS from "@fingerprintjs/fingerprintjs";
 import type { ChatMessage } from "@/lib/models";
 import { loadMessages, saveMessages } from "@/lib/storage";
 import { SubscriptionActivate } from "./components/SubscriptionActivate";
+import { ScenarioCard } from "./components/ScenarioCard";
+import { ScenarioModal } from "./components/ScenarioModal";
+import type { ScenarioTemplate } from "@/lib/scenarios";
 
 interface UsageStatus {
   allowed: boolean;
@@ -23,7 +26,7 @@ async function getDeviceId(): Promise<string> {
 // AI Assistant Avatar
 function AssistantAvatar() {
   return (
-    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#007AFF] to-[#5856D6] flex items-center justify-center shadow-sm">
+    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#007AFF] to-[#5856D6] flex items-center justify-center shadow-sm shrink-0">
       <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
       </svg>
@@ -34,7 +37,7 @@ function AssistantAvatar() {
 // User Avatar
 function UserAvatar() {
   return (
-    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#34C759] to-[#30D158] flex items-center justify-center shadow-sm">
+    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#34C759] to-[#30D158] flex items-center justify-center shadow-sm shrink-0">
       <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
       </svg>
@@ -63,6 +66,11 @@ export default function Home() {
   const [showActivate, setShowActivate] = useState(false);
   const [deviceId, setDeviceId] = useState<string>("");
   const [isInitializing, setIsInitializing] = useState(true);
+
+  // Scenarios
+  const [scenarios, setScenarios] = useState<ScenarioTemplate[]>([]);
+  const [selectedScenario, setSelectedScenario] = useState<ScenarioTemplate | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -81,6 +89,13 @@ export default function Home() {
         if (res.ok) {
           const data = await res.json();
           setUsage(data);
+        }
+
+        // Load scenarios
+        const scenariosRes = await fetch("/api/scenarios");
+        if (scenariosRes.ok) {
+          const scenariosData = await scenariosRes.json();
+          setScenarios(scenariosData.scenarios || []);
         }
       } catch {
         // ignore
@@ -115,6 +130,18 @@ export default function Home() {
     await navigator.clipboard.writeText(content);
     setCopiedIndex(index);
     setTimeout(() => setCopiedIndex(null), 2000);
+  };
+
+  const handleScenarioClick = (scenario: ScenarioTemplate) => {
+    setSelectedScenario(scenario);
+  };
+
+  const handleScenarioCustomize = () => {
+    if (selectedScenario) {
+      setInput(`场景：${selectedScenario.name}\n${selectedScenario.description}\n\n请根据我的具体情况，生成专属的话术和应对建议。`);
+      setSelectedScenario(null);
+      inputRef.current?.focus();
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -174,7 +201,7 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-screen bg-[--background]">
-      {/* Header - iOS style navigation bar */}
+      {/* Header */}
       <header className="sticky top-0 z-20 bg-[--glass-bg] backdrop-blur-xl border-b border-[var(--card-border)]">
         <div className="mx-auto max-w-2xl px-4 py-3">
           <div className="flex items-center justify-between">
@@ -204,6 +231,15 @@ export default function Home() {
         </div>
       </header>
 
+      {/* Scenario Modal */}
+      {selectedScenario && (
+        <ScenarioModal
+          scenario={selectedScenario}
+          onClose={() => setSelectedScenario(null)}
+          onCustomize={handleScenarioCustomize}
+        />
+      )}
+
       {/* Activation Modal */}
       {showActivate && (
         <div
@@ -211,7 +247,6 @@ export default function Home() {
           onClick={(e) => e.target === e.currentTarget && setShowActivate(false)}
         >
           <div className="w-full sm:max-w-md bg-[--card-bg] rounded-t-2xl sm:rounded-2xl shadow-2xl animate-slide-up sm:animate-scale-in overflow-hidden">
-            {/* Modal Handle */}
             <div className="hidden sm:block relative">
               <div className="absolute top-3 left-1/2 -translate-x-1/2 w-10 h-1 bg-[--apple-gray-light] rounded-full" />
             </div>
@@ -233,19 +268,46 @@ export default function Home() {
       {/* Chat Area */}
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-2xl px-4 py-6">
+          {/* Empty state with scenarios */}
           {messages.length === 0 && !isInitializing && (
-            <div className="flex flex-col items-center justify-center py-16 text-center animate-fade-in">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#007AFF] to-[#5856D6] flex items-center justify-center mb-6 shadow-lg">
-                <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                </svg>
+            <div className="animate-fade-in">
+              {/* Hero */}
+              <div className="text-center py-8 mb-6">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#007AFF] to-[#5856D6] flex items-center justify-center shadow-lg">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                </div>
+                <h2 className="text-lg font-semibold text-[--foreground] mb-2">
+                  有什么职场困扰吗？
+                </h2>
+                <p className="text-sm text-[--foreground-tertiary] max-w-xs mx-auto">
+                  选择常见场景获取话术模板，或输入具体情况定制生成
+                </p>
               </div>
-              <h2 className="text-lg font-semibold text-[--foreground] mb-2">
-                有什么职场困扰吗？
-              </h2>
-              <p className="text-sm text-[--foreground-tertiary] max-w-xs">
-                描述你的职场困境，我来帮你生成反PUA建议和应对策略
-              </p>
+
+              {/* Scenarios Grid */}
+              <div className="mb-6">
+                <h3 className="text-sm font-medium text-[--foreground-secondary] mb-3">
+                  📂 常见职场困境
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {scenarios.map((scenario) => (
+                    <ScenarioCard
+                      key={scenario.id}
+                      scenario={scenario}
+                      onClick={() => handleScenarioClick(scenario)}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="flex items-center gap-3 my-6">
+                <div className="flex-1 h-px bg-[var(--card-border)]" />
+                <span className="text-xs text-[--foreground-tertiary]">或直接输入</span>
+                <div className="flex-1 h-px bg-[var(--card-border)]" />
+              </div>
             </div>
           )}
 
@@ -280,21 +342,6 @@ export default function Home() {
                       msg.content
                     ) : (
                       <>
-                        <button
-                          onClick={() => handleCopy(msg.content, i)}
-                          className="float-right ml-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[--apple-gray-light] text-[--foreground-tertiary] copy-btn"
-                          title="复制内容"
-                        >
-                          {copiedIndex === i ? (
-                            <svg className="w-4 h-4 text-[#34C759]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                          ) : (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
-                          )}
-                        </button>
                         <div className="group">
                           <ReactMarkdown
                             components={{
@@ -372,7 +419,7 @@ export default function Home() {
         </div>
       </main>
 
-      {/* Input Area - iOS style */}
+      {/* Input Area */}
       <footer className="sticky bottom-0 bg-[--glass-bg] backdrop-blur-xl border-t border-[var(--card-border)]">
         <div className="mx-auto max-w-2xl px-4 py-3">
           <form onSubmit={handleSubmit} className="flex gap-2">
@@ -388,7 +435,7 @@ export default function Home() {
                 autoCorrect="off"
                 autoCapitalize="off"
                 spellCheck="false"
-                className="w-full rounded-full bg-[--background-secondary] px-5 py-3.5 pr-12 text-[--foreground] placeholder:text-[--foreground-tertiary] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 disabled:opacity-50 transition-all"
+                className="w-full rounded-full bg-[--background-secondary] px-5 py-3.5 text-[--foreground] placeholder:text-[--foreground-tertiary] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 disabled:opacity-50 transition-all"
               />
             </div>
             <button
@@ -405,18 +452,6 @@ export default function Home() {
             input[type="text"] {
               -webkit-appearance: none;
               appearance: none;
-            }
-            input[type="text"]::-webkit-search-decoration,
-            input[type="text"]::-webkit-search-cancel-button,
-            input[type="text"]::-webkit-search-results-button,
-            input[type="text"]::-webkit-search-results-decoration {
-              -webkit-appearance: none !important;
-              display: none !important;
-            }
-            @media (hover: none) {
-              .copy-btn {
-                opacity: 1 !important;
-              }
             }
           `}</style>
         </div>
