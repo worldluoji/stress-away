@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { messages } = body as { messages: ChatMessage[] };
+    const { messages, scenarioId } = body as { messages: ChatMessage[]; scenarioId?: string };
 
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json(
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const reply = await chatWithAI(messages);
+    const reply = await chatWithAI(messages, scenarioId);
 
     return NextResponse.json(
       { reply },

@@ -137,11 +137,11 @@ export default function Home() {
   };
 
   const handleScenarioCustomize = () => {
+    // Pre-fill input with scenario context
     if (selectedScenario) {
-      setInput(`场景：${selectedScenario.name}\n${selectedScenario.description}\n\n请根据我的具体情况，生成专属的话术和应对建议。`);
-      setSelectedScenario(null);
-      inputRef.current?.focus();
+      setInput(`场景ID：${selectedScenario.id}\n场景：${selectedScenario.name}\n${selectedScenario.description}\n\n请根据我的具体情况，生成专属的话术和应对建议：\n\n我的具体情况：`);
     }
+    inputRef.current?.focus();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -164,7 +164,10 @@ export default function Home() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMessages }),
+        body: JSON.stringify({
+          messages: newMessages,
+          scenarioId: selectedScenario?.id,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -173,6 +176,11 @@ export default function Home() {
         .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
         .trim();
       setMessages([...newMessages, { role: "assistant", content: reply }]);
+
+      // Keep scenario context for follow-up messages
+      if (selectedScenario) {
+        // Keep scenario selected
+      }
 
       if (deviceId) {
         const usageRes = await fetch("/api/usage/consume", {

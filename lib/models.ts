@@ -20,7 +20,9 @@ export interface ChatMessage {
   content: string;
 }
 
-const SYSTEM_PROMPT = `你是"职场反PUA顾问"，专为高压青年提供职场困境的应对建议。
+import { getScenarioById } from './scenarios';
+
+const SYSTEM_PROMPT_BASE = `你是"职场反PUA顾问"，专为高压青年提供职场困境的应对建议。
 
 当用户描述职场困境时，你会生成包含以下三个部分的建议：
 1. **话术反击**：针对具体情况，给出得体且有力的回应话术
@@ -28,6 +30,40 @@ const SYSTEM_PROMPT = `你是"职场反PUA顾问"，专为高压青年提供职�
 3. **行动建议**：具体的下一步行动建议
 
 保持专业、共情、实用的风格，用温暖而有力的语气回应。`;
+
+// 场景模板上下文
+function getScenarioContext(scenarioId: string): string {
+  const scenario = getScenarioById(scenarioId);
+  if (!scenario) return '';
+
+  return `
+
+【当前场景参考】
+场景：${scenario.name}
+描述：${scenario.description}
+话术模板：
+${scenario.scripts.map((s, i) => `
+${i + 1}. ${i === 0 ? '温和版' : '犀利版'}： "${s.mild}"
+   效果：${s.effect}
+`).join('')}
+心态调整：${scenario.mindset}
+证据收集：${scenario.evidence.join('、')}
+法律参考：${scenario.lawRef}
+
+请结合以上场景模板，给出更贴合该场景的定制化建议。`;
+}
+
+// 解析用户输入中的场景ID
+function extractScenarioId(input: string): { scenarioId: string | null; cleanedInput: string } {
+  const match = input.match(/^场景ID：([a-z-]+)\n/);
+  if (match) {
+    return {
+      scenarioId: match[1],
+      cleanedInput: input.replace(/^场景ID：[a-z-]+\n/, ''),
+    };
+  }
+  return { scenarioId: null, cleanedInput: input };
+}
 
 function getModelConfig() {
   const modelName = process.env.DEFAULT_MODEL || "deepseek";
@@ -38,13 +74,22 @@ function getModelConfig() {
   return config;
 }
 
-export async function chatWithAI(messages: ChatMessage[]): Promise<string> {
+export async function chatWithAI(
+  messages: ChatMessage[],
+  scenarioId?: string | null
+): Promise<string> {
   const config = getModelConfig();
   const apiKey = process.env[config.apiKeyEnv];
 
   if (!apiKey) {
     throw new Error(`${config.apiKeyEnv} is not configured`);
   }
+
+  // 获取场景上下文
+  const scenarioContext = scenarioId ? getScenarioContext(scenarioId) : '';
+  const systemPrompt = scenarioContext
+    ? SYSTEM_PROMPT_BASE + scenarioContext
+    : SYSTEM_PROMPT_BASE;
 
   const response = await fetch(config.endpoint, {
     method: "POST",
@@ -54,7 +99,7 @@ export async function chatWithAI(messages: ChatMessage[]): Promise<string> {
     },
     body: JSON.stringify({
       model: config.model,
-      messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
+      messages: [{ role: "system", content: systemPrompt }, ...messages],
       stream: false,
     }),
   });
@@ -66,3 +111,6 @@ export async function chatWithAI(messages: ChatMessage[]): Promise<string> {
   const data = await response.json();
   return data.choices[0].message.content;
 }
+
+// 导出基础 system prompt 供其他地方使用
+export { SYSTEM_PROMPT_BASE };
