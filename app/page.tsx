@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import FingerprintJS from "@fingerprintjs/fingerprintjs";
 import type { ChatMessage } from "@/lib/models";
@@ -20,6 +20,39 @@ async function getDeviceId(): Promise<string> {
   return result.visitorId;
 }
 
+// AI Assistant Avatar
+function AssistantAvatar() {
+  return (
+    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#007AFF] to-[#5856D6] flex items-center justify-center shadow-sm">
+      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+      </svg>
+    </div>
+  );
+}
+
+// User Avatar
+function UserAvatar() {
+  return (
+    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#34C759] to-[#30D158] flex items-center justify-center shadow-sm">
+      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+      </svg>
+    </div>
+  );
+}
+
+// Typing Indicator
+function TypingIndicator() {
+  return (
+    <div className="flex items-center gap-1.5 px-3 py-2">
+      <span className="w-2 h-2 bg-[#8E8E93] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+      <span className="w-2 h-2 bg-[#8E8E93] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+      <span className="w-2 h-2 bg-[#8E8E93] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+    </div>
+  );
+}
+
 export default function Home() {
   const [messages, setMessages] = useState<ChatMessage[]>(() => loadMessages());
   const [input, setInput] = useState("");
@@ -29,6 +62,9 @@ export default function Home() {
   const [usage, setUsage] = useState<UsageStatus | null>(null);
   const [showActivate, setShowActivate] = useState(false);
   const [deviceId, setDeviceId] = useState<string>("");
+  const [isInitializing, setIsInitializing] = useState(true);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     saveMessages(messages);
@@ -48,14 +84,20 @@ export default function Home() {
         }
       } catch {
         // ignore
+      } finally {
+        setIsInitializing(false);
       }
     };
     init();
   }, []);
 
+  // Auto-scroll to bottom on new messages
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
+
   const handleActivated = useCallback(() => {
     setShowActivate(false);
-    // Re-check usage
     const recheck = async () => {
       if (!deviceId) return;
       const res = await fetch("/api/usage", {
@@ -105,7 +147,6 @@ export default function Home() {
         .trim();
       setMessages([...newMessages, { role: "assistant", content: reply }]);
 
-      // Consume usage after successful response
       if (deviceId) {
         const usageRes = await fetch("/api/usage/consume", {
           method: "POST",
@@ -132,31 +173,31 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-gradient-to-b from-sky-50 to-white">
-      {/* Header */}
-      <header className="sticky top-0 z-10 w-full border-b border-amber-100 bg-white/80 backdrop-blur-sm">
-        <div className="mx-auto max-w-3xl px-4 py-4">
+    <div className="flex flex-col h-screen bg-[--background]">
+      {/* Header - iOS style navigation bar */}
+      <header className="sticky top-0 z-20 bg-[--glass-bg] backdrop-blur-xl border-b border-[var(--card-border)]">
+        <div className="mx-auto max-w-2xl px-4 py-3">
           <div className="flex items-center justify-between">
-            <div className="flex flex-col gap-1">
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent">
+            <div className="flex flex-col">
+              <h1 className="text-xl font-semibold text-[--foreground] tracking-tight">
                 反PUA手册
               </h1>
-              <p className="text-sm sm:text-base text-amber-600">
-                你的职场反PUA专家
+              <p className="text-xs text-[--foreground-tertiary]">
+                职场困境应对指南
               </p>
             </div>
-            {usage && (
+            {usage && !isInitializing && (
               <button
                 onClick={() => (usage.isPaid ? null : setShowActivate(true))}
-                className={`text-sm px-3 py-1 rounded-full ${
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all active:scale-95 ${
                   usage.isPaid
-                    ? "bg-green-100 text-green-700"
-                    : "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                    ? "bg-[#34C759]/10 text-[#34C759]"
+                    : "bg-[#007AFF]/10 text-[#007AFF] hover:bg-[#007AFF]/20"
                 }`}
               >
                 {usage.isPaid
-                  ? `付费版 · 剩余 ${usage.remaining} 次`
-                  : `免费版 · 剩余 ${usage.remaining}/${usage.total} 次`}
+                  ? `${usage.remaining} 次可用`
+                  : `${usage.remaining}/${usage.total} 次`}
               </button>
             )}
           </div>
@@ -165,152 +206,219 @@ export default function Home() {
 
       {/* Activation Modal */}
       {showActivate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md">
-            <button
-              onClick={() => setShowActivate(false)}
-              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-white/80 hover:bg-white text-gray-500"
-            >
-              ✕
-            </button>
-            <SubscriptionActivate onActivated={handleActivated} />
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in"
+          onClick={(e) => e.target === e.currentTarget && setShowActivate(false)}
+        >
+          <div className="w-full sm:max-w-md bg-[--card-bg] rounded-t-2xl sm:rounded-2xl shadow-2xl animate-slide-up sm:animate-scale-in overflow-hidden">
+            {/* Modal Handle */}
+            <div className="hidden sm:block relative">
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 w-10 h-1 bg-[--apple-gray-light] rounded-full" />
+            </div>
+            <div className="pt-4 sm:pt-5">
+              <button
+                onClick={() => setShowActivate(false)}
+                className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              <SubscriptionActivate onActivated={handleActivated} />
+            </div>
           </div>
         </div>
       )}
 
       {/* Chat Area */}
-      <main className="mx-auto flex flex-1 flex-col justify-between gap-6 px-4 py-8 max-w-3xl w-full">
-        <div className="flex flex-col gap-4">
-          {messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <p className="text-base sm:text-lg text-amber-700">
-                描述你的职场困境，我来帮你生成反PUA建议
+      <main className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-2xl px-4 py-6">
+          {messages.length === 0 && !isInitializing && (
+            <div className="flex flex-col items-center justify-center py-16 text-center animate-fade-in">
+              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#007AFF] to-[#5856D6] flex items-center justify-center mb-6 shadow-lg">
+                <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+              </div>
+              <h2 className="text-lg font-semibold text-[--foreground] mb-2">
+                有什么职场困扰吗？
+              </h2>
+              <p className="text-sm text-[--foreground-tertiary] max-w-xs">
+                描述你的职场困境，我来帮你生成反PUA建议和应对策略
               </p>
             </div>
           )}
-          {messages.map((msg, i) => (
-            <div
-              key={i}
-              className={`flex ${
-                msg.role === "user" ? "justify-end" : "justify-start"
-              }`}
-            >
+
+          {isInitializing && (
+            <div className="flex flex-col items-center justify-center py-16">
+              <div className="w-10 h-10 rounded-full border-2 border-[--apple-blue] border-t-transparent animate-spin" />
+            </div>
+          )}
+
+          <div className="flex flex-col gap-5">
+            {messages.map((msg, i) => (
               <div
-                className={`max-w-xl rounded-2xl px-4 py-3 text-base sm:text-sm leading-relaxed ${
-                  msg.role === "user"
-                    ? "bg-gradient-to-r from-amber-400 to-orange-400 text-white shadow-lg shadow-amber-200"
-                    : "bg-white text-zinc-700 shadow-md border border-amber-100 relative group"
+                key={i}
+                className={`flex gap-3 animate-fade-in ${
+                  msg.role === "user" ? "flex-row-reverse" : "flex-row"
                 }`}
               >
-                {msg.role === "user" ? (
-                  msg.content
-                ) : (
-                  <>
-                    <button
-                      onClick={() => handleCopy(msg.content, i)}
-                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-600 copy-btn"
-                      title="复制内容"
-                    >
-                      <style jsx global>{`
-                        @media (hover: none) {
-                          .copy-btn {
-                            opacity: 1 !important;
-                          }
-                        }
-                      `}</style>
-                      {copiedIndex === i ? (
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                      ) : (
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                        </svg>
-                      )}
-                    </button>
-                    <ReactMarkdown
-                      components={{
-                        p: ({ children }) => (
-                          <p className="mb-2 last:mb-0">{children}</p>
-                        ),
-                        strong: ({ children }) => (
-                          <strong className="font-semibold text-amber-700">{children}</strong>
-                        ),
-                        ul: ({ children }) => (
-                          <ul className="mb-2 list-disc pl-4">{children}</ul>
-                        ),
-                        li: ({ children }) => (
-                          <li className="mb-1">{children}</li>
-                        ),
-                      }}
-                    >
-                      {msg.content}
-                    </ReactMarkdown>
-                  </>
-                )}
+                {msg.role === "assistant" ? <AssistantAvatar /> : <UserAvatar />}
+                <div
+                  className={`flex-1 max-w-[80%] sm:max-w-[75%] ${
+                    msg.role === "user" ? "items-end" : "items-start"
+                  }`}
+                >
+                  <div
+                    className={`rounded-2xl px-4 py-3 text-[15px] leading-relaxed ${
+                      msg.role === "user"
+                        ? "bg-gradient-to-r from-[#007AFF] to-[#5856D6] text-white rounded-br-md"
+                        : "bg-[--background-secondary] text-[--foreground] rounded-bl-md border border-[var(--card-border)]"
+                    }`}
+                  >
+                    {msg.role === "user" ? (
+                      msg.content
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleCopy(msg.content, i)}
+                          className="float-right ml-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[--apple-gray-light] text-[--foreground-tertiary] copy-btn"
+                          title="复制内容"
+                        >
+                          {copiedIndex === i ? (
+                            <svg className="w-4 h-4 text-[#34C759]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                          )}
+                        </button>
+                        <div className="group">
+                          <ReactMarkdown
+                            components={{
+                              p: ({ children }) => (
+                                <p className="mb-2 last:mb-0">{children}</p>
+                              ),
+                              strong: ({ children }) => (
+                                <strong className="font-semibold text-[#007AFF]">{children}</strong>
+                              ),
+                              ul: ({ children }) => (
+                                <ul className="mb-2 list-disc pl-4 space-y-1">{children}</ul>
+                              ),
+                              ol: ({ children }) => (
+                                <ol className="mb-2 list-decimal pl-4 space-y-1">{children}</ol>
+                              ),
+                              li: ({ children }) => (
+                                <li className="text-[--foreground]">{children}</li>
+                              ),
+                              h3: ({ children }) => (
+                                <h3 className="font-semibold text-[--foreground] mt-3 mb-1">{children}</h3>
+                              ),
+                              blockquote: ({ children }) => (
+                                <blockquote className="border-l-3 border-[#007AFF] pl-3 my-2 text-[--foreground-secondary]">
+                                  {children}
+                                </blockquote>
+                              ),
+                            }}
+                          >
+                            {msg.content}
+                          </ReactMarkdown>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  {msg.role === "assistant" && (
+                    <div className="flex items-center gap-1 mt-1.5 ml-1">
+                      <button
+                        onClick={() => handleCopy(msg.content, i)}
+                        className="p-1.5 rounded-lg hover:bg-[--background-secondary] text-[--foreground-tertiary] transition-colors"
+                      >
+                        {copiedIndex === i ? (
+                          <svg className="w-3.5 h-3.5 text-[#34C759]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        ) : (
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
-          {loading && (
-            <div className="flex justify-start">
-              <div className="max-w-xl rounded-2xl bg-white px-4 py-3 shadow-md border border-amber-100">
-                <p className="text-sm text-amber-600">
-                  正在思考中...
-                </p>
+            ))}
+
+            {loading && (
+              <div className="flex gap-3 animate-fade-in">
+                <AssistantAvatar />
+                <div className="bg-[--background-secondary] border border-[var(--card-border)] rounded-2xl rounded-bl-md">
+                  <TypingIndicator />
+                </div>
               </div>
-            </div>
-          )}
-          {error && (
-            <div className="flex justify-center">
-              <p className="text-sm text-red-500">{error}</p>
-            </div>
-          )}
+            )}
+
+            {error && (
+              <div className="flex justify-center animate-fade-in">
+                <div className="bg-[#FF3B30]/10 text-[#FF3B30] px-4 py-2 rounded-full text-sm">
+                  {error}
+                </div>
+              </div>
+            )}
+          </div>
+          <div ref={messagesEndRef} />
         </div>
       </main>
 
-      {/* Input Area */}
-      <footer className="sticky bottom-0 border-t border-amber-100 bg-white/80 backdrop-blur-sm">
-        <div className="mx-auto max-w-3xl px-4 py-4">
-          <form onSubmit={handleSubmit} className="flex gap-3">
-            <div className="relative flex-1">
+      {/* Input Area - iOS style */}
+      <footer className="sticky bottom-0 bg-[--glass-bg] backdrop-blur-xl border-t border-[var(--card-border)]">
+        <div className="mx-auto max-w-2xl px-4 py-3">
+          <form onSubmit={handleSubmit} className="flex gap-2">
+            <div className="flex-1 relative">
               <input
+                ref={inputRef}
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder={
-                  usage?.allowed
-                    ? "输入你的职场困境..."
-                    : "今日免费次数已用完，请先激活..."
-                }
-                disabled={loading}
+                placeholder={usage?.allowed ? "输入职场困境..." : "今日次数已用完"}
+                disabled={loading || (!usage?.allowed && !isInitializing)}
                 autoComplete="off"
                 autoCorrect="off"
                 autoCapitalize="off"
                 spellCheck="false"
-                className="w-full rounded-full border border-amber-200 bg-white pl-5 pr-12 py-3 text-base sm:text-sm text-zinc-700 placeholder:text-amber-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200 disabled:opacity-50 shadow-sm"
+                className="w-full rounded-full bg-[--background-secondary] px-5 py-3.5 pr-12 text-[--foreground] placeholder:text-[--foreground-tertiary] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 disabled:opacity-50 transition-all"
               />
-              <style jsx global>{`
-                input[type="text"]::-webkit-search-decoration,
-                input[type="text"]::-webkit-search-cancel-button,
-                input[type="text"]::-webkit-search-results-button,
-                input[type="text"]::-webkit-search-results-decoration {
-                  -webkit-appearance: none !important;
-                  display: none !important;
-                }
-                input[type="text"] {
-                  -webkit-appearance: none;
-                  appearance: none;
-                }
-              `}</style>
             </div>
             <button
               type="submit"
-              disabled={loading || !input.trim()}
-              className="shrink-0 rounded-full bg-gradient-to-r from-amber-400 to-orange-400 px-8 py-3 text-sm font-medium text-white shadow-lg shadow-amber-200 transition-all hover:shadow-xl hover:scale-105 disabled:opacity-50 disabled:scale-100"
+              disabled={loading || !input.trim() || (!usage?.allowed && !isInitializing)}
+              className="shrink-0 w-12 h-12 rounded-full bg-[#007AFF] text-white flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 disabled:active:scale-100 shadow-sm hover:shadow-md"
             >
-              发送
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
             </button>
           </form>
+          <style jsx global>{`
+            input[type="text"] {
+              -webkit-appearance: none;
+              appearance: none;
+            }
+            input[type="text"]::-webkit-search-decoration,
+            input[type="text"]::-webkit-search-cancel-button,
+            input[type="text"]::-webkit-search-results-button,
+            input[type="text"]::-webkit-search-results-decoration {
+              -webkit-appearance: none !important;
+              display: none !important;
+            }
+            @media (hover: none) {
+              .copy-btn {
+                opacity: 1 !important;
+              }
+            }
+          `}</style>
         </div>
       </footer>
     </div>

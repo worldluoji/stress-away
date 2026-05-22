@@ -75,35 +75,46 @@ export interface ActivationCode {
   activationTime?: number;
 }
 
-// Free count (daily)
-function getTodayKey(deviceId: string): string {
-  const today = new Date().toISOString().split('T')[0];
-  return `device:${deviceId}:free:${today}`;
+// Free count (daily) - use local date to match user's timezone
+function getLocalDateString(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
-function getSecondsUntilMidnightUTC(): number {
-  const now = new Date();
-  const midnight = new Date(now);
-  midnight.setUTCHours(24, 0, 0, 0);
-  return Math.floor((midnight.getTime() - now.getTime()) / 1000);
+function getTodayKey(deviceId: string): string {
+  return `device:${deviceId}:free:${getLocalDateString()}`;
+}
+
+interface FreeCountData {
+  count: number;
+  date: string;
 }
 
 export async function getFreeCount(deviceId: string): Promise<number> {
+  const key = getTodayKey(deviceId);
+
   if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    const data = lsGet<{ count: number; date: string }>(getTodayKey(deviceId));
-    if (!data || data.date !== new Date().toISOString().split('T')[0]) return 0;
+    const data = lsGet<FreeCountData>(key);
+    if (!data || data.date !== getLocalDateString()) return 0;
     return data.count;
   }
-  const key = getTodayKey(deviceId);
-  const count = await getRedis().get<number>(key);
-  return count ?? 0;
+
+  // Redis branch - check date stored alongside count
+  const data = await getRedis().get<FreeCountData>(key);
+  if (!data || typeof data !== 'object') return 0;
+  if (data.date !== getLocalDateString()) return 0;
+  return data.count ?? 0;
 }
 
 export async function incrementFreeCount(deviceId: string): Promise<number> {
+  const key = getTodayKey(deviceId);
+  const today = getLocalDateString();
+
   if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    const key = getTodayKey(deviceId);
-    const data = lsGet<{ count: number; date: string }>(key);
-    const today = new Date().toISOString().split('T')[0];
+    const data = lsGet<FreeCountData>(key);
     if (!data || data.date !== today) {
       lsSet(key, { count: 1, date: today });
       return 1;
@@ -112,12 +123,25 @@ export async function incrementFreeCount(deviceId: string): Promise<number> {
     lsSet(key, data);
     return data.count;
   }
-  const key = getTodayKey(deviceId);
-  const ttl = getSecondsUntilMidnightUTC();
-  const count = await getRedis().incr(key);
-  if (count === 1) {
-    await getRedis().expire(key, ttl);
+
+  // Redis branch - store data as object with date
+  const existing = await getRedis().get<FreeCountData>(key);
+  if (!existing || typeof existing !== 'object' || (existing as FreeCountData).date !== today) {
+    // New day or no data - reset count
+    await getRedis().set(key, { count: 1, date: today });
+    // Set TTL until midnight local time
+    const now = new Date();
+    const midnight = new Date(now);
+    midnight.setHours(24, 0, 0, 0);
+    const ttl = Math.floor((midnight.getTime() - now.getTime()) / 1000);
+    await getRedis().expire(key, Math.max(ttl, 60));
+    return 1;
   }
+
+  // Same day - increment count
+  const count = await getRedis().incr(key);
+  // Update the stored data with new count and date
+  await getRedis().set(key, { count, date: today });
   return count;
 }
 

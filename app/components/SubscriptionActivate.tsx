@@ -41,7 +41,7 @@ export function SubscriptionActivate({ onActivated }: Props) {
 
       if (!response.ok) {
         if (data.error === 'query_expired') {
-          setError('激活码查询窗口已过期（购买后48小时内可查询，超时后将无法获取）');
+          setError('激活码查询窗口已过期（购买后48小时内可查询）');
         } else if (data.error === 'mbaodu_auth_error') {
           setError('激活码服务配置错误，请联系管理员');
         } else if (data.error === 'mbaodu_api_error') {
@@ -102,61 +102,77 @@ export function SubscriptionActivate({ onActivated }: Props) {
 
   if (success) {
     return (
-      <div className="bg-white rounded-xl shadow-sm p-8 text-center">
-        <div className="text-green-500 text-5xl mb-4">✓</div>
-        <h2 className="text-xl font-semibold text-gray-800 mb-2">激活成功</h2>
-        <p className="text-gray-600 mb-6">
-          剩余 {success.remaining} 次对话额度
+      <div className="bg-[--card-bg] p-8 text-center">
+        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#34C759]/10 flex items-center justify-center">
+          <svg className="w-8 h-8 text-[#34C759]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <h2 className="text-xl font-semibold text-[--foreground] mb-2">激活成功</h2>
+        <p className="text-[--foreground-tertiary] mb-4">
+          剩余 <span className="text-[#007AFF] font-medium">{success.remaining}</span> 次对话额度
+        </p>
+        <p className="text-sm text-[--foreground-tertiary]">
+          现在可以开始使用反PUA手册了
         </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 px-5 pb-6">
+      <div className="text-center mb-6">
+        <h2 className="text-lg font-semibold text-[--foreground] mb-1">激活设备</h2>
+        <p className="text-sm text-[--foreground-tertiary]">
+          输入面包多订单号获取激活码
+        </p>
+      </div>
+
       {/* Step 1: Query Codes */}
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">输入订单号查询激活码</h3>
-        <div className="flex gap-4">
+      <div className="space-y-3">
+        <label className="text-sm font-medium text-[--foreground-secondary]">
+          订单号
+        </label>
+        <div className="flex gap-2">
           <input
             type="text"
             value={orderId}
             onChange={(e) => setOrderId(e.target.value)}
             placeholder="输入面包多订单号"
-            className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400"
+            disabled={loading}
+            className="flex-1 px-4 py-3 bg-[--background-secondary] rounded-xl text-[--foreground] placeholder:text-[--foreground-tertiary] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 disabled:opacity-50"
           />
           <button
             onClick={handleQueryCodes}
-            disabled={loading}
-            className="px-6 py-2 bg-gradient-to-r from-amber-400 to-orange-400 text-white rounded-lg hover:shadow-lg disabled:opacity-50 transition-all"
+            disabled={loading || !orderId.trim()}
+            className="px-5 py-3 bg-[#007AFF] text-white rounded-xl text-sm font-medium disabled:opacity-40 disabled:active:scale-100 transition-all active:scale-95"
           >
-            {loading ? '查询中...' : '查询'}
+            {loading ? '查询中' : '查询'}
           </button>
         </div>
       </div>
 
       {/* Display Codes */}
       {step === 'activate' && codes.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
-          <p className="text-amber-700 font-medium mb-2 flex items-center gap-2">
-            <span>⚠️</span>
-            激活码只显示一次，请妥善保存
-          </p>
-          <p className="text-amber-600 text-sm mb-4">
-            重要：购买后48小时内可查询激活码，超时后将无法获取，请尽快绑定设备
-          </p>
+        <div className="bg-[#FF9500]/10 border border-[#FF9500]/20 rounded-xl p-4 space-y-3">
+          <div className="flex items-center gap-2 text-[#FF9500]">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span className="text-sm font-medium">激活码只显示一次，请妥善保存</span>
+          </div>
           <div className="space-y-2">
             {codes.map((code, index) => (
               <div
                 key={index}
-                className="flex items-center justify-between bg-white rounded-lg p-3"
+                className="flex items-center justify-between bg-[--card-bg] rounded-lg p-3"
               >
-                <span className="font-mono text-lg tracking-wider">{code.code}</span>
+                <span className="font-mono text-base tracking-wider text-[--foreground]">{code.code}</span>
                 <span
-                  className={`text-sm px-2 py-1 rounded ${
+                  className={`text-xs px-2.5 py-1 rounded-full font-medium ${
                     code.used
-                      ? 'bg-gray-100 text-gray-500'
-                      : 'bg-green-100 text-green-700'
+                      ? 'bg-[--apple-gray-light]/30 text-[--foreground-tertiary]'
+                      : 'bg-[#34C759]/10 text-[#34C759]'
                   }`}
                 >
                   {code.used ? '已使用' : '未使用'}
@@ -164,54 +180,62 @@ export function SubscriptionActivate({ onActivated }: Props) {
               </div>
             ))}
           </div>
+          <p className="text-xs text-[--foreground-tertiary]">
+            购买后48小时内可查询，超时后将无法获取
+          </p>
         </div>
       )}
 
       {/* Step 2: Activate Device */}
       {step === 'activate' && codes.some((c) => !c.used) && (
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">激活当前设备</h3>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">订单号</label>
-              <input
-                type="text"
-                value={orderId}
-                disabled
-                className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">激活码</label>
-              <input
-                type="text"
-                value={activationCode}
-                onChange={(e) => setActivationCode(e.target.value.toUpperCase())}
-                placeholder="输入激活码"
-                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 font-mono tracking-wider"
-              />
-            </div>
-            <button
-              onClick={handleActivate}
-              disabled={loading || !activationCode.trim()}
-              className="w-full py-3 bg-gradient-to-r from-amber-400 to-orange-400 text-white rounded-lg hover:shadow-lg disabled:opacity-50 transition-all"
-            >
-              {loading ? '激活中...' : '激活设备'}
-            </button>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-[--foreground-secondary]">
+              订单号
+            </label>
+            <input
+              type="text"
+              value={orderId}
+              disabled
+              className="w-full px-4 py-3 bg-[--background-secondary] rounded-xl text-[--foreground] text-[15px] opacity-60"
+            />
           </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-[--foreground-secondary]">
+              激活码
+            </label>
+            <input
+              type="text"
+              value={activationCode}
+              onChange={(e) => setActivationCode(e.target.value.toUpperCase())}
+              placeholder="输入激活码"
+              disabled={loading}
+              className="w-full px-4 py-3 bg-[--background-secondary] rounded-xl text-[--foreground] placeholder:text-[--foreground-tertiary] text-[15px] font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 disabled:opacity-50"
+            />
+          </div>
+          <button
+            onClick={handleActivate}
+            disabled={loading || !activationCode.trim()}
+            className="w-full py-3.5 bg-[#007AFF] text-white rounded-xl text-sm font-medium disabled:opacity-40 disabled:active:scale-100 transition-all active:scale-[0.98]"
+          >
+            {loading ? '激活中...' : '激活设备'}
+          </button>
         </div>
       )}
 
       {/* All codes used */}
       {step === 'activate' && codes.length > 0 && codes.every((c) => c.used) && (
-        <div className="bg-gray-100 rounded-xl p-6 text-center">
-          <p className="text-gray-600">该订单的激活码已全部使用</p>
+        <div className="bg-[--background-secondary] rounded-xl p-6 text-center">
+          <svg className="w-10 h-10 mx-auto mb-2 text-[--foreground-tertiary]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="text-[--foreground-secondary]">该订单的激活码已全部使用</p>
         </div>
       )}
 
       {/* Error */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+        <div className="bg-[#FF3B30]/10 text-[#FF3B30] px-4 py-3 rounded-xl text-sm">
           {error}
         </div>
       )}
