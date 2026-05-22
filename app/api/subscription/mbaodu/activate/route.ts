@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getActivationCode, consumeActivationCode, setSubscription, getSubscription, PAID_LIMIT } from '@/lib/redis';
 import { checkRateLimit, RATE_LIMITS, extractClientInfo } from '@/lib/ratelimit';
 import { checkActivationBlocked, recordFailedAttempt, resetFailedAttempts, getRemainingAttempts } from '@/lib/activation-security';
+import { isValidActivationCode } from '@/lib/mbaodu';
 
 /**
  * @swagger
@@ -90,6 +91,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing order_id or activation_code' }, { status: 400 });
     }
 
+    // Validate activation code format and check digit
+    const normalizedCode = activation_code.trim().toUpperCase();
+    if (!isValidActivationCode(normalizedCode)) {
+      return NextResponse.json({ error: 'Invalid activation code format' }, { status: 400 });
+    }
+
     const existingSub = await getSubscription(deviceId);
     if (existingSub && existingSub.status === 'active') {
       return NextResponse.json({
@@ -103,9 +110,9 @@ export async function POST(request: NextRequest) {
 
     let matchIndex: 1 | 2 | null = null;
 
-    if (code1 && code1.code === activation_code) {
+    if (code1 && code1.code === normalizedCode) {
       matchIndex = 1;
-    } else if (code2 && code2.code === activation_code) {
+    } else if (code2 && code2.code === normalizedCode) {
       matchIndex = 2;
     }
 
@@ -151,7 +158,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Activate error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

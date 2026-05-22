@@ -73,11 +73,37 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { messages } = body as { messages: ChatMessage[] };
 
-    if (!messages) {
+    if (!messages || !Array.isArray(messages)) {
       return NextResponse.json(
         { error: "Missing messages" },
         { status: 400 }
       );
+    }
+
+    // Validate messages: only allow 'user' and 'assistant' roles (prevent prompt injection)
+    const MAX_MESSAGE_LENGTH = 4000;
+    const MAX_MESSAGES = 50;
+
+    if (messages.length > MAX_MESSAGES) {
+      return NextResponse.json(
+        { error: "Messages count exceeds limit" },
+        { status: 400 }
+      );
+    }
+
+    for (const msg of messages) {
+      if (!msg.role || !['user', 'assistant'].includes(msg.role)) {
+        return NextResponse.json(
+          { error: "Invalid message role" },
+          { status: 400 }
+        );
+      }
+      if (typeof msg.content !== 'string' || msg.content.length > MAX_MESSAGE_LENGTH) {
+        return NextResponse.json(
+          { error: "Invalid message content" },
+          { status: 400 }
+        );
+      }
     }
 
     const reply = await chatWithAI(messages);
@@ -94,7 +120,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Chat API error:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal error" },
+      { error: "Internal error" },
       { status: 500 }
     );
   }

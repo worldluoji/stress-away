@@ -1,3 +1,5 @@
+import crypto from 'crypto';
+
 const MBAODU_APP_KEY = process.env.MBAODU_APP_KEY || '';
 const MBAODU_ORDER_QUERY_URL = 'https://x.mbd.pub/api/order-detail';
 
@@ -71,9 +73,49 @@ export async function queryOrder(orderId: string): Promise<MbaoduOrderDetail | n
 
 export function generateActivationCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let code = '';
-  for (let i = 0; i < 12; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
+
+  // Generate 12 chars of random data (64 bits entropy)
+  const bytes = crypto.randomBytes(12);
+  let data = '';
+  for (const byte of bytes) {
+    data += chars[byte % chars.length];
   }
-  return code;
+
+  // Calculate check digits using Mod 97 (ISO 7064)
+  // Convert base-32 data to number for checksum
+  let num = 0;
+  for (const char of data) {
+    const val = chars.indexOf(char);
+    num = num * 32 + val;
+  }
+  const checkDigit = (98 - (num % 97)) % 97;
+  const checkStr = checkDigit.toString().padStart(2, '0');
+
+  // Format: XXXX-XXXX-XXXX-XX
+  return `${data.slice(0, 4)}-${data.slice(4, 8)}-${data.slice(8, 12)}-${checkStr}`;
+}
+
+const ACTIVATION_CODE_REGEX = /^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[0-9]{2}$/;
+
+export function isValidActivationCode(code: string): boolean {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+  if (!ACTIVATION_CODE_REGEX.test(code)) {
+    return false;
+  }
+
+  // Verify check digits
+  const parts = code.split('-');
+  const data = parts[0] + parts[1] + parts[2];
+  const checkStr = parts[3];
+
+  let num = 0;
+  for (const char of data) {
+    const val = chars.indexOf(char);
+    if (val === -1) return false; // Invalid character
+    num = num * 32 + val;
+  }
+
+  const expectedCheck = (98 - (num % 97)) % 97;
+  return parseInt(checkStr, 10) === expectedCheck;
 }

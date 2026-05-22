@@ -110,7 +110,7 @@ async function checkRateLimitRedis(
   return { allowed: true, remaining: config.maxRequests - count, resetAt };
 }
 
-function getClientIP(request: Request): string {
+export function getClientIP(request: Request): string {
   const forwarded = request.headers.get('x-forwarded-for');
   if (forwarded) {
     return forwarded.split(',')[0].trim();
