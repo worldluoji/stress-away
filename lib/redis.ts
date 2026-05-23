@@ -359,3 +359,19 @@ export async function canQueryOrder(orderId: string): Promise<{ allowed: boolean
   // Within 48 hours, allow query
   return { allowed: true, remainingSeconds: Math.ceil((LIMIT_MS - elapsed) / 1000) };
 }
+
+// Admin functions - get both activation codes for an order
+export async function getActivationCodes(orderId: string): Promise<{ code1: ActivationCode | null; code2: ActivationCode | null }> {
+  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
+    const code1 = lsGet<ActivationCode>(`activation:${orderId}:1`);
+    const code2 = lsGet<ActivationCode>(`activation:${orderId}:2`);
+    return { code1, code2 };
+  }
+  const key1 = `activation:${orderId}:1`;
+  const key2 = `activation:${orderId}:2`;
+  const [code1, code2] = await Promise.all([
+    getRedis().get<ActivationCode>(key1),
+    getRedis().get<ActivationCode>(key2),
+  ]);
+  return { code1: code1 ?? null, code2: code2 ?? null };
+}

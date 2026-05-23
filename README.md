@@ -4,16 +4,37 @@
 
 ## 功能
 
-- **AI 反PUA建议**：描述职场困境，AI 生成定制化建议
-- **聊天历史持久化**：对话记录保存在浏览器本地，刷新页面后保留
-- **免费试用**：每天 1 次免费对话额度
-- **激活码订阅**：购买后获得 50 次对话额度，支持 2 台设备
-- **48小时查询窗口**：购买后48小时内可查询激活码，超时无法获取
-- **限流保护**：设备 ID + IP 双重限制，防止恶意攻击
-- **激活码防暴力破解**：连续失败5次封禁15分钟
-- **模型配置**：通过环境变量选择 DeepSeek V4 Flash / MiniMax 2.7
+### 核心功能
+- **AI 反PUA建议**：描述职场困境，AI 生成定制化建议（话术反击、心态调整、行动建议）
+- **场景模板**：内置常见职场困境模板，快速获取话术参考
+- **聊天历史**：对话记录本地存储，刷新后保留
+- **历史记录**：保存最多50条历史对话，可切换/删除
 
-## 开始使用
+### 订阅与激活
+- **免费试用**：每天 1 次免费对话额度
+- **激活码订阅**：购买后获得 50 次对话额度，支持 2 个激活码
+- **48小时查询窗口**：购买后48小时内可查询激活码
+- **管理后台**：管理员可查询/重新生成激活码（`/admin`）
+
+### 安全保护
+- **限流**：设备 ID + IP 双重限制，防止恶意攻击
+- **激活码防暴力破解**：连续失败5次封禁15分钟
+- **输入限制**：用户输入最多600字，前端+后端双重校验
+
+### 模型配置
+- 支持 DeepSeek V4 Flash / MiniMax 2.7
+- 通过环境变量选择
+
+## 技术栈
+
+- **框架**: Next.js 16 + React 19
+- **语言**: TypeScript
+- **样式**: Tailwind CSS 4
+- **AI**: DeepSeek / MiniMax API
+- **存储**: Upstash Redis（生产）/ LocalStorage（测试）
+- **支付**: 面包多
+
+## 快速开始
 
 ### 1. 安装依赖
 
@@ -27,42 +48,89 @@ pnpm install
 cp .env.local.example .env.local
 ```
 
-编辑 `.env.local`，填入你的配置：
+编辑 `.env.local`：
 
 ```env
-# AI 模型配置
+# AI 模型
 DEFAULT_MODEL=deepseek
-DEEPSEEK_API_KEY=your_deepseek_api_key_here
-MINIMAX_API_KEY=your_minimax_api_key_here
+DEEPSEEK_API_KEY=your_deepseek_api_key
+MINIMAX_API_KEY=your_minimax_api_key
 
-# 面包多（激活码系统）
-MBAODU_APP_KEY=your_mbaodu_app_key_here
+# 面包多（激活码）
+MBAODU_APP_KEY=your_mbaodu_key
 
-# Upstash Redis（生产环境使用）
+# 管理后台密码
+ADMIN_PASSWORD=your_admin_password
+
+# Redis（生产环境）
 UPSTASH_REDIS_REST_URL=your_redis_url
 UPSTASH_REDIS_REST_TOKEN=your_redis_token
 
-# 本地开发模式（设为 true 使用 LocalStorage，设为 false 使用 Redis）
+# 开发模式
 USE_LOCAL_STORAGE=true
-
-# 使用限制配置
 FREE_LIMIT_PER_DAY=1
 PAID_LIMIT=50
 ```
 
-### 3. 启动开发服务器
+### 3. 启动
 
 ```bash
 pnpm dev
 ```
 
-打开 http://localhost:3000 开始使用。
+访问 http://localhost:3000
 
-## 技术栈
+## 管理后台
 
-- Next.js 16 + React 19
-- TypeScript
-- Tailwind CSS 4
-- DeepSeek / MiniMax API
-- Upstash Redis（生产环境）
-- 面包多（支付与激活码）
+访问 `/admin` 输入管理密码后可：
+- 查询指定订单号的当前激活码
+- 重新生成激活码（覆盖旧码）
+
+## 文件结构
+
+```
+├── app/
+│   ├── admin/page.tsx                 # 管理后台页面
+│   ├── api/
+│   │   ├── admin/
+│   │   │   ├── login/route.ts         # 管理登录
+│   │   │   └── orders/[orderId]/route.ts # 订单激活码管理
+│   │   ├── chat/route.ts              # AI 对话
+│   │   ├── scenarios/                 # 场景模板
+│   │   ├── subscription/              # 订阅与激活
+│   │   │   ├── callback/              # 面包多回调
+│   │   │   ├── mbaodu/activate/       # 激活设备
+│   │   │   └── query-codes/           # 查询激活码
+│   │   └── usage/                     # 额度管理
+│   ├── components/
+│   │   ├── HistoryPanel.tsx           # 历史记录面板
+│   │   ├── ScenarioCard.tsx           # 场景卡片
+│   │   ├── ScenarioModal.tsx          # 场景详情弹窗
+│   │   └── SubscriptionActivate.tsx   # 激活组件
+│   └── page.tsx                       # 主页
+├── lib/
+│   ├── activation-security.ts         # 激活码防暴力破解
+│   ├── mbaodu.ts                      # 面包多 API
+│   ├── models.ts                      # 模型配置
+│   ├── ratelimit.ts                   # 限流
+│   ├── redis.ts                       # 存储层
+│   ├── scenarios.ts                   # 场景数据
+│   ├── storage.ts                     # LocalStorage
+│   └── subscription.ts                 # 订阅逻辑
+└── spec.md                            # 详细规格文档
+```
+
+## 环境变量
+
+| 变量名 | 必需 | 默认值 | 说明 |
+|--------|------|--------|------|
+| DEFAULT_MODEL | 是 | deepseek | 模型 |
+| DEEPSEEK_API_KEY | 是 | - | DeepSeek Key |
+| MINIMAX_API_KEY | 是 | - | MiniMax Key |
+| MBAODU_APP_KEY | 是 | - | 面包多 Key |
+| ADMIN_PASSWORD | 是 | - | 管理后台密码 |
+| UPSTASH_REDIS_REST_URL | 生产 | - | Redis URL |
+| UPSTASH_REDIS_REST_TOKEN | 生产 | - | Redis Token |
+| USE_LOCAL_STORAGE | 测试 | true | 使用 LocalStorage |
+| FREE_LIMIT_PER_DAY | 否 | 1 | 免费每日次数 |
+| PAID_LIMIT | 否 | 50 | 付费总次数 |
