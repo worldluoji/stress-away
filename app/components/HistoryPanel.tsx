@@ -69,7 +69,7 @@ export function HistoryPanel({ conversations, currentConversationId, onSelect, o
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-[--foreground] truncate">{conv.title}</p>
-                    <p className="text-xs text-[--foreground-tertiary] mt-0.5">{formatTime(conv.updatedAt)}</p>
+                    <p className="text-xs text-[--foreground-tertiary] mt-0.5">{formatTime(conv.updatedAt)} · {conv.messages.length} 条消息</p>
                   </div>
                   <button
                     onClick={(e) => {

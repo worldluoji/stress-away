@@ -192,6 +192,12 @@ export default function Home() {
     setShowEmptyState(false);
     setCurrentConversationId(conv.id);
     setShowHistory(false);
+    setInput("");
+    setUserText("");
+    setScenarioPrefix("");
+    setSelectedScenario(null);
+    // Focus input for continuing the conversation
+    setTimeout(() => inputRef.current?.focus(), 100);
   };
 
   const handleDeleteConversation = (id: string) => {
