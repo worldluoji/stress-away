@@ -21,6 +21,7 @@
 - **限流**：设备 ID + IP 双重限制，防止恶意攻击
 - **激活码防暴力破解**：连续失败5次封禁15分钟
 - **输入限制**：用户输入最多600字，前端+后端双重校验
+- **管理端设备绑定**：可通过 `ADMIN_ALLOWED_DEVICES` 配置只允许特定设备登录
 
 ### 模型配置
 - 支持 DeepSeek V4 Flash / MiniMax 2.7
@@ -130,6 +131,7 @@ pnpm dev
 | MINIMAX_API_KEY | 是 | - | MiniMax Key |
 | MBAODU_APP_KEY | 是 | - | 面包多 Key |
 | ADMIN_PASSWORD | 是 | - | 管理后台密码 |
+| ADMIN_ALLOWED_DEVICES | 否 | - | 允许的管理端设备指纹，多个用逗号分隔 |
 | UPSTASH_REDIS_REST_URL | 生产 | - | Redis URL |
 | UPSTASH_REDIS_REST_TOKEN | 生产 | - | Redis Token |
 | USE_LOCAL_STORAGE | 测试 | true | 使用 LocalStorage |

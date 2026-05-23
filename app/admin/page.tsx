@@ -1,10 +1,17 @@
 'use client';
 
 import { useState } from 'react';
+import FingerprintJS from '@fingerprintjs/fingerprintjs';
 
 interface CodeInfo {
   code: string;
   used: boolean;
+}
+
+async function getDeviceId(): Promise<string> {
+  const fp = await FingerprintJS.load();
+  const result = await fp.get();
+  return result.visitorId;
 }
 
 export default function AdminPage() {
@@ -21,10 +28,11 @@ export default function AdminPage() {
     setLoading(true);
 
     try {
+      const deviceId = await getDeviceId();
       const res = await fetch('/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password, deviceId }),
       });
 
       const data = await res.json();

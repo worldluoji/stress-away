@@ -69,6 +69,13 @@
 - HTTP 429 状态码
 - 响应头：`X-RateLimit-Remaining`、`X-RateLimit-Reset`、`Retry-After`
 
+### 管理端设备绑定
+
+- 环境变量 `ADMIN_ALLOWED_DEVICES` 配置允许的设备指纹
+- 多个设备用逗号分隔
+- 登录时验证：密码正确 **且** 设备指纹在白名单中
+- 如未配置 `ADMIN_ALLOWED_DEVICES`，则不进行设备验证
+
 ### 激活码防暴力破解
 
 - 连续 5 次失败，封禁 15 分钟
@@ -190,9 +197,11 @@ Headers: `x-device-id`
 
 管理后台登录。
 
-请求：`{ "password": "xxx" }`
+请求：`{ "password": "xxx", "deviceId": "fp_xxx" }`（deviceId 可选）
 
 响应：设置 httpOnly cookie，成功返回 `{ "success": true }`
+
+**设备验证**：如果配置了 `ADMIN_ALLOWED_DEVICES`，则必须提供 deviceId 且必须在白名单中。
 
 ### GET /api/admin/orders/{orderId}
 
