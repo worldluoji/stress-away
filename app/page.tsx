@@ -435,7 +435,7 @@ export default function Home() {
               <textarea
                 ref={inputRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value.slice(0, 500))}
+                onChange={(e) => setInput(e.target.value.slice(0, 800))}
                 placeholder={usage?.allowed ? "输入职场困境..." : "今日次数已用完"}
                 disabled={loading || (!usage?.allowed && !isInitializing)}
                 autoComplete="off"
@@ -444,10 +444,10 @@ export default function Home() {
                 spellCheck="false"
                 rows={1}
                 className="w-full rounded-2xl bg-[--background-secondary] px-5 py-4 text-[--foreground] placeholder:text-[--foreground-tertiary] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 disabled:opacity-50 transition-all resize-none"
-                style={{ minHeight: '56px', maxHeight: '120px' }}
+                style={{ minHeight: '80px', maxHeight: '200px' }}
               />
               <span className="absolute bottom-2 right-3 text-xs text-[--foreground-tertiary]">
-                {input.length}/500
+                {input.length}/800
               </span>
             </div>
             <button
