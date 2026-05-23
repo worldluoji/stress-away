@@ -139,14 +139,16 @@ export async function POST(request: NextRequest) {
 
     await setSubscription(deviceId, {
       status: 'active',
-      remainingCodes: PAID_LIMIT,
-      activatedAt: Date.now(),
+      remainingCodes: consumeResult.remainingCodes ?? PAID_LIMIT,
+      activationTime: Date.now(),
+      activationCodeIndex: matchIndex,
+      orderId: order_id,
     });
 
     return NextResponse.json(
       {
         success: true,
-        remaining_codes: consumeResult.remainingCodes ?? 0,
+        remaining_codes: consumeResult.remainingCodes ?? PAID_LIMIT,
       },
       {
         headers: {

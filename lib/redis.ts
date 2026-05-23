@@ -65,13 +65,16 @@ function lsDel(key: string): void {
 export interface Subscription {
   status: 'active' | 'inactive';
   remainingCodes: number;
-  activatedAt?: number;
+  activationTime?: number;
+  activationCodeIndex?: 1 | 2; // 记录激活时使用的是哪个码，用于后续同步
+  orderId?: string; // 记录订单号
 }
 
 export interface ActivationCode {
   code: string;
   used: boolean;
   deviceId?: string;
+  remainingCodes: number; // 码上剩余次数，与设备订阅同步
   activationTime?: number;
 }
 
@@ -155,6 +158,13 @@ export async function getSubscription(deviceId: string): Promise<Subscription | 
   return data ?? null;
 }
 
+// Usage tracking for paid users
+export async function getRemainingUsage(deviceId: string): Promise<number> {
+  const sub = await getSubscription(deviceId);
+  if (!sub || sub.status !== 'active') return 0;
+  return sub.remainingCodes;
+}
+
 export async function setSubscription(
   deviceId: string,
   subscription: Subscription
@@ -173,16 +183,23 @@ export async function setActivationCodes(
   code1: string,
   code2: string
 ): Promise<void> {
+  const codeData: ActivationCode = {
+    code: '',
+    used: false,
+    remainingCodes: PAID_LIMIT,
+  };
   if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    lsSet(`activation:${orderId}:1`, { code: code1, used: false } as ActivationCode);
-    lsSet(`activation:${orderId}:2`, { code: code2, used: false } as ActivationCode);
+    lsSet(`activation:${orderId}:1`, { ...codeData, code: code1 });
+    lsSet(`activation:${orderId}:2`, { ...codeData, code: code2 });
     return;
   }
   const key1 = `activation:${orderId}:1`;
   const key2 = `activation:${orderId}:2`;
   const ttl = 60 * 60 * 24 * 30;
-  await getRedis().set(key1, { code: code1, used: false } as ActivationCode, { ex: ttl });
-  await getRedis().set(key2, { code: code2, used: false } as ActivationCode, { ex: ttl });
+  await Promise.all([
+    getRedis().set(key1, { ...codeData, code: code1 }, { ex: ttl }),
+    getRedis().set(key2, { ...codeData, code: code2 }, { ex: ttl }),
+  ]);
 }
 
 export async function getActivationCode(
@@ -212,15 +229,17 @@ export async function consumeActivationCode(
       lsDel(`device:${data.deviceId}:sub`);
     }
 
-    // Update activation code
-    lsSet(key, { ...data, used: true, deviceId, activationTime: data.activationTime || Date.now() });
+    // Update activation code - inherit remainingCodes from code
+    lsSet(key, {
+      ...data,
+      used: true,
+      deviceId,
+      remainingCodes: data.remainingCodes,
+      activationTime: data.activationTime || Date.now()
+    });
 
-    // Count remaining codes for this order
-    const code1 = lsGet<ActivationCode>(`activation:${orderId}:1`);
-    const code2 = lsGet<ActivationCode>(`activation:${orderId}:2`);
-    const remaining = (code1 && !code1.used ? 1 : 0) + (code2 && !code2.used ? 1 : 0);
-
-    return { success: true, previousDeviceId: data.deviceId, remainingCodes: remaining };
+    // Return the remaining codes from the code itself
+    return { success: true, previousDeviceId: data.deviceId, remainingCodes: data.remainingCodes };
   }
 
   const key = `activation:${orderId}:${index}`;
@@ -238,16 +257,17 @@ export async function consumeActivationCode(
 
   await getRedis().set(
     key,
-    { ...data, used: true, deviceId, activationTime: data.activationTime || now },
+    {
+      ...data,
+      used: true,
+      deviceId,
+      remainingCodes: data.remainingCodes,
+      activationTime: data.activationTime || now
+    },
     { ex: 60 * 60 * 24 * 30 }
   );
 
-  const remainingCode1 = await getActivationCode(orderId, 1);
-  const remainingCode2 = await getActivationCode(orderId, 2);
-  const remaining = (remainingCode1 && !remainingCode1.used ? 1 : 0) +
-                   (remainingCode2 && !remainingCode2.used ? 1 : 0);
-
-  return { success: true, previousDeviceId: data.deviceId, remainingCodes: remaining };
+  return { success: true, previousDeviceId: data.deviceId, remainingCodes: data.remainingCodes };
 }
 
 export async function clearDeviceSubscription(deviceId: string): Promise<void> {
@@ -259,29 +279,42 @@ export async function clearDeviceSubscription(deviceId: string): Promise<void> {
   await getRedis().set(key, { status: 'inactive', remainingCodes: 0 } as Subscription, { ex: 60 * 60 * 24 * 30 });
 }
 
-// Usage tracking for paid users
-export async function getRemainingUsage(deviceId: string): Promise<number> {
-  const sub = await getSubscription(deviceId);
-  if (!sub || sub.status !== 'active') return 0;
-  return sub.remainingCodes;
-}
-
+// Usage tracking for paid users - also syncs with activation code
 export async function consumeUsage(deviceId: string): Promise<number> {
-  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    const sub = await getSubscription(deviceId);
-    if (!sub || sub.remainingCodes <= 0) return 0;
-    sub.remainingCodes--;
-    await setSubscription(deviceId, sub);
-    return sub.remainingCodes;
-  }
-
-  const key = `device:${deviceId}:subscription`;
-  const sub = await getRedis().get<Subscription>(key);
+  const sub = await getSubscription(deviceId);
   if (!sub || sub.remainingCodes <= 0) return 0;
 
   sub.remainingCodes--;
-  await getRedis().set(key, sub);
+
+  // Sync to activation code if this device is activated
+  if (sub.orderId && sub.activationCodeIndex) {
+    const codeKey = `activation:${sub.orderId}:${sub.activationCodeIndex}`;
+    const codeData = await getActivationCodeInternal(codeKey);
+    if (codeData) {
+      codeData.remainingCodes = sub.remainingCodes;
+      await setActivationCodeInternal(codeKey, codeData);
+    }
+  }
+
+  await setSubscription(deviceId, sub);
   return sub.remainingCodes;
+}
+
+// Internal helpers for use by consumeUsage
+async function getActivationCodeInternal(key: string): Promise<ActivationCode | null> {
+  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
+    return lsGet<ActivationCode>(key);
+  }
+  const data = await getRedis().get<ActivationCode>(key);
+  return data ?? null;
+}
+
+async function setActivationCodeInternal(key: string, data: ActivationCode): Promise<void> {
+  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
+    lsSet(key, data);
+    return;
+  }
+  await getRedis().set(key, data, { ex: 60 * 60 * 24 * 30 });
 }
 
 // Check if paid user
