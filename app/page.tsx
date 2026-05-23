@@ -234,13 +234,31 @@ export default function Home() {
       <header className="sticky top-0 z-20 bg-[--glass-bg] backdrop-blur-xl border-b border-[var(--card-border)]">
         <div className="mx-auto max-w-2xl px-4 py-3">
           <div className="flex items-center justify-between">
-            <div className="flex flex-col">
-              <h1 className="text-xl font-semibold text-[--foreground] tracking-tight">
-                反PUA手册
-              </h1>
-              <p className="text-xs text-[--foreground-tertiary]">
-                职场困境应对指南
-              </p>
+            <div className="flex items-center gap-3">
+              {messages.length > 0 && (
+                <button
+                  onClick={() => {
+                    setMessages([]);
+                    setInput("");
+                    setUserText("");
+                    setScenarioPrefix("");
+                    setSelectedScenario(null);
+                  }}
+                  className="w-8 h-8 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+              )}
+              <div className="flex flex-col">
+                <h1 className="text-xl font-semibold text-[--foreground] tracking-tight">
+                  反PUA手册
+                </h1>
+                <p className="text-xs text-[--foreground-tertiary]">
+                  职场困境应对指南
+                </p>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               {usage && !isInitializing && (
