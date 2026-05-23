@@ -19,14 +19,14 @@
       "Bash(pnpm:add:*)",
       "Bash(pnpm:lint)",
       "Bash(git:add:*)",
-      "Bash(git:commit:*)",
       "Write",
       "Edit",
       "MultiEdit",
       "Bash(pnpm:install)"
     ],
     "ask": [
-      "Bash(git:push:*)"
+      "Bash(git:push:*)",
+      "Bash(git:commit:*)"
     ],
     "deny": [
       "Read(./.env*)",
