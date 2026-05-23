@@ -1,13 +1,11 @@
 declare module 'swagger-ui-react' {
-  import type { ComponentType } from 'react';
+  import { ComponentType } from 'react';
 
   interface SwaggerUIProps {
     url?: string;
     spec?: object;
     specFile?: string;
-    dom_id?: string;
-    disableSwaggerScoping?: boolean;
-    [key: string]: unknown;
+    options?: object;
   }
 
   const SwaggerUI: ComponentType<SwaggerUIProps>;

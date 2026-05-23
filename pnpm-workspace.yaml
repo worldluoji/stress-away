@@ -2,10 +2,10 @@ allowBuilds:
   '@scarf/scarf': false
   '@tree-sitter-grammars/tree-sitter-yaml': false
   core-js-pure: false
-  sharp: set this to true or false
+  sharp: false
   tree-sitter: false
   tree-sitter-json: false
-  unrs-resolver: set this to true or false
+  unrs-resolver: false
 onlyBuiltDependencies:
   - sharp
   - unrs-resolver
