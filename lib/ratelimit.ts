@@ -130,5 +130,4 @@ export const RATE_LIMITS = {
   activate: { windowMs: 60000, maxRequests: 10 } as RateLimitConfig,
   queryCodes: { windowMs: 60000, maxRequests: 10 } as RateLimitConfig,
   usage: { windowMs: 60000, maxRequests: 30 } as RateLimitConfig,
-  callback: { windowMs: 60000, maxRequests: 5 } as RateLimitConfig,
 };
