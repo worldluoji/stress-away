@@ -53,6 +53,9 @@ export function HistoryPanel({ conversations, currentConversationId, onSelect, o
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <p className="text-sm">暂无历史记录</p>
+              <p className="text-xs text-[--foreground-tertiary] mt-2 px-4 text-center">
+                最多保存50条。更换设备、更换浏览器或清理缓存将导致记录丢失。
+              </p>
             </div>
           ) : (
             <div className="py-2">
