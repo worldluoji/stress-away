@@ -58,7 +58,9 @@ function TypingIndicator() {
 
 export default function Home() {
   const [messages, setMessages] = useState<ChatMessage[]>(() => loadMessages());
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(""); // 显示用完整文本
+  const [userText, setUserText] = useState(""); // 用户原始输入（限制600字）
+  const [scenarioPrefix, setScenarioPrefix] = useState(""); // 场景前缀（不计入600字）
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
@@ -156,10 +158,10 @@ export default function Home() {
   };
 
   const handleScenarioCustomize = () => {
-    // Pre-fill input with scenario context
-    if (selectedScenario) {
-      setInput(`场景ID：${selectedScenario.id}\n场景：${selectedScenario.name}\n${selectedScenario.description}\n\n请根据我的具体情况，生成专属的话术和应对建议：\n\n我的具体情况：`);
-    }
+    const prefix = `场景ID：${selectedScenario?.id}\n场景：${selectedScenario?.name}\n${selectedScenario?.description}\n\n请根据我的具体情况，生成专属的话术和应对建议：\n\n我的具体情况：`;
+    setScenarioPrefix(prefix);
+    setInput(prefix);
+    setUserText("");
     inputRef.current?.focus();
   };
 
@@ -172,7 +174,7 @@ export default function Home() {
       return;
     }
 
-    const userMessage: ChatMessage = { role: "user", content: input };
+    const userMessage: ChatMessage = { role: "user", content: userText || input };
     const newMessages = [...messages, userMessage];
     setMessages(newMessages);
     setInput("");
@@ -463,7 +465,22 @@ export default function Home() {
               <textarea
                 ref={inputRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value.slice(0, 600))}
+                onChange={(e) => {
+                  const newValue = e.target.value;
+                  // 只允许用户在 userText 区域输入（前缀之后）
+                  if (scenarioPrefix && newValue.startsWith(scenarioPrefix)) {
+                    const newUserText = newValue.slice(scenarioPrefix.length);
+                    if (newUserText.length <= 600) {
+                      setUserText(newUserText);
+                      setInput(scenarioPrefix + newUserText);
+                    }
+                  } else if (!scenarioPrefix) {
+                    // 无场景前缀时，直接限制600字
+                    const newUserText = newValue.slice(0, 600);
+                    setUserText(newUserText);
+                    setInput(newUserText);
+                  }
+                }}
                 placeholder={usage?.allowed ? "输入职场困境..." : "今日次数已用完"}
                 disabled={loading || (!usage?.allowed && !isInitializing)}
                 autoComplete="off"
@@ -475,7 +492,7 @@ export default function Home() {
                 style={{ minHeight: '80px', maxHeight: '200px' }}
               />
               <span className="absolute bottom-2 right-3 text-xs text-[--foreground-tertiary]">
-                {input.length}/600
+                {userText.length}/600
               </span>
             </div>
             <button
