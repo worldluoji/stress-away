@@ -240,20 +240,29 @@ export default function Home() {
                 职场困境应对指南
               </p>
             </div>
-            {usage && !isInitializing && (
-              <button
-                onClick={() => (usage.isPaid ? null : setShowActivate(true))}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all active:scale-95 ${
-                  usage.isPaid
-                    ? "bg-[#34C759]/10 text-[#34C759]"
-                    : "bg-[#007AFF]/10 text-[#007AFF] hover:bg-[#007AFF]/20"
-                }`}
-              >
-                {usage.isPaid
-                  ? `${usage.remaining} 次可用`
-                  : `${usage.remaining}/${usage.total} 次`}
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {usage && !isInitializing && (
+                <span
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium ${
+                    usage.isPaid
+                      ? "bg-[#34C759]/10 text-[#34C759]"
+                      : "bg-[--background-secondary] text-[--foreground-tertiary]"
+                  }`}
+                >
+                  {usage.isPaid
+                    ? `${usage.remaining} 次可用`
+                    : `${usage.remaining}/${usage.total} 次`}
+                </span>
+              )}
+              {!usage?.isPaid && !isInitializing && usage && (
+                <button
+                  onClick={() => setShowActivate(true)}
+                  className="px-4 py-1.5 rounded-full text-xs font-medium bg-[#007AFF] text-white hover:bg-[#007AFF]/90 transition-all active:scale-95"
+                >
+                  激活
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </header>
