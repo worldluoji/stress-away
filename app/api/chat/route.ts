@@ -82,6 +82,7 @@ export async function POST(request: NextRequest) {
 
     // Validate messages: only allow 'user' and 'assistant' roles (prevent prompt injection)
     const MAX_MESSAGE_LENGTH = 4000;
+    const MAX_USER_MESSAGE_LENGTH = 600;
     const MAX_MESSAGES = 50;
 
     if (messages.length > MAX_MESSAGES) {
@@ -101,6 +102,12 @@ export async function POST(request: NextRequest) {
       if (typeof msg.content !== 'string' || msg.content.length > MAX_MESSAGE_LENGTH) {
         return NextResponse.json(
           { error: "Invalid message content" },
+          { status: 400 }
+        );
+      }
+      if (msg.role === 'user' && msg.content.length > MAX_USER_MESSAGE_LENGTH) {
+        return NextResponse.json(
+          { error: "Message content exceeds 600 characters" },
           { status: 400 }
         );
       }
