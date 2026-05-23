@@ -463,7 +463,7 @@ export default function Home() {
               <textarea
                 ref={inputRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value.slice(0, 800))}
+                onChange={(e) => setInput(e.target.value.slice(0, 600))}
                 placeholder={usage?.allowed ? "输入职场困境..." : "今日次数已用完"}
                 disabled={loading || (!usage?.allowed && !isInitializing)}
                 autoComplete="off"
@@ -475,7 +475,7 @@ export default function Home() {
                 style={{ minHeight: '80px', maxHeight: '200px' }}
               />
               <span className="absolute bottom-2 right-3 text-xs text-[--foreground-tertiary]">
-                {input.length}/800
+                {input.length}/600
               </span>
             </div>
             <button
