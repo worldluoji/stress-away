@@ -117,7 +117,10 @@ export function ScenarioModal({ scenario, onClose, onCustomize }: Props) {
         {/* Footer */}
         <div className="px-5 py-4 border-t border-[var(--card-border)]">
           <button
-            onClick={onCustomize}
+            onClick={() => {
+              onCustomize();
+              onClose();
+            }}
             className="w-full py-3.5 bg-[#007AFF] text-white rounded-xl text-sm font-medium active:scale-[0.98] transition-all"
           >
             输入具体情况，定制生成专属话术

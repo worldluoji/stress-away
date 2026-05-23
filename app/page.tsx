@@ -72,7 +72,7 @@ export default function Home() {
   const [selectedScenario, setSelectedScenario] = useState<ScenarioTemplate | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     saveMessages(messages);
@@ -432,24 +432,28 @@ export default function Home() {
         <div className="mx-auto max-w-2xl px-4 py-3">
           <form onSubmit={handleSubmit} className="flex gap-2">
             <div className="flex-1 relative">
-              <input
+              <textarea
                 ref={inputRef}
-                type="text"
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => setInput(e.target.value.slice(0, 500))}
                 placeholder={usage?.allowed ? "输入职场困境..." : "今日次数已用完"}
                 disabled={loading || (!usage?.allowed && !isInitializing)}
                 autoComplete="off"
                 autoCorrect="off"
                 autoCapitalize="off"
                 spellCheck="false"
-                className="w-full rounded-full bg-[--background-secondary] px-5 py-3.5 text-[--foreground] placeholder:text-[--foreground-tertiary] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 disabled:opacity-50 transition-all"
+                rows={1}
+                className="w-full rounded-2xl bg-[--background-secondary] px-5 py-4 text-[--foreground] placeholder:text-[--foreground-tertiary] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 disabled:opacity-50 transition-all resize-none"
+                style={{ minHeight: '56px', maxHeight: '120px' }}
               />
+              <span className="absolute bottom-2 right-3 text-xs text-[--foreground-tertiary]">
+                {input.length}/500
+              </span>
             </div>
             <button
               type="submit"
               disabled={loading || !input.trim() || (!usage?.allowed && !isInitializing)}
-              className="shrink-0 w-12 h-12 rounded-full bg-[#007AFF] text-white flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 disabled:active:scale-100 shadow-sm hover:shadow-md"
+              className="shrink-0 h-12 px-5 rounded-2xl bg-[#007AFF] text-white flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 disabled:active:scale-100 shadow-sm hover:shadow-md"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
