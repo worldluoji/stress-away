@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getActivationCodes, setActivationCodes } from '@/lib/redis';
+import { getActivationCodes, setActivationCode } from '@/lib/redis';
 import { generateActivationCode } from '@/lib/mbaodu';
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
@@ -25,8 +25,8 @@ export async function GET(
     return NextResponse.json({
       orderId,
       codes: [
-        codes.code1 ? { code: codes.code1.code, used: codes.code1.used } : null,
-        codes.code2 ? { code: codes.code2.code, used: codes.code2.used } : null,
+        codes.code1 ? { code: codes.code1.code, used: codes.code1.used, remainingCodes: codes.code1.remainingCodes } : null,
+        codes.code2 ? { code: codes.code2.code, used: codes.code2.used, remainingCodes: codes.code2.remainingCodes } : null,
       ].filter(Boolean),
     });
   } catch (error) {
@@ -49,16 +49,24 @@ export async function POST(
   const { orderId } = await params;
 
   try {
+    // Get current codes to inherit remainingCodes
+    const currentCodes = await getActivationCodes(orderId);
+    const inheritedCodes1 = currentCodes.code1?.remainingCodes ?? 50;
+    const inheritedCodes2 = currentCodes.code2?.remainingCodes ?? 50;
+
     const newCode1 = generateActivationCode();
     const newCode2 = generateActivationCode();
-    await setActivationCodes(orderId, newCode1, newCode2);
+
+    // Set new codes with inherited remainingCodes for each
+    await setActivationCode(orderId, 1, newCode1, inheritedCodes1);
+    await setActivationCode(orderId, 2, newCode2, inheritedCodes2);
 
     return NextResponse.json({
       orderId,
       success: true,
       codes: [
-        { code: newCode1, used: false },
-        { code: newCode2, used: false },
+        { code: newCode1, used: false, remainingCodes: inheritedCodes1 },
+        { code: newCode2, used: false, remainingCodes: inheritedCodes2 },
       ],
     });
   } catch (error) {

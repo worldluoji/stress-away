@@ -181,25 +181,31 @@ export async function setSubscription(
 export async function setActivationCodes(
   orderId: string,
   code1: string,
-  code2: string
+  code2: string,
+  remainingCodes?: number
+): Promise<void> {
+  await setActivationCode(orderId, 1, code1, remainingCodes ?? PAID_LIMIT);
+  await setActivationCode(orderId, 2, code2, remainingCodes ?? PAID_LIMIT);
+}
+
+export async function setActivationCode(
+  orderId: string,
+  index: 1 | 2,
+  code: string,
+  remainingCodes: number = PAID_LIMIT
 ): Promise<void> {
   const codeData: ActivationCode = {
-    code: '',
+    code,
     used: false,
-    remainingCodes: PAID_LIMIT,
+    remainingCodes,
   };
   if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    lsSet(`activation:${orderId}:1`, { ...codeData, code: code1 });
-    lsSet(`activation:${orderId}:2`, { ...codeData, code: code2 });
+    lsSet(`activation:${orderId}:${index}`, codeData);
     return;
   }
-  const key1 = `activation:${orderId}:1`;
-  const key2 = `activation:${orderId}:2`;
+  const key = `activation:${orderId}:${index}`;
   const ttl = 60 * 60 * 24 * 30;
-  await Promise.all([
-    getRedis().set(key1, { ...codeData, code: code1 }, { ex: ttl }),
-    getRedis().set(key2, { ...codeData, code: code2 }, { ex: ttl }),
-  ]);
+  await getRedis().set(key, codeData, { ex: ttl });
 }
 
 export async function getActivationCode(
