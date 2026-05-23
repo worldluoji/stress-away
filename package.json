@@ -2,12 +2,6 @@
   "name": "my-app",
   "version": "0.1.0",
   "private": true,
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "sharp",
-      "unrs-resolver"
-    ]
-  },
   "scripts": {
     "dev": "next dev -p 8989",
     "build": "next build",
@@ -34,5 +28,16 @@
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "sharp",
+      "tree-sitter",
+      "tree-sitter-json",
+      "@tree-sitter-grammars/tree-sitter-yaml",
+      "unrs-resolver",
+      "@scarf/scarf",
+      "core-js-pure"
+    ]
   }
 }

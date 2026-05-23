@@ -122,19 +122,23 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         console.error('Mbaodu query failed:', error);
         if (error instanceof MbaoduApiError) {
+          const errorMsg = `MbaoduApiError: code=${error.code}, message=${error.message}`;
+          console.error(errorMsg);
           if (error.code === 403) {
             return NextResponse.json(
-              { error: 'mbaodu_auth_error', message: '激活码服务配置错误，请联系管理员' },
+              { error: 'mbaodu_auth_error', message: '激活码服务配置错误，请联系管理员', details: errorMsg },
               { status: 503 }
             );
           }
           return NextResponse.json(
-            { error: 'mbaodu_api_error', message: '激活码服务暂不可用，请稍后再试' },
+            { error: 'mbaodu_api_error', message: '激活码服务暂不可用，请稍后再试', details: errorMsg },
             { status: 503 }
           );
         }
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        console.error('Query codes unexpected error:', errorMsg);
         return NextResponse.json(
-          { error: 'mbaodu_api_error', message: '激活码服务暂不可用，请稍后再试' },
+          { error: 'mbaodu_api_error', message: '激活码服务暂不可用，请稍后再试', details: errorMsg },
           { status: 503 }
         );
       }

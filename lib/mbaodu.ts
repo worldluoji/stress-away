@@ -42,14 +42,31 @@ export async function queryOrder(orderId: string): Promise<MbaoduOrderDetail | n
   }
 
   if (response.status !== 200) {
+    let errorText = '';
+    try {
+      const data = await response.json();
+      errorText = JSON.stringify(data);
+      console.error(`Mbaodu API error: HTTP ${response.status}, body: ${errorText}`);
+    } catch {
+      // Failed to parse JSON, get raw text
+      errorText = await response.text().catch(() => 'unknown');
+      console.error(`Mbaodu API error: HTTP ${response.status}, raw: ${errorText}`);
+    }
     throw new MbaoduApiError(`Mbaodu API error: ${response.status}`, response.status);
   }
 
-  const data = await response.json();
+  let data;
+  try {
+    data = await response.json();
+  } catch (e) {
+    console.error('Failed to parse mbaodu response as JSON:', e);
+    throw new MbaoduApiError('Invalid JSON response from Mbaodu', 500);
+  }
 
   if (data.code !== 200) {
     // code 400 means bad request (missing order_id)
     // code 403 means auth failed
+    console.error(`Mbaodu API error: code=${data.code}, error_info=${data.error_info || ''}`);
     if (data.code === 400 || data.code === 403) {
       throw new MbaoduApiError(`Mbaodu API error: ${data.code}`, data.code);
     }
