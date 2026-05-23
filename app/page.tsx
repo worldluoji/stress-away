@@ -4,10 +4,11 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import FingerprintJS from "@fingerprintjs/fingerprintjs";
 import type { ChatMessage } from "@/lib/models";
-import { loadMessages, saveMessages } from "@/lib/storage";
+import { loadMessages, saveMessages, loadHistory, saveHistory, generateConversationId, generateTitle, type Conversation } from "@/lib/storage";
 import { SubscriptionActivate } from "./components/SubscriptionActivate";
 import { ScenarioCard } from "./components/ScenarioCard";
 import { ScenarioModal } from "./components/ScenarioModal";
+import { HistoryPanel } from "./components/HistoryPanel";
 import type { ScenarioTemplate } from "@/lib/scenarios";
 
 interface UsageStatus {
@@ -74,6 +75,11 @@ export default function Home() {
   const [scenarios, setScenarios] = useState<ScenarioTemplate[]>([]);
   const [selectedScenario, setSelectedScenario] = useState<ScenarioTemplate | null>(null);
 
+  // History
+  const [conversationHistory, setConversationHistory] = useState<Conversation[]>([]);
+  const [currentConversationId, setCurrentConversationId] = useState<string | undefined>();
+  const [showHistory, setShowHistory] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -111,6 +117,10 @@ export default function Home() {
           const scenariosData = await scenariosRes.json();
           setScenarios(scenariosData.scenarios || []);
         }
+
+        // Load conversation history
+        const history = loadHistory();
+        setConversationHistory(history);
       } catch {
         // ignore
       } finally {
@@ -177,6 +187,53 @@ export default function Home() {
     inputRef.current?.focus();
   };
 
+  const handleSelectConversation = (conv: Conversation) => {
+    setMessages(conv.messages);
+    setShowEmptyState(false);
+    setCurrentConversationId(conv.id);
+    setShowHistory(false);
+  };
+
+  const handleDeleteConversation = (id: string) => {
+    const updated = conversationHistory.filter((c) => c.id !== id);
+    setConversationHistory(updated);
+    saveHistory({ conversations: updated });
+    if (currentConversationId === id) {
+      setCurrentConversationId(undefined);
+    }
+  };
+
+  const handleSaveConversation = (newMessages: ChatMessage[]) => {
+    if (newMessages.length === 0) return;
+
+    const title = generateTitle(newMessages);
+    const now = Date.now();
+
+    if (currentConversationId) {
+      // Update existing conversation
+      const updated = conversationHistory.map((c) =>
+        c.id === currentConversationId
+          ? { ...c, messages: newMessages, updatedAt: now }
+          : c
+      );
+      setConversationHistory(updated);
+      saveHistory({ conversations: updated });
+    } else {
+      // Create new conversation
+      const newConv: Conversation = {
+        id: generateConversationId(),
+        title,
+        messages: newMessages,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const updated = [newConv, ...conversationHistory].slice(0, 50); // Keep max 50 conversations
+      setConversationHistory(updated);
+      saveHistory({ conversations: updated });
+      setCurrentConversationId(newConv.id);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || loading) return;
@@ -209,6 +266,7 @@ export default function Home() {
         .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
         .trim();
       setMessages([...newMessages, { role: "assistant", content: reply }]);
+      handleSaveConversation([...newMessages, { role: "assistant", content: reply }]);
 
       // Keep scenario context for follow-up messages
       if (selectedScenario) {
@@ -247,6 +305,14 @@ export default function Home() {
         <div className="mx-auto max-w-2xl px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowHistory(true)}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </button>
               {messages.length > 0 && (
                 <button
                   onClick={() => {
@@ -305,6 +371,17 @@ export default function Home() {
           scenario={selectedScenario}
           onClose={() => setSelectedScenario(null)}
           onCustomize={handleScenarioCustomize}
+        />
+      )}
+
+      {/* History Panel */}
+      {showHistory && (
+        <HistoryPanel
+          conversations={conversationHistory}
+          currentConversationId={currentConversationId}
+          onSelect={handleSelectConversation}
+          onDelete={handleDeleteConversation}
+          onClose={() => setShowHistory(false)}
         />
       )}
 
