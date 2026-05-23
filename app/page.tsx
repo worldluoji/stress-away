@@ -127,9 +127,28 @@ export default function Home() {
   }, [deviceId]);
 
   const handleCopy = async (content: string, index: number) => {
-    await navigator.clipboard.writeText(content);
-    setCopiedIndex(index);
-    setTimeout(() => setCopiedIndex(null), 2000);
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex(null), 2000);
+    } catch {
+      // Clipboard access denied - show fallback
+      const textarea = document.createElement("textarea");
+      textarea.value = content;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand("copy");
+        setCopiedIndex(index);
+        setTimeout(() => setCopiedIndex(null), 2000);
+      } catch {
+        // Fallback failed - silently ignore
+      } finally {
+        document.body.removeChild(textarea);
+      }
+    }
   };
 
   const handleScenarioClick = (scenario: ScenarioTemplate) => {
