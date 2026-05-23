@@ -57,7 +57,8 @@ function TypingIndicator() {
 }
 
 export default function Home() {
-  const [messages, setMessages] = useState<ChatMessage[]>(() => loadMessages());
+  const [showEmptyState, setShowEmptyState] = useState(true);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState(""); // 显示用完整文本
   const [userText, setUserText] = useState(""); // 用户原始输入（限制600字）
   const [scenarioPrefix, setScenarioPrefix] = useState(""); // 场景前缀（不计入600字）
@@ -77,7 +78,18 @@ export default function Home() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    saveMessages(messages);
+    const saved = loadMessages();
+    if (saved.length > 0) {
+      setMessages(saved);
+      setShowEmptyState(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      setShowEmptyState(false);
+      saveMessages(messages);
+    }
   }, [messages]);
 
   useEffect(() => {
@@ -238,7 +250,7 @@ export default function Home() {
               {messages.length > 0 && (
                 <button
                   onClick={() => {
-                    setMessages([]);
+                    setShowEmptyState(true);
                     setInput("");
                     setUserText("");
                     setScenarioPrefix("");
@@ -325,7 +337,7 @@ export default function Home() {
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-2xl px-4 py-6">
           {/* Empty state with scenarios */}
-          {messages.length === 0 && !isInitializing && (
+          {showEmptyState && !isInitializing && (
             <div className="animate-fade-in">
               {/* Hero */}
               <div className="text-center py-8 mb-6">
