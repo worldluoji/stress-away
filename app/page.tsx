@@ -441,6 +441,31 @@ export default function Home() {
                 </p>
               </div>
 
+              {/* Example prompts for new users */}
+              <div className="mb-8">
+                <h3 className="text-sm font-medium text-[--foreground-secondary] mb-3">
+                  💬 试试这些
+                </h3>
+                <div className="space-y-2">
+                  {[
+                    '领导当众说我能力不行，该怎么反击？',
+                    '同事把我的方案据为己有向领导邀功',
+                    '公司要求免费加班，不给调休合法吗？',
+                  ].map((example, i) => (
+                    <button
+                      key={i}
+                      onClick={() => {
+                        setInput(example);
+                        inputRef.current?.focus();
+                      }}
+                      className="w-full text-left px-4 py-3 bg-[--background-secondary] hover:bg-[--background-tertiary] rounded-xl text-sm text-[--foreground-secondary] transition-colors border border-[var(--card-border)] hover:border-[#007AFF]/30"
+                    >
+                      {example}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Scenarios Grid */}
               <div className="mb-6">
                 <h3 className="text-sm font-medium text-[--foreground-secondary] mb-3">
