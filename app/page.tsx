@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, startTransition } from "react";
 import ReactMarkdown from "react-markdown";
 import FingerprintJS from "@fingerprintjs/fingerprintjs";
 import type { ChatMessage } from "@/lib/models";
@@ -86,15 +86,19 @@ export default function Home() {
   useEffect(() => {
     const saved = loadMessages();
     if (saved.length > 0) {
-      setMessages(saved);
-      setShowEmptyState(false);
+      startTransition(() => {
+        setMessages(saved);
+        setShowEmptyState(false);
+      });
     }
   }, []);
 
   useEffect(() => {
     if (messages.length > 0) {
-      setShowEmptyState(false);
-      saveMessages(messages);
+      startTransition(() => {
+        setShowEmptyState(false);
+        saveMessages(messages);
+      });
     }
   }, [messages]);
 
