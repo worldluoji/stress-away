@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getActivationCode, setActivationCodes, setUsedOrderTTL, canQueryOrder } from '@/lib/redis';
 import { queryOrder, generateActivationCode, MbaoduApiError } from '@/lib/mbaodu';
-import { checkRateLimit, RATE_LIMITS, extractClientInfo } from '@/lib/ratelimit';
+import { checkRateLimit, checkDeviceIdSpoofing, RATE_LIMITS, getClientIP } from '@/lib/ratelimit';
 
 function maskCode(code: string): string {
   if (code.length <= 4) return code;
@@ -51,7 +51,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Rate limit check - use IP and order_id for combined key
-    const { ip, deviceId } = extractClientInfo(request, 'query-codes:' + order_id);
+    const ip = getClientIP(request);
+    const deviceId = request.headers.get('x-device-id') || 'query-codes:' + order_id;
     const rateLimitResult = await checkRateLimit(deviceId, ip, RATE_LIMITS.queryCodes);
 
     if (!rateLimitResult.allowed) {
@@ -69,6 +70,15 @@ export async function POST(request: NextRequest) {
             'Retry-After': Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000).toString(),
           },
         }
+      );
+    }
+
+    // Device ID anti-spoofing check
+    const deviceIdCheck = await checkDeviceIdSpoofing(ip, deviceId);
+    if (!deviceIdCheck.allowed) {
+      return NextResponse.json(
+        { error: 'device_id_rejected', message: '请求异常，已被拒绝' },
+        { status: 403 }
       );
     }
 
@@ -122,23 +132,23 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         console.error('Mbaodu query failed:', error);
         if (error instanceof MbaoduApiError) {
-          const errorMsg = `MbaoduApiError: code=${error.code}, message=${error.message}`;
-          console.error(errorMsg);
+          const logId = Date.now().toString(36);
+          console.error(`[${logId}] MbaoduApiError: code=${error.code}, message=${error.message}`);
           if (error.code === 403) {
             return NextResponse.json(
-              { error: 'mbaodu_auth_error', message: '激活码服务配置错误，请联系管理员', details: errorMsg },
+              { error: 'service_error', message: `系统正忙，请稍后再试（${logId}）` },
               { status: 503 }
             );
           }
           return NextResponse.json(
-            { error: 'mbaodu_api_error', message: '激活码服务暂不可用，请稍后再试', details: errorMsg },
+            { error: 'service_error', message: `系统正忙，请稍后再试（${logId}）` },
             { status: 503 }
           );
         }
-        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-        console.error('Query codes unexpected error:', errorMsg);
+        const logId = Date.now().toString(36);
+        console.error(`[${logId}] Query codes unexpected error:`, error);
         return NextResponse.json(
-          { error: 'mbaodu_api_error', message: '激活码服务暂不可用，请稍后再试', details: errorMsg },
+          { error: 'service_error', message: `系统正忙，请稍后再试（${logId}）` },
           { status: 503 }
         );
       }
@@ -160,9 +170,10 @@ export async function POST(request: NextRequest) {
       }
     );
   } catch (error) {
-    console.error('Query codes error:', error);
+    const logId = Date.now().toString(36);
+    console.error(`[${logId}] Query codes error:`, error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { error: 'service_error', message: `系统正忙，请稍后再试（${logId}）` },
       { status: 500 }
     );
   }

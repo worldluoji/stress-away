@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getActivationCodes, setActivationCode } from '@/lib/redis';
+import crypto from 'crypto';
+import { getActivationCodes, setActivationCode, isRedisConfigured, getRedis } from '@/lib/redis';
 import { generateActivationCode } from '@/lib/mbaodu';
 
+const USE_LOCAL_STORAGE = process.env.USE_LOCAL_STORAGE === 'true';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 
-function verifyPassword(request: NextRequest): boolean {
+async function verifyPassword(request: NextRequest): Promise<boolean> {
   const cookie = request.cookies.get('admin_token');
-  return cookie?.value === ADMIN_PASSWORD;
+  if (!cookie?.value || cookie.value.length !== 64) return false;
+  if (USE_LOCAL_STORAGE) return true; // basic check for local dev mode
+  if (!isRedisConfigured()) return false;
+  const key = `admin:token:${crypto.createHash('sha256').update(cookie.value).digest('hex')}`;
+  const exists = await getRedis().get<string>(key);
+  return exists !== null;
 }
 
 export async function GET(

@@ -1,6 +1,6 @@
 // ============================================================
-// [已禁用] 支付回调接口 - 面包多回调存在签名验证风险，且实际通过主动查询订单获取激活码，该回调非必需
-// ============================================================
+// Guard: keep this file as a valid module even when fully commented out
+export {};
 // import { NextRequest, NextResponse } from 'next/server';
 // import { setActivationCodes, markOrderActivated, isOrderActivated, setOrderCreatedTime } from '@/lib/redis';
 // import { generateActivationCode } from '@/lib/mbaodu';

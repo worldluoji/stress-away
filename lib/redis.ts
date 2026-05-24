@@ -1,10 +1,11 @@
+import crypto from 'crypto';
 import { Redis } from '@upstash/redis';
 
 const USE_LOCAL_STORAGE = process.env.USE_LOCAL_STORAGE === 'true';
 const PAID_LIMIT = parseInt(process.env.PAID_LIMIT || '50', 10);
 const FREE_LIMIT_PER_DAY = parseInt(process.env.FREE_LIMIT_PER_DAY || '1', 10);
 
-function isRedisConfigured(): boolean {
+export function isRedisConfigured(): boolean {
   return !!(
     process.env.UPSTASH_REDIS_REST_URL &&
     process.env.UPSTASH_REDIS_REST_TOKEN
@@ -13,7 +14,7 @@ function isRedisConfigured(): boolean {
 
 let _redis: Redis | null = null;
 
-function getRedis(): Redis {
+export function getRedis(): Redis {
   if (!_redis) {
     if (!isRedisConfigured()) {
       throw new Error('Redis not configured');
@@ -413,4 +414,82 @@ export async function getActivationCodes(orderId: string): Promise<{ code1: Acti
     getRedis().get<ActivationCode>(key2),
   ]);
   return { code1: code1 ?? null, code2: code2 ?? null };
+}
+
+// Admin token management
+const ADMIN_TOKEN_PREFIX = 'admin:token:';
+const ADMIN_TOKEN_TTL = 60 * 60 * 2; // 2 hours
+
+/**
+ * Generate a random admin token, store its hash in Redis with TTL.
+ * Returns the raw token (to set as cookie) - never store raw token in DB.
+ */
+export async function setAdminToken(rawToken: string): Promise<void> {
+  const hash = crypto.createHash('sha256').update(rawToken).digest('hex');
+  if (USE_LOCAL_STORAGE || !isRedisConfigured()) {
+    lsSet(`${ADMIN_TOKEN_PREFIX}${hash}`, Date.now().toString());
+    return;
+  }
+  await getRedis().set(`${ADMIN_TOKEN_PREFIX}${hash}`, Date.now().toString(), { ex: ADMIN_TOKEN_TTL });
+}
+
+// Admin login brute force protection
+const ADMIN_FAIL_KEY_PREFIX = 'admin:fail:';
+const ADMIN_MAX_FAIL = 5;
+const ADMIN_BLOCK_MS = 15 * 60 * 1000; // 15 minutes
+
+interface AdminFailData {
+  count: number;
+  blockedUntil?: number;
+}
+
+export async function checkAdminBlocked(ip: string): Promise<{ blocked: boolean; remainingSeconds: number }> {
+  if (USE_LOCAL_STORAGE || !isRedisConfigured()) {
+    const key = `${ADMIN_FAIL_KEY_PREFIX}${ip}`;
+    const data = lsGet<AdminFailData>(key);
+    if (!data || !data.blockedUntil) return { blocked: false, remainingSeconds: 0 };
+    const now = Date.now();
+    if (now < data.blockedUntil) {
+      return { blocked: true, remainingSeconds: Math.ceil((data.blockedUntil - now) / 1000) };
+    }
+    lsSet(key, { count: 0 });
+    return { blocked: false, remainingSeconds: 0 };
+  }
+  const key = `${ADMIN_FAIL_KEY_PREFIX}${ip}`;
+  const data = await getRedis().get<AdminFailData>(key);
+  if (!data || !data.blockedUntil) return { blocked: false, remainingSeconds: 0 };
+  const now = Date.now();
+  if (now < data.blockedUntil) {
+    return { blocked: true, remainingSeconds: Math.ceil((data.blockedUntil - now) / 1000) };
+  }
+  await getRedis().set(key, { count: 0 });
+  return { blocked: false, remainingSeconds: 0 };
+}
+
+export async function recordAdminFailedAttempt(ip: string): Promise<void> {
+  if (USE_LOCAL_STORAGE || !isRedisConfigured()) {
+    const key = `${ADMIN_FAIL_KEY_PREFIX}${ip}`;
+    const data = lsGet<AdminFailData>(key) || { count: 0 };
+    data.count++;
+    if (data.count >= ADMIN_MAX_FAIL) {
+      data.blockedUntil = Date.now() + ADMIN_BLOCK_MS;
+    }
+    lsSet(key, data);
+    return;
+  }
+  const key = `${ADMIN_FAIL_KEY_PREFIX}${ip}`;
+  const data = await getRedis().get<AdminFailData>(key) || { count: 0 };
+  data.count++;
+  if (data.count >= ADMIN_MAX_FAIL) {
+    data.blockedUntil = Date.now() + ADMIN_BLOCK_MS;
+  }
+  await getRedis().set(key, data);
+}
+
+export async function resetAdminFailedAttempts(ip: string): Promise<void> {
+  if (USE_LOCAL_STORAGE || !isRedisConfigured()) {
+    lsSet(`${ADMIN_FAIL_KEY_PREFIX}${ip}`, { count: 0 });
+    return;
+  }
+  await getRedis().set(`${ADMIN_FAIL_KEY_PREFIX}${ip}`, { count: 0 });
 }

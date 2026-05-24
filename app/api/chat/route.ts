@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { chatWithAI, type ChatMessage } from "@/lib/models";
-import { checkRateLimit, RATE_LIMITS, extractClientInfo } from "@/lib/ratelimit";
+import { checkRateLimit, checkDeviceIdSpoofing, RATE_LIMITS, extractClientInfo } from "@/lib/ratelimit";
 
 /**
  * @swagger
@@ -67,6 +67,15 @@ export async function POST(request: NextRequest) {
             'Retry-After': Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000).toString(),
           },
         }
+      );
+    }
+
+    // Device ID anti-spoofing check
+    const deviceIdCheck = await checkDeviceIdSpoofing(ip, deviceId);
+    if (!deviceIdCheck.allowed) {
+      return NextResponse.json(
+        { error: 'device_id_rejected', message: '请求异常，已被拒绝' },
+        { status: 403 }
       );
     }
 

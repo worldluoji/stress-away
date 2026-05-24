@@ -8,6 +8,14 @@ function isRedisAvailable(): boolean {
   );
 }
 
+async function getRedis() {
+  const { Redis } = await import('@upstash/redis');
+  return new Redis({
+    url: process.env.UPSTASH_REDIS_REST_URL!,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  });
+}
+
 function lsGet<T>(key: string): T | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -131,3 +139,44 @@ export const RATE_LIMITS = {
   queryCodes: { windowMs: 60000, maxRequests: 10 } as RateLimitConfig,
   usage: { windowMs: 60000, maxRequests: 30 } as RateLimitConfig,
 };
+
+// Device ID anti-spoofing: track unique deviceIds per IP
+const DEVICE_ID_TRACK_PREFIX = 'ip:deviceids:';
+const DEVICE_ID_TRACK_TTL = 60 * 60; // 1 hour
+const DEVICE_ID_MAX_PER_IP = 5;
+
+export interface DeviceIdCheckResult {
+  allowed: boolean;
+  reason?: string;
+}
+
+export async function checkDeviceIdSpoofing(ip: string, deviceId: string): Promise<DeviceIdCheckResult> {
+  // Skip for local storage mode (dev)
+  if (USE_LOCAL_STORAGE || !isRedisAvailable()) {
+    return { allowed: true };
+  }
+
+  const key = `${DEVICE_ID_TRACK_PREFIX}${ip}`;
+  const redis = await getRedis();
+
+  // Check if deviceId already exists in the set
+  const exists = await redis.sismember(key, deviceId);
+  if (exists) {
+    return { allowed: true };
+  }
+
+  // New deviceId - check total count
+  const count = await redis.scard(key);
+  if (count >= DEVICE_ID_MAX_PER_IP) {
+    console.warn(`[Security] Device ID spoofing detected. IP: ${ip}, deviceId: ${deviceId}, count: ${count}`);
+    return {
+      allowed: false,
+      reason: 'device_id_rejected',
+    };
+  }
+
+  // Allow and add to set
+  await redis.sadd(key, deviceId);
+  await redis.expire(key, DEVICE_ID_TRACK_TTL);
+  return { allowed: true };
+}

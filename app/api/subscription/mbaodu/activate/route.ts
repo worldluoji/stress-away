@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getActivationCode, consumeActivationCode, setSubscription, getSubscription, PAID_LIMIT } from '@/lib/redis';
-import { checkRateLimit, RATE_LIMITS, extractClientInfo } from '@/lib/ratelimit';
+import { checkRateLimit, checkDeviceIdSpoofing, RATE_LIMITS, extractClientInfo } from '@/lib/ratelimit';
 import { checkActivationBlocked, recordFailedAttempt, resetFailedAttempts, getRemainingAttempts } from '@/lib/activation-security';
 import { isValidActivationCode } from '@/lib/mbaodu';
 
@@ -82,6 +82,15 @@ export async function POST(request: NextRequest) {
             'Retry-After': blockStatus.remainingSeconds.toString(),
           },
         }
+      );
+    }
+
+    // Device ID anti-spoofing check
+    const deviceIdCheck = await checkDeviceIdSpoofing(ip, deviceId);
+    if (!deviceIdCheck.allowed) {
+      return NextResponse.json(
+        { error: 'device_id_rejected', message: '请求异常，已被拒绝' },
+        { status: 403 }
       );
     }
 
