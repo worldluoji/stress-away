@@ -15,7 +15,7 @@ export function ScenarioModal({ scenario, onClose, onCustomize }: Props) {
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="w-full sm:max-w-2xl max-h-[85vh] bg-[#FAFAFA] rounded-t-2xl sm:rounded-2xl shadow-2xl animate-slide-up sm:animate-scale-in overflow-hidden flex flex-col border border-[var(--card-border)]">
+      <div className="w-full sm:max-w-2xl max-h-[85vh] bg-[--card-bg] rounded-t-2xl sm:rounded-2xl shadow-2xl animate-slide-up sm:animate-scale-in overflow-hidden flex flex-col border border-[var(--card-border)]">
         {/* Header */}
         <div className="px-5 py-4 border-b border-[var(--card-border)] flex items-center justify-between">
           <div>
