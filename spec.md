@@ -25,10 +25,11 @@
 ### 订阅与激活
 - [x] 免费额度：每天 1 次对话
 - [x] 激活码订阅：50 次对话额度，2 个激活码
+- [x] 管理端激活码：管理员生成独立激活码，支持闲鱼等平台销售
 - [x] 面包多对接：支付回调生成激活码
 - [x] 设备激活：基于 FingerprintJS 的设备标识
 - [x] 使用追踪：免费用户每日限制，付费用户按次扣费
-- [x] 管理后台：查询/重新生成激活码
+- [x] 管理后台：生成/查询管理端激活码，查询/重新生成订单激活码
 
 ### 激活码规则
 
@@ -100,12 +101,14 @@
 │   ├── admin/page.tsx                 # 管理后台
 │   ├── api/
 │   │   ├── admin/
+│   │   │   ├── codes/route.ts        # 管理端激活码生成/查询
 │   │   │   ├── login/route.ts        # 管理登录
 │   │   │   └── orders/[orderId]/route.ts # 订单激活码管理
 │   │   ├── chat/route.ts              # AI 对话
 │   │   ├── docs/route.ts              # API 文档
 │   │   ├── scenarios/                # 场景模板 API
 │   │   ├── subscription/
+│   │   │   ├── admin/activate/       # 管理端激活码激活
 │   │   │   ├── callback/             # 面包多回调
 │   │   │   ├── mbaodu/activate/      # 激活设备
 │   │   │   └── query-codes/          # 查询激活码
@@ -232,6 +235,71 @@ Headers: `x-device-id`
   ]
 }
 ```
+
+### POST /api/admin/codes
+
+生成管理端激活码（需登录）。
+
+请求：`{ "times": 50 }`（可选，默认50）
+
+响应：
+```json
+{
+  "code": "ABCD-1234-EFGH-56",
+  "expiresAt": 1751395200000,
+  "totalTimes": 50
+}
+```
+
+### GET /api/admin/codes
+
+查询管理端激活码列表（需登录）。
+
+查询参数：`?page=1&limit=20` 或 `?code=ABCD-1234-EFGH-56`
+
+响应（列表）：
+```json
+{
+  "codes": [...],
+  "total": 100,
+  "page": 1
+}
+```
+
+响应（单个）：
+```json
+{
+  "code": "ABCD-1234-EFGH-56",
+  "createdAt": 1751212800000,
+  "expiresAt": 1751395200000,
+  "totalTimes": 50,
+  "remainingTimes": 45,
+  "used": true,
+  "deviceId": "xxx",
+  "activationTime": 1751300000000
+}
+```
+
+### POST /api/subscription/admin/activate
+
+使用管理端激活码激活设备。
+
+Headers: `x-device-id`
+
+请求：
+```json
+{ "code": "ABCD-1234-EFGH-56" }
+```
+
+响应：
+```json
+{ "success": true, "remainingCodes": 50, "expiresAt": 1751395200000 }
+```
+
+**管理端激活码规则：**
+- 有效期30天（从生成时算起）
+- 首次激活绑定设备，获得指定次数（默认50）
+- 换设备激活时，旧设备失效，新设备继承剩余次数
 
 ## 环境变量
 

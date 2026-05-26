@@ -65,10 +65,13 @@ function lsDel(key: string): void {
 // Interfaces
 export interface Subscription {
   status: 'active' | 'inactive';
+  source: 'mbaodu' | 'admin';  // 激活来源
   remainingCodes: number;
   activationTime?: number;
   activationCodeIndex?: 1 | 2; // 记录激活时使用的是哪个码，用于后续同步
-  orderId?: string; // 记录订单号
+  orderId?: string; // 记录订单号（仅 mbaodu）
+  expiresAt?: number; // 仅 admin 来源有
+  activationCode?: string; // 使用的激活码（仅 admin 来源有）
 }
 
 export interface ActivationCode {
@@ -76,6 +79,18 @@ export interface ActivationCode {
   used: boolean;
   deviceId?: string;
   remainingCodes: number; // 码上剩余次数，与设备订阅同步
+  activationTime?: number;
+}
+
+// 管理端激活码
+export interface AdminActivationCode {
+  code: string;
+  createdAt: number;
+  expiresAt: number;
+  totalTimes: number;
+  remainingTimes: number;
+  used: boolean;
+  deviceId?: string;
   activationTime?: number;
 }
 
@@ -492,4 +507,162 @@ export async function resetAdminFailedAttempts(ip: string): Promise<void> {
     return;
   }
   await getRedis().set(`${ADMIN_FAIL_KEY_PREFIX}${ip}`, { count: 0 });
+}
+
+// ==================== Admin Activation Codes ====================
+
+const ADMIN_CODE_PREFIX = 'admin:code:';
+const ADMIN_CODE_LIST_KEY = 'admin:codes:list';
+const ADMIN_CODE_TTL = 60 * 60 * 24 * 31; // 31 days
+
+export async function createAdminActivationCode(
+  code: string,
+  totalTimes: number = 50
+): Promise<AdminActivationCode> {
+  const now = Date.now();
+  const adminCode: AdminActivationCode = {
+    code,
+    createdAt: now,
+    expiresAt: now + 30 * 24 * 60 * 60 * 1000,
+    totalTimes,
+    remainingTimes: totalTimes,
+    used: false,
+  };
+
+  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
+    lsSet(`${ADMIN_CODE_PREFIX}${code}`, adminCode);
+    // Also store in list for enumeration
+    const list = lsGet<string[]>(ADMIN_CODE_LIST_KEY) || [];
+    list.push(code);
+    lsSet(ADMIN_CODE_LIST_KEY, list);
+    return adminCode;
+  }
+
+  await getRedis().set(`${ADMIN_CODE_PREFIX}${code}`, adminCode, { ex: ADMIN_CODE_TTL });
+  // Add to sorted set for listing (score = createdAt)
+  await getRedis().zadd(ADMIN_CODE_LIST_KEY, { score: now, member: code });
+  return adminCode;
+}
+
+export async function getAdminActivationCode(code: string): Promise<AdminActivationCode | null> {
+  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
+    return lsGet<AdminActivationCode>(`${ADMIN_CODE_PREFIX}${code}`);
+  }
+  const data = await getRedis().get<AdminActivationCode>(`${ADMIN_CODE_PREFIX}${code}`);
+  return data ?? null;
+}
+
+export async function listAdminActivationCodes(
+  page: number = 1,
+  limit: number = 20
+): Promise<{ codes: AdminActivationCode[]; total: number }> {
+  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
+    const codeList = lsGet<string[]>(ADMIN_CODE_LIST_KEY) || [];
+    const start = (page - 1) * limit;
+    const codes: AdminActivationCode[] = [];
+    for (let i = start; i < Math.min(start + limit, codeList.length); i++) {
+      const c = lsGet<AdminActivationCode>(`${ADMIN_CODE_PREFIX}${codeList[i]}`);
+      if (c) codes.push(c);
+    }
+    return { codes, total: codeList.length };
+  }
+
+  const total = await getRedis().zcard(ADMIN_CODE_LIST_KEY);
+  const results = await getRedis().zrange(ADMIN_CODE_LIST_KEY, (page - 1) * limit, page * limit - 1);
+  const codes: AdminActivationCode[] = [];
+  for (const code of results) {
+    const data = await getRedis().get<AdminActivationCode>(`${ADMIN_CODE_PREFIX}${code}`);
+    if (data) codes.push(data);
+  }
+  return { codes, total };
+}
+
+export async function consumeAdminActivationCode(
+  code: string,
+  deviceId: string
+): Promise<{ success: boolean; error?: string; remainingCodes?: number; expiresAt?: number }> {
+  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
+    const key = `${ADMIN_CODE_PREFIX}${code}`;
+    const data = lsGet<AdminActivationCode>(key);
+    if (!data) return { success: false, error: 'invalid_code' };
+
+    // Check expiry
+    if (Date.now() > data.expiresAt) {
+      return { success: false, error: 'expired_code' };
+    }
+
+    // If code already used by another device, revoke that device's subscription
+    if (data.used && data.deviceId && data.deviceId !== deviceId) {
+      lsDel(`device:${data.deviceId}:sub`);
+    }
+
+    // Same device - just return success
+    if (data.deviceId === deviceId) {
+      return {
+        success: true,
+        remainingCodes: data.remainingTimes,
+        expiresAt: data.expiresAt
+      };
+    }
+
+    // New device - update
+    lsSet(key, {
+      ...data,
+      used: true,
+      deviceId,
+      remainingTimes: data.remainingTimes,
+      activationTime: data.activationTime || Date.now()
+    });
+
+    return {
+      success: true,
+      remainingCodes: data.remainingTimes,
+      expiresAt: data.expiresAt
+    };
+  }
+
+  const key = `${ADMIN_CODE_PREFIX}${code}`;
+  const data = await getRedis().get<AdminActivationCode>(key);
+
+  if (!data) {
+    return { success: false, error: 'invalid_code' };
+  }
+
+  // Check expiry
+  if (Date.now() > data.expiresAt) {
+    return { success: false, error: 'expired_code' };
+  }
+
+  // If code already used by another device, revoke that device's subscription
+  if (data.used && data.deviceId && data.deviceId !== deviceId) {
+    await clearDeviceSubscription(data.deviceId);
+  }
+
+  // Same device - just return success
+  if (data.deviceId === deviceId) {
+    return {
+      success: true,
+      remainingCodes: data.remainingTimes,
+      expiresAt: data.expiresAt
+    };
+  }
+
+  // New device - update
+  await getRedis().set(
+    key,
+    {
+      ...data,
+      used: true,
+      deviceId,
+      remainingTimes: data.remainingTimes,
+      activationTime: data.activationTime || Date.now()
+    },
+    { ex: ADMIN_CODE_TTL }
+  );
+
+  return {
+    success: true,
+    remainingCodes: data.remainingTimes,
+    expiresAt: data.expiresAt
+  };
 }

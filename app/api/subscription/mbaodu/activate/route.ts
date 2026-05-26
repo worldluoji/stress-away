@@ -148,6 +148,7 @@ export async function POST(request: NextRequest) {
 
     await setSubscription(deviceId, {
       status: 'active',
+      source: 'mbaodu',
       remainingCodes: consumeResult.remainingCodes ?? PAID_LIMIT,
       activationTime: Date.now(),
       activationCodeIndex: matchIndex,
