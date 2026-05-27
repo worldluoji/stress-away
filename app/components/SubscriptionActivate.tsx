@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import FingerprintJS from '@fingerprintjs/fingerprintjs';
+import { getDeviceId } from '@/lib/utils';
 
 interface ActivationCode {
   code: string;
@@ -345,10 +345,4 @@ export function SubscriptionActivate({ onActivated }: Props) {
       )}
     </div>
   );
-}
-
-async function getDeviceId(): Promise<string> {
-  const fp = await FingerprintJS.load();
-  const result = await fp.get();
-  return result.visitorId;
 }

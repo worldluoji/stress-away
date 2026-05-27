@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef, startTransition } from "react";
 import ReactMarkdown from "react-markdown";
-import FingerprintJS from "@fingerprintjs/fingerprintjs";
 import type { ChatMessage } from "@/lib/models";
 import { loadMessages, saveMessages, loadHistory, saveHistory, generateConversationId, generateTitle, type Conversation } from "@/lib/storage";
+import { getDeviceId } from "@/lib/utils";
 import { SubscriptionActivate } from "./components/SubscriptionActivate";
 import { ScenarioCard } from "./components/ScenarioCard";
 import { ScenarioModal } from "./components/ScenarioModal";
@@ -16,12 +16,6 @@ interface UsageStatus {
   remaining: number;
   isPaid: boolean;
   total: number;
-}
-
-async function getDeviceId(): Promise<string> {
-  const fp = await FingerprintJS.load();
-  const result = await fp.get();
-  return result.visitorId;
 }
 
 // AI Assistant Avatar
