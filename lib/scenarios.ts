@@ -229,7 +229,3 @@ export const SCENARIOS: ScenarioTemplate[] = [
 export function getScenarioById(id: string): ScenarioTemplate | undefined {
   return SCENARIOS.find((s) => s.id === id);
 }
-
-export function getAllScenarios(): Omit<ScenarioTemplate, 'scripts' | 'mindset' | 'evidence' | 'lawRef'>[] {
-  return SCENARIOS.map(({ scripts, mindset, evidence, lawRef, ...rest }) => rest);
-}

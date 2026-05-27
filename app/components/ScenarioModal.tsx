@@ -1,6 +1,5 @@
 'use client';
 
-import ReactMarkdown from 'react-markdown';
 import type { ScenarioTemplate } from '@/lib/scenarios';
 
 interface Props {

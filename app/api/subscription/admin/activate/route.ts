@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { consumeAdminActivationCode, setSubscription, getSubscription, clearDeviceSubscription } from '@/lib/redis';
+import { consumeAdminActivationCode, setSubscription, getSubscription } from '@/lib/redis';
 import { checkRateLimit, checkDeviceIdSpoofing, RATE_LIMITS, extractClientInfo } from '@/lib/ratelimit';
 import { checkActivationBlocked, recordFailedAttempt, resetFailedAttempts, getRemainingAttempts } from '@/lib/activation-security';
 import { isValidActivationCode } from '@/lib/mbaodu';

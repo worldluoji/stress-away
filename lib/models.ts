@@ -53,18 +53,6 @@ ${i + 1}. ${i === 0 ? '温和版' : '犀利版'}： "${s.mild}"
 请结合以上场景模板，给出更贴合该场景的定制化建议。`;
 }
 
-// 解析用户输入中的场景ID
-function extractScenarioId(input: string): { scenarioId: string | null; cleanedInput: string } {
-  const match = input.match(/^场景ID：([a-z-]+)\n/);
-  if (match) {
-    return {
-      scenarioId: match[1],
-      cleanedInput: input.replace(/^场景ID：[a-z-]+\n/, ''),
-    };
-  }
-  return { scenarioId: null, cleanedInput: input };
-}
-
 function getModelConfig() {
   const modelName = process.env.DEFAULT_MODEL || "deepseek";
   const config = AI_MODELS[modelName as ModelProvider];
