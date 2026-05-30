@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm lint:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx tsx:*)",
+      "Bash(pnpm add:*)",
+      "Bash(git add:*)",
+      "Bash(pnpm build:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm approve-builds:*)",
+      "Bash(pnpm config:*)",
+      "Bash(pnpm tsc:*)",
+      "Bash(lsof -ti:8989)",
+      "Bash(xargs kill:*)",
+      "Bash(pnpm dev:*)",
+      "Bash(cat /Users/luojiayi/code/stress-away/node_modules/.pnpm/swagger-client@*/node_modules/swagger-client/package.json)",
+      "Bash(find /Users/luojiayi/code/stress-away/node_modules -name \"package.json\" -path \"*/swagger-client/*\" -exec grep -l '\"version\"' {} \\\\;)",
+      "Bash(curl -s http://localhost:8989/docs)",
+      "Bash(find /Users/luojiayi/code/stress-away/node_modules -path \"*swagger-ui-react@5.18.0*\" -name \"package.json\" -exec grep -l \"swagger-client\" {} \\\\;)",
+      "Bash(pnpm list:*)",
+      "Bash(find /Users/luojiayi/code/stress-away/node_modules -path \"*swagger-client*\" -name \"package.json\" -exec grep -l '\"version\"' {} \\\\;)",
+      "Bash(pnpm why:*)",
+      "Bash(cat /Users/luojiayi/code/stress-away/node_modules/.pnpm/swagger-ui-react@5.18.0*/node_modules/swagger-ui-react/package.json)",
+      "Bash(pnpm show:*)"
+    ],
+    "ask": [
+      "Bash(git commit:*)"
+    ]
+  }
+}
