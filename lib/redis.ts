@@ -310,11 +310,20 @@ export async function consumeUsage(deviceId: string): Promise<number> {
 
   // Sync to activation code if this device is activated
   if (sub.orderId && sub.activationCodeIndex) {
+    // Mbaodu activation code
     const codeKey = `activation:${sub.orderId}:${sub.activationCodeIndex}`;
     const codeData = await getActivationCodeInternal(codeKey);
     if (codeData) {
       codeData.remainingCodes = sub.remainingCodes;
       await setActivationCodeInternal(codeKey, codeData);
+    }
+  } else if (sub.source === 'admin' && sub.activationCode) {
+    // Admin activation code
+    const codeKey = `admin:code:${sub.activationCode}`;
+    const codeData = await getAdminActivationCodeInternal(codeKey);
+    if (codeData) {
+      codeData.remainingTimes = sub.remainingCodes;
+      await setAdminActivationCodeInternal(codeKey, codeData);
     }
   }
 
@@ -337,6 +346,22 @@ async function setActivationCodeInternal(key: string, data: ActivationCode): Pro
     return;
   }
   await getRedis().set(key, data, { ex: 60 * 60 * 24 * 30 });
+}
+
+async function getAdminActivationCodeInternal(key: string): Promise<AdminActivationCode | null> {
+  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
+    return lsGet<AdminActivationCode>(key);
+  }
+  const data = await getRedis().get<AdminActivationCode>(key);
+  return data ?? null;
+}
+
+async function setAdminActivationCodeInternal(key: string, data: AdminActivationCode): Promise<void> {
+  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
+    lsSet(key, data);
+    return;
+  }
+  await getRedis().set(key, data, { ex: ADMIN_CODE_TTL });
 }
 
 // Check if paid user
