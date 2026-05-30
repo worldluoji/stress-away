@@ -177,8 +177,7 @@ export default function Home() {
     setSelectedScenario(scenario);
   };
 
-  const handleScenarioCustomize = () => {
-    const prefix = `场景ID：${selectedScenario?.id}\n场景：${selectedScenario?.name}\n${selectedScenario?.description}\n\n请根据我的具体情况，生成专属的话术和应对建议：\n\n我的具体情况：`;
+  const handleScenarioCustomize = (prefix: string) => {
     setScenarioPrefix(prefix);
     setInput(prefix);
     setUserText("");

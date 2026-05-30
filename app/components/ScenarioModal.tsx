@@ -1,14 +1,51 @@
 'use client';
 
-import type { ScenarioTemplate } from '@/lib/scenarios';
+import { useState } from 'react';
+import type { ScenarioTemplate, ScenarioQuestion } from '@/lib/scenarios';
 
 interface Props {
   scenario: ScenarioTemplate;
   onClose: () => void;
-  onCustomize: () => void;
+  onCustomize: (prefix: string) => void;
 }
 
 export function ScenarioModal({ scenario, onClose, onCustomize }: Props) {
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [showQuestions, setShowQuestions] = useState(false);
+
+  const questions = scenario.questions || [];
+  const allAnswered = questions.length === 0 || questions.every((q) => answers[q.id]);
+
+  const handleAnswer = (questionId: string, option: string) => {
+    setAnswers((prev) => ({ ...prev, [questionId]: option }));
+  };
+
+  const handleCustomize = () => {
+    if (!allAnswered) {
+      setShowQuestions(true);
+      return;
+    }
+
+    // Build detailed context with answers
+    let context = `场景ID：${scenario.id}
+场景：${scenario.name}
+${scenario.description}\n`;
+
+    if (questions.length > 0) {
+      context += `\n【我的具体情况】\n`;
+      questions.forEach((q) => {
+        context += `· ${q.question} → ${answers[q.id] || '（未选择）'}\n`;
+      });
+    }
+
+    context += `\n请根据以上具体场景和我的选择，生成专属的话术反击、心态调整、证据收集建议和法律参考。话术要贴合我选择的场景细节，越具体越好。`;
+
+    onCustomize(context);
+    onClose();
+  };
+
+  const selectedAnswersCount = questions.filter((q) => answers[q.id]).length;
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"
@@ -68,10 +105,49 @@ export function ScenarioModal({ scenario, onClose, onCustomize }: Props) {
             </div>
           </div>
 
+          {/* Follow-up Questions */}
+          {questions.length > 0 && (
+            <div>
+              <h3 className="text-base font-semibold text-[--foreground] mb-3 flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-[#FF9500]/10 text-[#FF9500] text-sm flex items-center justify-center">2</span>
+                补充具体情况（可选）
+                {showQuestions && (
+                  <span className="text-xs text-[--foreground-tertiary] font-normal">
+                    · 已选 {selectedAnswersCount}/{questions.length}
+                  </span>
+                )}
+              </h3>
+              <div className="space-y-4">
+                {questions.map((q) => (
+                  <div key={q.id} className="bg-[--background-secondary] rounded-xl p-4">
+                    <p className="text-sm font-medium text-[--foreground] mb-3">{q.question}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {q.options.map((option) => (
+                        <button
+                          key={option}
+                          onClick={() => handleAnswer(q.id, option)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                            answers[q.id] === option
+                              ? 'bg-[#FF9500] text-white'
+                              : 'bg-[--background-tertiary] text-[--foreground-secondary] hover:bg-[#FF9500]/20'
+                          }`}
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Mindset */}
           <div>
             <h3 className="text-base font-semibold text-[--foreground] mb-3 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-[#34C759]/10 text-[#34C759] text-sm flex items-center justify-center">2</span>
+              <span className="w-6 h-6 rounded-full bg-[#34C759]/10 text-[#34C759] text-sm flex items-center justify-center">
+                {questions.length > 0 ? '3' : '2'}
+              </span>
               心态调整
             </h3>
             <div className="bg-[#34C759]/5 border border-[#34C759]/20 rounded-xl p-4">
@@ -84,7 +160,9 @@ export function ScenarioModal({ scenario, onClose, onCustomize }: Props) {
           {/* Evidence */}
           <div>
             <h3 className="text-base font-semibold text-[--foreground] mb-3 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-[#FF9500]/10 text-[#FF9500] text-sm flex items-center justify-center">3</span>
+              <span className="w-6 h-6 rounded-full bg-[#AF52DE]/10 text-[#AF52DE] text-sm flex items-center justify-center">
+                {questions.length > 0 ? '4' : '3'}
+              </span>
               证据收集
             </h3>
             <div className="bg-[--background-secondary] rounded-xl p-4">
@@ -102,10 +180,12 @@ export function ScenarioModal({ scenario, onClose, onCustomize }: Props) {
           {/* Law Ref */}
           <div>
             <h3 className="text-base font-semibold text-[--foreground] mb-3 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-[#AF52DE]/10 text-[#AF52DE] text-sm flex items-center justify-center">4</span>
+              <span className="w-6 h-6 rounded-full bg-[#5856D6]/10 text-[#5856D6] text-sm flex items-center justify-center">
+                {questions.length > 0 ? '5' : '4'}
+              </span>
               法律参考
             </h3>
-            <div className="bg-[#AF52DE]/5 border border-[#AF52DE]/20 rounded-xl p-4">
+            <div className="bg-[#5856D6]/5 border border-[#5856D6]/20 rounded-xl p-4">
               <p className="text-[15px] text-[--foreground] leading-relaxed">
                 {scenario.lawRef}
               </p>
@@ -114,17 +194,33 @@ export function ScenarioModal({ scenario, onClose, onCustomize }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-[var(--card-border)]">
+        <div className="px-5 py-4 border-t border-[var(--card-border)] space-y-2">
           <button
-            onClick={() => {
-              onCustomize();
-              onClose();
-            }}
-            className="w-full py-3.5 bg-[#007AFF] text-white rounded-xl text-sm font-medium active:scale-[0.98] transition-all"
+            onClick={handleCustomize}
+            className={`w-full py-3.5 rounded-xl text-sm font-medium active:scale-[0.98] transition-all ${
+              allAnswered
+                ? 'bg-[#007AFF] text-white'
+                : 'bg-[--background-tertiary] text-[--foreground-tertiary]'
+            }`}
           >
-            输入具体情况，定制生成专属话术
+            {allAnswered
+              ? '📝 生成专属话术（更贴合你的情况）'
+              : `继续补充 ${selectedAnswersCount}/${questions.length}`}
           </button>
-          <p className="text-xs text-[--foreground-tertiary] text-center mt-2">
+          {!allAnswered && (
+            <button
+              onClick={() => {
+                // Skip questions, go directly to chat with basic prefix
+                const prefix = `场景ID：${scenario.id}\n场景：${scenario.name}\n${scenario.description}\n\n请根据我的具体情况，生成专属的话术和应对建议：\n\n我的具体情况：`;
+                onCustomize(prefix);
+                onClose();
+              }}
+              className="w-full py-2.5 text-xs text-[--foreground-tertiary] hover:text-[--foreground-secondary] transition-colors"
+            >
+              跳过，直接输入
+            </button>
+          )}
+          <p className="text-xs text-[--foreground-tertiary] text-center">
             定制生成将消耗 1 次对话次数
           </p>
         </div>
