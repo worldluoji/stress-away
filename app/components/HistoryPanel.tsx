@@ -31,7 +31,7 @@ export function HistoryPanel({ conversations, currentConversationId, onSelect, o
       />
 
       {/* Panel */}
-      <div className="absolute inset-y-0 left-0 w-full max-w-xs bg-[--card-bg] shadow-2xl flex flex-col">
+      <div className="absolute inset-y-0 left-0 w-full max-w-xs bg-[--card-bg] shadow-2xl flex flex-col bg-white dark:bg-neutral-900">
         {/* Header */}
         <div className="px-4 py-4 border-b border-[var(--card-border)] flex items-center justify-between">
           <h2 className="text-lg font-semibold text-[--foreground]">历史记录</h2>
