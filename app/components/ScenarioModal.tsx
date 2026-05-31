@@ -196,30 +196,45 @@ ${scenario.description}\n`;
         {/* Footer */}
         <div className="px-5 py-4 border-t border-[var(--card-border)] space-y-2">
           <button
-            onClick={handleCustomize}
+            onClick={() => {
+              if (!allAnswered) {
+                if (!showQuestions) {
+                  // Show the questions section first
+                  setShowQuestions(true);
+                } else {
+                  // Questions are visible, user wants to skip and go to chat
+                  const prefix = `场景ID：${scenario.id}\n场景：${scenario.name}\n${scenario.description}\n\n请根据我的具体情况，生成专属的话术和应对建议：\n\n我的具体情况：`;
+                  onCustomize(prefix);
+                  onClose();
+                }
+              } else {
+                handleCustomize();
+              }
+            }}
             className={`w-full py-3.5 rounded-xl text-sm font-medium active:scale-[0.98] transition-all ${
               allAnswered
                 ? 'bg-[#007AFF] text-white'
+                : showQuestions
+                ? 'bg-[#FF9500] text-white'
                 : 'bg-[--background-tertiary] text-[--foreground-tertiary]'
             }`}
           >
             {allAnswered
               ? '📝 生成专属话术（更贴合你的情况）'
+              : showQuestions
+              ? '📝 跳过并生成话术'
               : `继续补充 ${selectedAnswersCount}/${questions.length}`}
           </button>
-          {!allAnswered && (
-            <button
-              onClick={() => {
-                // Skip questions, go directly to chat with basic prefix
-                const prefix = `场景ID：${scenario.id}\n场景：${scenario.name}\n${scenario.description}\n\n请根据我的具体情况，生成专属的话术和应对建议：\n\n我的具体情况：`;
-                onCustomize(prefix);
-                onClose();
-              }}
-              className="w-full py-2.5 text-xs text-[--foreground-tertiary] hover:text-[--foreground-secondary] transition-colors"
-            >
-              跳过，直接输入
-            </button>
-          )}
+          <button
+            onClick={() => {
+              const prefix = `场景ID：${scenario.id}\n场景：${scenario.name}\n${scenario.description}\n\n请根据我的具体情况，生成专属的话术和应对建议：\n\n我的具体情况：`;
+              onCustomize(prefix);
+              onClose();
+            }}
+            className="w-full py-2 text-xs text-[--foreground-tertiary] hover:text-[#FF9500] transition-colors"
+          >
+            跳过，直接输入
+          </button>
           <p className="text-xs text-[--foreground-tertiary] text-center">
             定制生成将消耗 1 次对话次数
           </p>

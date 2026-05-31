@@ -68,8 +68,8 @@ export const SCENARIOS: ScenarioTemplate[] = [
     ],
   },
   {
-    id: 'public-criticism',
-    name: '被当众批评',
+    id: 'public-criticism-v2',
+    name: '被当众批评（升级版）',
     description: '领导在公开场合（如会议、邮件）批评你，让你难堪',
     keywords: ['当众批评', '公开指责', '会议上骂', '群里批评'],
     scripts: [
