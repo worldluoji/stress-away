@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import type { ScenarioTemplate, ScenarioQuestion } from '@/lib/scenarios';
+import { useState, useEffect, useRef } from 'react';
+import type { ScenarioTemplate } from '@/lib/scenarios';
 
 interface Props {
   scenario: ScenarioTemplate;
@@ -12,21 +12,25 @@ interface Props {
 export function ScenarioModal({ scenario, onClose, onCustomize }: Props) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [showQuestions, setShowQuestions] = useState(false);
+  const questionsRef = useRef<HTMLDivElement>(null);
 
   const questions = scenario.questions || [];
   const allAnswered = questions.length === 0 || questions.every((q) => answers[q.id]);
+
+  // Auto-scroll to questions when they become visible
+  useEffect(() => {
+    if (showQuestions && questionsRef.current) {
+      setTimeout(() => {
+        questionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    }
+  }, [showQuestions]);
 
   const handleAnswer = (questionId: string, option: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: option }));
   };
 
-  const handleCustomize = () => {
-    if (!allAnswered) {
-      setShowQuestions(true);
-      return;
-    }
-
-    // Build detailed context with answers
+  const handleGenerate = () => {
     let context = `场景ID：${scenario.id}
 场景：${scenario.name}
 ${scenario.description}\n`;
@@ -42,6 +46,14 @@ ${scenario.description}\n`;
 
     onCustomize(context);
     onClose();
+  };
+
+  const handleMainButtonClick = () => {
+    if (allAnswered) {
+      handleGenerate();
+    } else {
+      setShowQuestions(true);
+    }
   };
 
   const selectedAnswersCount = questions.filter((q) => answers[q.id]).length;
@@ -106,16 +118,14 @@ ${scenario.description}\n`;
           </div>
 
           {/* Follow-up Questions */}
-          {questions.length > 0 && (
-            <div>
+          {questions.length > 0 && showQuestions && (
+            <div ref={questionsRef}>
               <h3 className="text-base font-semibold text-[--foreground] mb-3 flex items-center gap-2">
                 <span className="w-6 h-6 rounded-full bg-[#FF9500]/10 text-[#FF9500] text-sm flex items-center justify-center">2</span>
                 补充具体情况（可选）
-                {showQuestions && (
-                  <span className="text-xs text-[--foreground-tertiary] font-normal">
-                    · 已选 {selectedAnswersCount}/{questions.length}
-                  </span>
-                )}
+                <span className="text-xs text-[--foreground-tertiary] font-normal">
+                  · 已选 {selectedAnswersCount}/{questions.length}
+                </span>
               </h3>
               <div className="space-y-4">
                 {questions.map((q) => (
@@ -196,33 +206,15 @@ ${scenario.description}\n`;
         {/* Footer */}
         <div className="px-5 py-4 border-t border-[var(--card-border)] space-y-2">
           <button
-            onClick={() => {
-              if (!allAnswered) {
-                if (!showQuestions) {
-                  // Show the questions section first
-                  setShowQuestions(true);
-                } else {
-                  // Questions are visible, user wants to skip and go to chat
-                  const prefix = `场景ID：${scenario.id}\n场景：${scenario.name}\n${scenario.description}\n\n请根据我的具体情况，生成专属的话术和应对建议：\n\n我的具体情况：`;
-                  onCustomize(prefix);
-                  onClose();
-                }
-              } else {
-                handleCustomize();
-              }
-            }}
+            onClick={handleMainButtonClick}
             className={`w-full py-3.5 rounded-xl text-sm font-medium active:scale-[0.98] transition-all ${
               allAnswered
                 ? 'bg-[#007AFF] text-white'
-                : showQuestions
-                ? 'bg-[#FF9500] text-white'
-                : 'bg-[--background-tertiary] text-[--foreground-tertiary]'
+                : 'bg-[#FF9500] text-white'
             }`}
           >
             {allAnswered
               ? '📝 生成专属话术（更贴合你的情况）'
-              : showQuestions
-              ? '📝 跳过并生成话术'
               : `继续补充 ${selectedAnswersCount}/${questions.length}`}
           </button>
           <button
