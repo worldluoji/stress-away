@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { getActivationCodes, setActivationCode, isRedisConfigured, getRedis } from '@/lib/redis';
+import { getActivationCodes, setActivationCode } from '@/lib/subscriptions';
 import { generateActivationCode } from '@/lib/mbaodu';
+import { isRedisConfigured, getRedis } from '@/lib/redis';
 
 const USE_LOCAL_STORAGE = process.env.USE_LOCAL_STORAGE === 'true';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { consumeOne } from '@/lib/subscription';
 import { checkRateLimit, checkDeviceIdSpoofing, RATE_LIMITS, extractClientInfo } from '@/lib/ratelimit';
+import { recordEvent } from '@/lib/usage-events';
 
 /**
  * @swagger
@@ -60,6 +61,13 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await consumeOne(deviceId);
+
+    // Record usage event
+    if (result.isPaid) {
+      await recordEvent({ deviceId, eventType: 'chat' });
+    } else {
+      await recordEvent({ deviceId, eventType: 'free_consume' });
+    }
 
     return NextResponse.json(
       result,

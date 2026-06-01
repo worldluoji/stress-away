@@ -1,12 +1,18 @@
 import {
-  isPaidUser,
-  getFreeCount,
-  incrementFreeCount,
-  getRemainingUsage,
-  consumeUsage,
+  isPaidUser as checkIsPaidUserMySQL,
+  getRemainingUsage as getPaidUsageMySQL,
+  consumeUsage as consumePaidUsageMySQL,
   FREE_LIMIT_PER_DAY,
   PAID_LIMIT,
+} from './subscriptions';
+import {
+  isPaidUser as checkIsPaidUserRedis,
+  getFreeCount,
+  incrementFreeCount,
+  consumeUsage as consumeUsageRedis,
+  getRemainingUsage as getRemainingUsageRedis,
 } from './redis';
+import { isMySQLAvailable } from './db';
 
 export interface UsageStatus {
   allowed: boolean;
@@ -16,10 +22,11 @@ export interface UsageStatus {
 }
 
 export async function checkUsage(deviceId: string): Promise<UsageStatus> {
-  const paid = await isPaidUser(deviceId);
+  // Paid check uses MySQL
+  const paid = await checkIsPaidUserMySQL(deviceId);
 
   if (paid) {
-    const remaining = await getRemainingUsage(deviceId);
+    const remaining = await getPaidUsageMySQL(deviceId);
     return {
       allowed: remaining > 0,
       remaining,
@@ -28,6 +35,7 @@ export async function checkUsage(deviceId: string): Promise<UsageStatus> {
     };
   }
 
+  // Free count still uses Redis (daily counter, works well)
   const current = await getFreeCount(deviceId);
   if (current >= FREE_LIMIT_PER_DAY) {
     return {
@@ -48,10 +56,10 @@ export async function checkUsage(deviceId: string): Promise<UsageStatus> {
 }
 
 export async function consumeOne(deviceId: string): Promise<{ remaining: number; isPaid: boolean }> {
-  const paid = await isPaidUser(deviceId);
+  const paid = await checkIsPaidUserMySQL(deviceId);
 
   if (paid) {
-    const remaining = await consumeUsage(deviceId);
+    const remaining = await consumePaidUsageMySQL(deviceId);
     return { remaining, isPaid: true };
   }
 

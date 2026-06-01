@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getActivationCode, setActivationCodes, setUsedOrderTTL, canQueryOrder } from '@/lib/redis';
+import { getActivationCode, setActivationCodes, canQueryOrder, markOrderActivated } from '@/lib/subscriptions';
 import { queryOrder, generateActivationCode, MbaoduApiError } from '@/lib/mbaodu';
 import { checkRateLimit, checkDeviceIdSpoofing, RATE_LIMITS, getClientIP } from '@/lib/ratelimit';
 
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
           const newCode1 = generateActivationCode();
           const newCode2 = generateActivationCode();
           await setActivationCodes(order_id, newCode1, newCode2);
-          await setUsedOrderTTL(order_id, 30);
+          await markOrderActivated(order_id);
 
           return NextResponse.json(
             {

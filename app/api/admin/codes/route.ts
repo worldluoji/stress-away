@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminActivationCode, listAdminActivationCodes, getAdminActivationCode } from '@/lib/redis';
+import { createAdminActivationCode, listAdminActivationCodes, getAdminActivationCode } from '@/lib/subscriptions';
 import { generateActivationCode } from '@/lib/mbaodu';
 import { verifyAdminToken } from '@/app/api/admin/verify';
 
