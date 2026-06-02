@@ -94,6 +94,5 @@ CREATE TABLE IF NOT EXISTS orders (
   order_id VARCHAR(64) PRIMARY KEY,
   created_at BIGINT NOT NULL,
   activated BOOLEAN NOT NULL DEFAULT FALSE,
-  created_at_ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_activated (activated)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

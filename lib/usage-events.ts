@@ -29,6 +29,7 @@ interface ScenarioStatRow {
 // ==================== Usage Events ====================
 
 export interface UsageEvent {
+  uid?: string;
   deviceId?: string;
   eventType: EventType;
   scenarioId?: string;
@@ -42,9 +43,10 @@ export async function recordEvent(event: UsageEvent): Promise<void> {
   if (!isMySQLAvailable) return;
   try {
     await execute(
-      `INSERT INTO usage_events (device_id, event_type, scenario_id, meta)
-       VALUES (?, ?, ?, ?)`,
+      `INSERT INTO usage_events (uid, device_id, event_type, scenario_id, meta)
+       VALUES (?, ?, ?, ?, ?)`,
       [
+        event.uid ?? null,
         event.deviceId ?? null,
         event.eventType,
         event.scenarioId ?? null,

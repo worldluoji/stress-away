@@ -1,18 +1,21 @@
+/**
+ * Usage quota check and consume - TCB user edition
+ *
+ * Priority:
+ * 1. Logged-in user (uid) → check MySQL uid-based subscription
+ * 2. Anonymous user → device-based free count (Redis)
+ */
+
 import {
-  isPaidUser as checkIsPaidUserMySQL,
-  getRemainingUsage as getPaidUsageMySQL,
-  consumeUsage as consumePaidUsageMySQL,
+  isPaidUserByUid,
+  getRemainingUsageByUid,
+  consumeUsageByUid,
   FREE_LIMIT_PER_DAY,
-  PAID_LIMIT,
 } from './subscriptions';
 import {
-  isPaidUser as checkIsPaidUserRedis,
   getFreeCount,
   incrementFreeCount,
-  consumeUsage as consumeUsageRedis,
-  getRemainingUsage as getRemainingUsageRedis,
 } from './redis';
-import { isMySQLAvailable } from './db';
 
 export interface UsageStatus {
   allowed: boolean;
@@ -21,50 +24,68 @@ export interface UsageStatus {
   total: number;
 }
 
-export async function checkUsage(deviceId: string): Promise<UsageStatus> {
-  // Paid check uses MySQL
-  const paid = await checkIsPaidUserMySQL(deviceId);
-
-  if (paid) {
-    const remaining = await getPaidUsageMySQL(deviceId);
-    return {
-      allowed: remaining > 0,
-      remaining,
-      isPaid: true,
-      total: PAID_LIMIT,
-    };
+/**
+ * Check usage quota for a user session
+ * @param uid TCB user ID (null = anonymous)
+ * @param deviceId Device fingerprint (for anonymous free count)
+ */
+export async function checkUsage(uid: string | null, deviceId: string | null): Promise<UsageStatus> {
+  // Paid user (logged in with claimed subscription)
+  if (uid) {
+    const paid = await isPaidUserByUid(uid);
+    if (paid) {
+      const remaining = await getRemainingUsageByUid(uid);
+      return {
+        allowed: remaining > 0,
+        remaining,
+        isPaid: true,
+        total: 100,
+      };
+    }
   }
 
-  // Free count still uses Redis (daily counter, works well)
-  const current = await getFreeCount(deviceId);
-  if (current >= FREE_LIMIT_PER_DAY) {
+  // Free/anonymous user (device-based daily limit)
+  if (deviceId) {
+    const current = await getFreeCount(deviceId);
+    if (current >= FREE_LIMIT_PER_DAY) {
+      return { allowed: false, remaining: 0, isPaid: false, total: FREE_LIMIT_PER_DAY };
+    }
     return {
-      allowed: false,
-      remaining: 0,
+      allowed: true,
+      remaining: Math.max(0, FREE_LIMIT_PER_DAY - current),
       isPaid: false,
       total: FREE_LIMIT_PER_DAY,
     };
   }
 
-  const remaining = Math.max(0, FREE_LIMIT_PER_DAY - current);
-  return {
-    allowed: true,
-    remaining,
-    isPaid: false,
-    total: FREE_LIMIT_PER_DAY,
-  };
+  return { allowed: false, remaining: 0, isPaid: false, total: FREE_LIMIT_PER_DAY };
 }
 
-export async function consumeOne(deviceId: string): Promise<{ remaining: number; isPaid: boolean }> {
-  const paid = await checkIsPaidUserMySQL(deviceId);
-
-  if (paid) {
-    const remaining = await consumePaidUsageMySQL(deviceId);
-    return { remaining, isPaid: true };
+/**
+ * Consume one usage quota
+ * @param uid TCB user ID (null = anonymous)
+ * @param deviceId Device fingerprint (for anonymous free count)
+ */
+export async function consumeOne(
+  uid: string | null,
+  deviceId: string | null
+): Promise<{ remaining: number; isPaid: boolean }> {
+  // Paid user first
+  if (uid) {
+    const paid = await isPaidUserByUid(uid);
+    if (paid) {
+      const remaining = await consumeUsageByUid(uid);
+      return { remaining, isPaid: true };
+    }
   }
 
-  await incrementFreeCount(deviceId);
-  const current = await getFreeCount(deviceId);
-  const remaining = Math.max(0, FREE_LIMIT_PER_DAY - current);
-  return { remaining, isPaid: false };
+  // Anonymous free count
+  if (deviceId) {
+    await incrementFreeCount(deviceId);
+    const current = await getFreeCount(deviceId);
+    const remaining = Math.max(0, FREE_LIMIT_PER_DAY - current);
+    return { remaining, isPaid: false };
+  }
+
+  return { remaining: 0, isPaid: false };
 }
