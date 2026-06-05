@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { isRedisConfigured, getRedis } from '@/lib/redis';
 
-const USE_LOCAL_STORAGE = process.env.USE_LOCAL_STORAGE === 'true';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 
 export async function verifyAdminToken(request: NextRequest): Promise<NextResponse | null> {
@@ -15,8 +14,8 @@ export async function verifyAdminToken(request: NextRequest): Promise<NextRespon
     return NextResponse.json({ error: 'Admin not configured' }, { status: 500 });
   }
 
-  if (USE_LOCAL_STORAGE || !isRedisConfigured()) {
-    return null; // Allow in local dev mode
+  if (!isRedisConfigured()) {
+    return NextResponse.json({ error: 'Redis not configured' }, { status: 500 });
   }
 
   const key = `admin:token:${crypto.createHash('sha256').update(cookie.value).digest('hex')}`;
@@ -24,6 +23,5 @@ export async function verifyAdminToken(request: NextRequest): Promise<NextRespon
   if (!exists) {
     return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
   }
-
-  return null;
+  return null; // Valid token
 }

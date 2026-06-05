@@ -1,41 +1,3 @@
-const USE_LOCAL_STORAGE = process.env.USE_LOCAL_STORAGE === 'true';
-
-function isRedisAvailable(): boolean {
-  return !!(
-    !USE_LOCAL_STORAGE &&
-    process.env.UPSTASH_REDIS_REST_URL &&
-    process.env.UPSTASH_REDIS_REST_TOKEN
-  );
-}
-
-async function getRedis() {
-  const { Redis } = await import('@upstash/redis');
-  return new Redis({
-    url: process.env.UPSTASH_REDIS_REST_URL!,
-    token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-  });
-}
-
-function lsGet<T>(key: string): T | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return null;
-    return JSON.parse(raw) as T;
-  } catch {
-    return null;
-  }
-}
-
-function lsSet(key: string, value: unknown): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // ignore
-  }
-}
-
 export interface RateLimitConfig {
   windowMs: number;
   maxRequests: number;
@@ -66,40 +28,6 @@ export async function checkRateLimit(
   const now = Date.now();
   const resetAt = Math.ceil(now / 60000) * 60000;
 
-  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    return checkRateLimitLocal(minuteKey, config, resetAt);
-  }
-
-  return checkRateLimitRedis(minuteKey, config, resetAt);
-}
-
-async function checkRateLimitLocal(
-  minuteKey: string,
-  config: RateLimitConfig,
-  resetAt: number
-): Promise<RateLimitResult> {
-  const data = lsGet<{ count: number; windowStart: number }>(minuteKey);
-  const now = Date.now();
-
-  if (!data || now - data.windowStart > config.windowMs) {
-    lsSet(minuteKey, { count: 1, windowStart: now });
-    return { allowed: true, remaining: config.maxRequests - 1, resetAt };
-  }
-
-  if (data.count >= config.maxRequests) {
-    return { allowed: false, remaining: 0, resetAt };
-  }
-
-  data.count++;
-  lsSet(minuteKey, data);
-  return { allowed: true, remaining: config.maxRequests - data.count, resetAt };
-}
-
-async function checkRateLimitRedis(
-  minuteKey: string,
-  config: RateLimitConfig,
-  resetAt: number
-): Promise<RateLimitResult> {
   const { Redis } = await import('@upstash/redis');
   const redis = new Redis({
     url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -151,13 +79,13 @@ export interface DeviceIdCheckResult {
 }
 
 export async function checkDeviceIdSpoofing(ip: string, deviceId: string): Promise<DeviceIdCheckResult> {
-  // Skip for local storage mode (dev)
-  if (USE_LOCAL_STORAGE || !isRedisAvailable()) {
-    return { allowed: true };
-  }
+  const { Redis } = await import('@upstash/redis');
+  const redis = new Redis({
+    url: process.env.UPSTASH_REDIS_REST_URL!,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  });
 
   const key = `${DEVICE_ID_TRACK_PREFIX}${ip}`;
-  const redis = await getRedis();
 
   // Check if deviceId already exists in the set
   const exists = await redis.sismember(key, deviceId);

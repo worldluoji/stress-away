@@ -4,13 +4,11 @@ import { getActivationCodes, setActivationCode } from '@/lib/subscriptions';
 import { generateActivationCode } from '@/lib/mbaodu';
 import { isRedisConfigured, getRedis } from '@/lib/redis';
 
-const USE_LOCAL_STORAGE = process.env.USE_LOCAL_STORAGE === 'true';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 
 async function verifyPassword(request: NextRequest): Promise<boolean> {
   const cookie = request.cookies.get('admin_token');
   if (!cookie?.value || cookie.value.length !== 64) return false;
-  if (USE_LOCAL_STORAGE) return true; // basic check for local dev mode
   if (!isRedisConfigured()) return false;
   const key = `admin:token:${crypto.createHash('sha256').update(cookie.value).digest('hex')}`;
   const exists = await getRedis().get<string>(key);
