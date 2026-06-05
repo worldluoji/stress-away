@@ -453,16 +453,13 @@ export async function setActivationCodes(
   }
 }
 
+// Mark that activation codes have been successfully queried for an order.
+// The 48h window is enforced by canQueryOrder via payment_time.
+// This function exists as a hook point; currently a no-op since
+// canQueryOrder handles the time-based restriction correctly.
 export async function markOrderActivated(orderId: string): Promise<void> {
-  if (!isMySQLAvailable) return;
-  try {
-    await execute(
-      'INSERT INTO orders (order_id, payment_status, claimed) VALUES (?, ?, FALSE) ON DUPLICATE KEY UPDATE payment_status = ?',
-      [orderId, 'pending', 'pending']
-    );
-  } catch (err) {
-    console.error('[subscriptions] markOrderActivated error:', err);
-  }
+  // No-op: canQueryOrder already enforces 48h window via payment_time.
+  // If we need a separate "codes queried at" timestamp, add a column to orders table.
 }
 
 // ==================== 48-hour order query window ====================

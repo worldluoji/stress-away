@@ -2,7 +2,6 @@
 // Guard: keep this file as a valid module even when fully commented out
 export {};
 // import { NextRequest, NextResponse } from 'next/server';
-// import { setActivationCodes, markOrderActivated, isOrderActivated, setOrderCreatedTime } from '@/lib/redis';
 // import { generateActivationCode } from '@/lib/mbaodu';
 // import { checkRateLimit, RATE_LIMITS, getClientIP } from '@/lib/ratelimit';
 //
