@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { consumeAdminActivationCode, getSubscriptionByUid } from '@/lib/subscriptions';
 import { getAuthContext } from '@/lib/api-auth';
 import { checkRateLimit, checkDeviceIdSpoofing, RATE_LIMITS, extractClientInfo } from '@/lib/ratelimit';
-import { checkActivationBlocked, recordFailedAttempt, resetFailedAttempts, getRemainingAttempts } from '@/lib/activation-security';
+import {
+  checkActivationBlockedAsync,
+  recordFailedAttemptAsync,
+  resetFailedAttemptsAsync,
+  getRemainingAttempts,
+} from '@/lib/activation-security';
 import { isValidActivationCode } from '@/lib/mbaodu';
 
 export async function POST(request: NextRequest) {
@@ -23,7 +28,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const blockStatus = checkActivationBlocked(ip, deviceId);
+    const blockStatus = await checkActivationBlockedAsync(ip, deviceId);
     if (blockStatus.blocked) {
       return NextResponse.json(
         { error: 'activation_blocked', message: '激活尝试次数过多，请15分钟后再试', remainingSeconds: blockStatus.remainingSeconds },
@@ -43,7 +48,7 @@ export async function POST(request: NextRequest) {
 
     const normalizedCode = code.trim().toUpperCase();
     if (!isValidActivationCode(normalizedCode)) {
-      recordFailedAttempt(ip, deviceId);
+      await recordFailedAttemptAsync(ip, deviceId);
       return NextResponse.json(
         { success: false, error: 'invalid_code', remainingAttempts: getRemainingAttempts(ip, deviceId) },
         { status: 400 }
@@ -64,14 +69,14 @@ export async function POST(request: NextRequest) {
 
       const consumeResult = await consumeAdminActivationCode(normalizedCode, uid, deviceId);
       if (!consumeResult.success) {
-        recordFailedAttempt(ip, deviceId);
+        await recordFailedAttemptAsync(ip, deviceId);
         return NextResponse.json(
           { success: false, error: consumeResult.error, remainingAttempts: getRemainingAttempts(ip, deviceId) },
           { status: 400 }
         );
       }
 
-      resetFailedAttempts(ip, deviceId);
+      await resetFailedAttemptsAsync(ip, deviceId);
       return NextResponse.json({
         success: true,
         remainingCodes: consumeResult.remainingCodes,

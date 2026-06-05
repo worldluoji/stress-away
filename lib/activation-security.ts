@@ -1,3 +1,9 @@
+import {
+  checkActivationBlockedRedis,
+  recordActivationFailedAttemptRedis,
+  resetActivationFailedAttemptsRedis,
+} from './redis';
+
 const USE_LOCAL_STORAGE = process.env.USE_LOCAL_STORAGE === 'true';
 
 function lsGet<T>(key: string): T | null {
@@ -38,8 +44,21 @@ export function checkActivationBlocked(ip: string, deviceId: string): { blocked:
   if (USE_LOCAL_STORAGE) {
     return checkActivationBlockedLocal(ip, deviceId);
   }
-  // For Redis, we check at runtime - simplified for now
+  // Redis mode: check synchronously using the Redis helper
+  // (Note: this is sync for localStorage mode; Redis calls are async in lib/redis)
+  // For the async case, use checkActivationBlockedAsync instead
   return { blocked: false, remainingSeconds: 0 };
+}
+
+// Async version for Redis mode
+export async function checkActivationBlockedAsync(
+  ip: string,
+  deviceId: string
+): Promise<{ blocked: boolean; remainingSeconds: number }> {
+  if (USE_LOCAL_STORAGE) {
+    return checkActivationBlockedLocal(ip, deviceId);
+  }
+  return checkActivationBlockedRedis(ip, deviceId);
 }
 
 function checkActivationBlockedLocal(ip: string, deviceId: string): { blocked: boolean; remainingSeconds: number } {
@@ -69,7 +88,19 @@ export function recordFailedAttempt(ip: string, deviceId: string): void {
     recordFailedAttemptLocal(ip, deviceId);
     return;
   }
-  // Redis version would use INCR and EXPIRE
+  // Sync stub for localStorage mode; async version handles Redis
+}
+
+// Async version for Redis mode
+export async function recordFailedAttemptAsync(
+  ip: string,
+  deviceId: string
+): Promise<void> {
+  if (USE_LOCAL_STORAGE) {
+    recordFailedAttemptLocal(ip, deviceId);
+    return;
+  }
+  await recordActivationFailedAttemptRedis(ip, deviceId);
 }
 
 function recordFailedAttemptLocal(ip: string, deviceId: string): void {
@@ -103,6 +134,19 @@ export function resetFailedAttempts(ip: string, deviceId: string): void {
     lsSet(key, { count: 0, firstAttempt: Date.now() });
     return;
   }
+}
+
+// Async version for Redis mode
+export async function resetFailedAttemptsAsync(
+  ip: string,
+  deviceId: string
+): Promise<void> {
+  if (USE_LOCAL_STORAGE) {
+    const key = getFailKey(ip, deviceId);
+    lsSet(key, { count: 0, firstAttempt: Date.now() });
+    return;
+  }
+  await resetActivationFailedAttemptsRedis(ip, deviceId);
 }
 
 export function getRemainingAttempts(ip: string, deviceId: string): number {

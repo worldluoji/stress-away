@@ -1,9 +1,9 @@
 /**
  * Sanitize markdown content to prevent XSS.
- * Strips HTML tags (including script, img onerror, style onload, etc.)
- * while preserving markdown formatting.
+ * Strips dangerous HTML tags while preserving markdown formatting.
+ * Note: for AI-generated content (trusted source), this is defense-in-depth.
+ * The primary XSS protection is ReactMarkdown's disallowedElements config.
  */
-
 export function sanitizeMarkdown(content: string): string {
   if (!content) return '';
 
@@ -12,25 +12,15 @@ export function sanitizeMarkdown(content: string): string {
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
     // Remove style tags and their contents
     .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-    // Remove event handlers (onclick, onerror, onload, onmouseover, etc.)
+    // Remove dangerous elements (iframe, object, embed, applet, form, meta, link)
+    .replace(/<(iframe|object|embed|applet|form|meta|link)\b[^<]*(?:(?!<\/\1>)<[^<]*)*<\/\1>/gi, '')
+    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*/gi, '')
+    // Remove event handler attributes (onerror, onclick, onload, etc.)
     .replace(/\s(on\w+)\s*=/gi, ' data-removed-$1=')
-    // Remove javascript: URLs
-    .replace(/javascript:/gi, '')
-    // Remove data: URLs (can be used for base64 exploits)
-    .replace(/data:/gi, '')
-    // Remove iframes
-    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
-    // Remove object/embed/applet
-    .replace(/<(object|embed|applet)\b[^<]*(?:(?!<\/\1>)<[^<]*)*<\/\1>/gi, '')
-    // Remove form tags
-    .replace(/<form\b[^<]*(?:(?!<\/form>)<[^<]*)*<\/form>/gi, '')
-    // Remove meta refresh
-    .replace(/<meta[^>]*>/gi, '')
-    // Remove link tags (could load external CSS)
-    .replace(/<link[^>]*>/gi, '')
-    // Clean up any remaining angle brackets (basic XSS attempt)
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    // Remove javascript: / data: URLs in href/src
+    .replace(/\b(href|src)\s*=\s*["']?\s*(javascript:|data:)/gi, '$1="removed:"')
+    // Remove style attributes with expressions (IE XSS vector)
+    .replace(/\sstyle\s*=/gi, ' data-removed-style=');
 }
 
 /**

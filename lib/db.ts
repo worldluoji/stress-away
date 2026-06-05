@@ -72,6 +72,10 @@ export async function execute(
 }
 
 // For transactions
+export async function getConnection(): Promise<mysql.PoolConnection> {
+  return getPool().getConnection();
+}
+
 export async function withTransaction<R>(
   fn: (conn: mysql.PoolConnection) => Promise<R>
 ): Promise<R> {

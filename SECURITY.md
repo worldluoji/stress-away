@@ -9,11 +9,16 @@
 | 1 | 高 | 支付回调无签名验证 | ✅ 已禁用 | `app/api/subscription/callback/route.ts` |
 | 2 | 高 | Admin cookie 用密码当 token | ✅ 已修复 | `app/api/admin/login/route.ts`, `lib/redis.ts` |
 | 3 | 高 | Admin 登录无暴力破解保护 | ✅ 已修复 | `app/api/admin/login/route.ts`, `lib/redis.ts` |
-| 4 | 中 | 设备 ID 可伪造 | ✅ 已修复 | `lib/ratelimit.ts`, 涉及所有 API 路由 |
-| 5 | 中 | 本地存储数据可被篡改 | ⏭ 跳过 | — |
-| 6 | 中 | 查询激活码无权限验证 | ⏭ 接受现状 | 有 48h 查询窗口保护 |
-| 7 | 低 | X-Forwarded-For 可伪造 | ⏭ 跳过 | 有云服务层限速防护 |
-| 8 | 低 | 错误信息泄露 | ✅ 已修复 | `app/api/subscription/query-codes/route.ts` |
+| 4 | 高 | AI 调用前未检查用额 | ✅ 已修复 | `app/api/chat/route.ts` |
+| 5 | 高 | ReactMarkdown XSS（潜在） | ✅ 已修复 | `lib/sanitize.ts`, `app/page.tsx` |
+| 6 | 中 | 设备 ID 可伪造 | ✅ 已修复 | `lib/ratelimit.ts`, 涉及所有 API 路由 |
+| 7 | 中 | 本地存储数据可被篡改 | ⏭ 接受现状 | — |
+| 8 | 中 | 查询激活码无权限验证 | ⏭ 接受现状 | 有 48h 查询窗口保护 |
+| 9 | 中 | TCB session cookie 签名长度 DoS | ✅ 已修复 | `lib/auth.ts` |
+| 10 | 中 | 激活码暴力破解防御弱（Redis 模式） | ✅ 已修复 | `lib/activation-security.ts`, `lib/redis.ts` |
+| 11 | 中 | 订单认领竞态条件 | ✅ 已修复 | `app/api/orders/claim/route.ts` |
+| 12 | 低 | X-Forwarded-For 可伪造 | ⏭ 跳过 | 有云服务层限速防护 |
+| 13 | 低 | 错误信息泄露 | ✅ 已修复 | `app/api/subscription/query-codes/route.ts` |
 
 ## 修复详情
 
@@ -65,6 +70,36 @@
 - **描述**: IP 限流从 `X-Forwarded-For` header 获取，可被伪造绕过
 - **状态**: 接受现状。有云服务层（Vercel/Cloudflare 等）限速防护
 - **日期**: 2026-05-24
+
+### 问题 4: AI 调用前未检查用额 [高]
+- **描述**: `/api/chat` 先调用 AI 再 consumeOne，若 consumeOne 失败用户可无限使用
+- **修复**: consumeOne 移到 AI 调用之前，失败直接返回 503，不给免费 AI 访问
+- **涉及文件**: `app/api/chat/route.ts`
+- **日期**: 2026-06-05
+
+### 问题 5: ReactMarkdown XSS（潜在）[高]
+- **描述**: AI 回复存储时 sanitizeMarkdown 会把 `<` 转成 `&lt;`，破坏 markdown；ReactMarkdown 默认支持 raw HTML
+- **修复**: (1) sanitizeMarkdown 去掉破坏性的 `<` 转义，改为只移除危险标签和属性；(2) ReactMarkdown 加 `disallowedElements` 阻止所有 HTML 标签渲染
+- **涉及文件**: `lib/sanitize.ts`, `app/page.tsx`
+- **日期**: 2026-06-05
+
+### 问题 9: TCB session cookie 签名长度 DoS [中]
+- **描述**: `timingSafeEqual` 两边 Buffer 长度不同会抛异常，恶意 cookie 可导致认证失败（DoS）
+- **修复**: 比较前先检查 `sigBuf.length !== expectedBuf.length`，不匹配直接 return null
+- **涉及文件**: `lib/auth.ts`
+- **日期**: 2026-06-05
+
+### 问题 10: 激活码暴力破解防御弱（Redis 模式）[中]
+- **描述**: Redis 模式下 `checkActivationBlocked` 直接返回 `{blocked: false}`，形同虚设
+- **修复**: 新增 `checkActivationBlockedRedis`、`recordActivationFailedAttemptRedis`、`resetActivationFailedAttemptsRedis` 函数；`lib/activation-security.ts` 加 async 版本，admin activate 路由改用 async
+- **涉及文件**: `lib/redis.ts`, `lib/activation-security.ts`, `app/api/subscription/admin/activate/route.ts`
+- **日期**: 2026-06-05
+
+### 问题 11: 订单认领竞态条件 [中]
+- **描述**: 先 SELECT 检查再 INSERT，两个人同时提交同一订单可能都通过检查
+- **修复**: 用 `SELECT ... FOR UPDATE` 加事务锁，INSERT/UPDATE 在同一事务内完成
+- **涉及文件**: `app/api/orders/claim/route.ts`, `lib/db.ts`（新增 `getConnection`）
+- **日期**: 2026-06-05
 
 ### 问题 8: 错误信息泄露 [低]
 - **描述**: `query-codes` 接口的 catch 块把原始错误信息（面包多 API 错误）返回给前端

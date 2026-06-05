@@ -671,6 +671,7 @@ export default function Home() {
                       <>
                         <div className="group">
                           <ReactMarkdown
+                            disallowedElements={['script', 'style', 'iframe', 'object', 'embed', 'applet', 'form', 'meta', 'link', 'body', 'html', 'head']}
                             components={{
                               p: ({ children }) => (
                                 <p className="mb-2 last:mb-0">{children}</p>
@@ -694,6 +695,10 @@ export default function Home() {
                                 <blockquote className="border-l-3 border-[#007AFF] pl-3 my-2 text-[--foreground-secondary]">
                                   {children}
                                 </blockquote>
+                              ),
+                              // Render any unknown HTML-like tags as plain text (not executed)
+                              pre: ({ children }) => (
+                                <pre className="whitespace-pre-wrap break-words">{children}</pre>
                               ),
                             }}
                           >

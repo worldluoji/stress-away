@@ -92,6 +92,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Consume quota BEFORE AI call — if this fails, reject rather than give free AI access
+    let consumed = false;
+    try {
+      await consumeOne(auth.uid, deviceId);
+      consumed = true;
+    } catch (err) {
+      console.error('[chat] consumeOne failed, rejecting request:', err);
+      return NextResponse.json(
+        { error: 'quota_error', message: '系统正忙，请稍后再试' },
+        { status: 503 }
+      );
+    }
+
     const body = await request.json();
     const { messages, scenarioId } = body as { messages: ChatMessage[]; scenarioId?: string };
 
@@ -142,9 +155,6 @@ export async function POST(request: NextRequest) {
         .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
         .trim()
     );
-
-    // Consume one usage after successful chat
-    await consumeOne(auth.uid, deviceId);
 
     return NextResponse.json(
       { reply },

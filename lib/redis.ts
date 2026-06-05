@@ -691,3 +691,56 @@ export async function consumeAdminActivationCode(
     expiresAt: data.expiresAt
   };
 }
+
+// ==================== Activation Code Rate Limiting ====================
+
+const ACT_FAIL_KEY_PREFIX = 'act:fail:';
+const ACT_MAX_FAIL = 5;
+const ACT_BLOCK_MS = 15 * 60 * 1000; // 15 minutes
+
+interface ActFailData {
+  count: number;
+  blockedUntil?: number;
+}
+
+export async function checkActivationBlockedRedis(
+  ip: string,
+  deviceId: string
+): Promise<{ blocked: boolean; remainingSeconds: number }> {
+  if (!isRedisAvailable) {
+    return { blocked: false, remainingSeconds: 0 };
+  }
+  const key = `${ACT_FAIL_KEY_PREFIX}${ip}:${deviceId}`;
+  const data = await getRedis().get<ActFailData>(key);
+  if (!data) return { blocked: false, remainingSeconds: 0 };
+  if (data.blockedUntil) {
+    const now = Date.now();
+    if (now < data.blockedUntil) {
+      return { blocked: true, remainingSeconds: Math.ceil((data.blockedUntil - now) / 1000) };
+    }
+    await getRedis().set(key, { count: 0 });
+  }
+  return { blocked: false, remainingSeconds: 0 };
+}
+
+export async function recordActivationFailedAttemptRedis(
+  ip: string,
+  deviceId: string
+): Promise<void> {
+  if (!isRedisAvailable) return;
+  const key = `${ACT_FAIL_KEY_PREFIX}${ip}:${deviceId}`;
+  const data = await getRedis().get<ActFailData>(key) || { count: 0 };
+  data.count++;
+  if (data.count >= ACT_MAX_FAIL) {
+    data.blockedUntil = Date.now() + ACT_BLOCK_MS;
+  }
+  await getRedis().set(key, data, { ex: ACT_BLOCK_MS / 1000 });
+}
+
+export async function resetActivationFailedAttemptsRedis(
+  ip: string,
+  deviceId: string
+): Promise<void> {
+  if (!isRedisAvailable) return;
+  await getRedis().set(`${ACT_FAIL_KEY_PREFIX}${ip}:${deviceId}`, { count: 0 });
+}

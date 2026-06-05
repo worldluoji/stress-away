@@ -53,7 +53,13 @@ export function verifyTCBSession(cookieValue: string): DecodedSession | null {
       .digest('hex');
 
     // Constant-time comparison to prevent timing attacks
-    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))) {
+    // Length check first — timingSafeEqual throws if buffers differ in length
+    const sigBuf = Buffer.from(signature);
+    const expectedBuf = Buffer.from(expectedSig);
+    if (sigBuf.length !== expectedBuf.length) {
+      return null;
+    }
+    if (!crypto.timingSafeEqual(sigBuf, expectedBuf)) {
       return null;
     }
 
