@@ -44,9 +44,9 @@ export async function checkUsage(uid: string | null, deviceId: string | null): P
     }
   }
 
-  // Free/anonymous user (device-based daily limit)
-  if (deviceId) {
-    const current = await getFreeCount(deviceId);
+  // Logged-in but not paid: daily free count
+  if (uid) {
+    const current = await getFreeCount(deviceId || uid); // use uid as fallback key
     if (current >= FREE_LIMIT_PER_DAY) {
       return { allowed: false, remaining: 0, isPaid: false, total: FREE_LIMIT_PER_DAY };
     }
@@ -58,7 +58,8 @@ export async function checkUsage(uid: string | null, deviceId: string | null): P
     };
   }
 
-  return { allowed: false, remaining: 0, isPaid: false, total: FREE_LIMIT_PER_DAY };
+  // Anonymous: no free usage without login
+  return { allowed: false, remaining: 0, isPaid: false, total: 0 };
 }
 
 /**
@@ -79,13 +80,14 @@ export async function consumeOne(
     }
   }
 
-  // Anonymous free count
-  if (deviceId) {
-    await incrementFreeCount(deviceId);
-    const current = await getFreeCount(deviceId);
+  // Logged-in but not paid: consume from daily free count
+  if (uid) {
+    await incrementFreeCount(deviceId || uid);
+    const current = await getFreeCount(deviceId || uid);
     const remaining = Math.max(0, FREE_LIMIT_PER_DAY - current);
     return { remaining, isPaid: false };
   }
 
+  // Anonymous: not allowed
   return { remaining: 0, isPaid: false };
 }

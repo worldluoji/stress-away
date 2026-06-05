@@ -4,11 +4,13 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   getCurrentUser,
   signInWithPassword,
-  signUpUsername,
+  sendEmailCode,
   signOut,
   onAuthStateChange,
   type TCBUser,
 } from '@/lib/tcb';
+
+type RegisterStep = 'form' | 'code';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -18,22 +20,26 @@ interface LoginModalProps {
 
 export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [identifier, setIdentifier] = useState(''); // username
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [code, setCode] = useState('');
+  const [step, setStep] = useState<RegisterStep>('form');
+  const [verifyFn, setVerifyFn] = useState<((code: string) => Promise<{ user: TCBUser; uid: string }>) | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!identifier.trim() || !password) {
-      setError('请输入用户名和密码');
+    if (!email.trim() || !password) {
+      setError('请输入邮箱和密码');
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      const { user } = await signInWithPassword(identifier.trim(), password);
+      const { user, uid } = await signInWithPassword(email.trim(), password);
+      setAuthUid(uid);
       onSuccess(user);
       onClose();
     } catch (err: any) {
@@ -43,10 +49,14 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
     }
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!identifier.trim()) {
-      setError('请输入用户名（5-24位，字母或数字开头）');
+    if (!email.trim()) {
+      setError('请输入邮箱');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError('请输入有效的邮箱地址');
       return;
     }
     if (password.length < 6) {
@@ -60,14 +70,58 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
     setLoading(true);
     setError(null);
     try {
-      const { user } = await signUpUsername(identifier.trim(), password);
-      onSuccess(user);
-      onClose();
+      const fn = await sendEmailCode(email.trim(), password);
+      setVerifyFn(() => fn);
+      setStep('code');
     } catch (err: any) {
-      setError(err.message || '注册失败');
+      setError(err.message || '发送验证码失败');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!code.trim() || code.length < 6) {
+      setError('请输入6位验证码');
+      return;
+    }
+    if (!verifyFn) {
+      setError('验证码已过期，请重新获取');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const { user, uid } = await verifyFn(code.trim());
+      setAuthUid(uid);
+      onSuccess(user);
+      onClose();
+    } catch (err: any) {
+      setError(err.message || '验证码错误');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSwitchToRegister = () => {
+    setMode('register');
+    setStep('form');
+    setVerifyFn(null);
+    setEmail('');
+    setPassword('');
+    setConfirmPassword('');
+    setCode('');
+    setError(null);
+  };
+
+  const handleSwitchToLogin = () => {
+    setMode('login');
+    setEmail('');
+    setPassword('');
+    setConfirmPassword('');
+    setCode('');
+    setError(null);
   };
 
   if (!isOpen) return null;
@@ -78,13 +132,13 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative w-full max-w-sm mx-4 bg-[--card-bg] rounded-2xl shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-sm mx-4 bg-[#ffffff] dark:bg-[#1c1c1e] rounded-2xl shadow-2xl border border-[#e5e5ea] dark:border-[#38383a] overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[--border]">
-          <h2 className="text-lg font-semibold text-[--foreground]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#e5e5ea] dark:border-[#38383a]">
+          <h2 className="text-lg font-semibold text-[#000000] dark:text-[#ffffff]">
             {mode === 'login' ? '登录账号' : '注册账号'}
           </h2>
-          <button onClick={onClose} className="p-1 text-[--foreground-tertiary] hover:text-[--foreground]">
+          <button onClick={onClose} className="p-1 text-[#8e8e93] dark:text-[#8e8e93] hover:text-[#000000] dark:hover:text-[#ffffff]">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -92,40 +146,91 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
         </div>
 
         {/* Form */}
-        <form onSubmit={mode === 'login' ? handleLogin : handleRegister} className="p-5 space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-[--foreground-secondary]">用户名</label>
-            <input
-              type="text"
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
-              placeholder="字母或数字，5-24位"
-              className="w-full px-4 py-3 bg-[--background-secondary] rounded-xl text-[--foreground] placeholder:text-[--foreground-tertiary] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-[--foreground-secondary]">密码</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={mode === 'login' ? '输入密码' : '至少6位'}
-              className="w-full px-4 py-3 bg-[--background-secondary] rounded-xl text-[--foreground] placeholder:text-[--foreground-tertiary] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
-            />
-          </div>
-
-          {mode === 'register' && (
+        <form onSubmit={mode === 'login' ? handleLogin : (step === 'form' ? handleSendCode : handleVerifyCode)} className="p-5 space-y-4">
+          {/* Email field - always shown in register */}
+          {(mode === 'login' || step === 'form') && (
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-[--foreground-secondary]">确认密码</label>
+              <label className="text-sm font-medium text-[--foreground-secondary]">
+                {mode === 'login' ? '邮箱' : '邮箱'}
+              </label>
               <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="再次输入密码"
-                className="w-full px-4 py-3 bg-[--background-secondary] rounded-xl text-[--foreground] placeholder:text-[--foreground-tertiary] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder={mode === 'login' ? '输入邮箱' : '用于接收验证码'}
+                disabled={loading}
+                className="w-full px-4 py-3 bg-[#f2f2f7] dark:bg-[#2c2c2e] rounded-xl text-[#000000] dark:text-[#ffffff] placeholder:text-[#8e8e93] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 disabled:opacity-60"
               />
             </div>
+          )}
+
+          {/* Verification code - register step 2 */}
+          {mode === 'register' && step === 'code' && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-[--foreground-secondary]">验证码</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                  placeholder="输入6位验证码"
+                  maxLength={6}
+                  disabled={loading}
+                  className="flex-1 px-4 py-3 bg-[#f2f2f7] dark:bg-[#2c2c2e] rounded-xl text-[#000000] dark:text-[#ffffff] placeholder:text-[#8e8e93] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 disabled:opacity-60"
+                />
+                <button
+                  type="button"
+                  onClick={handleSendCode}
+                  disabled={loading}
+                  className="px-4 py-3 bg-[#f2f2f7] dark:bg-[#2c2c2e] rounded-xl text-sm text-[#007AFF] font-medium disabled:opacity-40"
+                >
+                  重发
+                </button>
+              </div>
+              <p className="text-xs text-[#8e8e93]">验证码已发送到 {email}，5分钟内有效</p>
+            </div>
+          )}
+
+          {/* Password fields - login or register form step */}
+          {(mode === 'login' || (mode === 'register' && step === 'form')) && (
+            <>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-[--foreground-secondary]">密码</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={mode === 'login' ? '输入密码' : '至少6位'}
+                  disabled={loading}
+                  className="w-full px-4 py-3 bg-[#f2f2f7] dark:bg-[#2c2c2e] rounded-xl text-[#000000] dark:text-[#ffffff] placeholder:text-[#8e8e93] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 disabled:opacity-60"
+                />
+              </div>
+
+              {mode === 'register' && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-[--foreground-secondary]">确认密码</label>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="再次输入密码"
+                    disabled={loading}
+                    className="w-full px-4 py-3 bg-[#f2f2f7] dark:bg-[#2c2c2e] rounded-xl text-[#000000] dark:text-[#ffffff] placeholder:text-[#8e8e93] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 disabled:opacity-60"
+                  />
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Back button: from code step back to form */}
+          {mode === 'register' && step === 'code' && (
+            <button
+              type="button"
+              onClick={() => setStep('form')}
+              className="text-sm text-[#8e8e93] hover:text-[#007AFF] transition-colors"
+            >
+              ← 上一步
+            </button>
           )}
 
           {error && (
@@ -139,23 +244,23 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
             disabled={loading}
             className="w-full py-3.5 bg-[#007AFF] text-white rounded-xl text-sm font-medium disabled:opacity-50 disabled:active:scale-100 transition-all active:scale-[0.98]"
           >
-            {loading ? '处理中...' : mode === 'login' ? '登录' : '注册'}
+            {loading ? '处理中...' : mode === 'login' ? '登录' : step === 'form' ? '发送验证码' : '验证'}
           </button>
         </form>
 
         {/* Footer */}
         <div className="px-5 pb-5 text-center">
           {mode === 'login' ? (
-            <p className="text-sm text-[--foreground-tertiary]">
+            <p className="text-sm text-[#8e8e93]">
               没有账号？
-              <button onClick={() => { setMode('register'); setError(null); }} className="ml-1 text-[#007AFF] font-medium">
+              <button onClick={handleSwitchToRegister} className="ml-1 text-[#007AFF] font-medium">
                 立即注册
               </button>
             </p>
           ) : (
-            <p className="text-sm text-[--foreground-tertiary]">
+            <p className="text-sm text-[#8e8e93]">
               已有账号？
-              <button onClick={() => { setMode('login'); setError(null); }} className="ml-1 text-[#007AFF] font-medium">
+              <button onClick={handleSwitchToLogin} className="ml-1 text-[#007AFF] font-medium">
                 登录
               </button>
             </p>
@@ -218,35 +323,75 @@ export function AccountStatus({ user, onLogout, onLoginClick }: AccountStatusPro
 
 // ==================== useAuth Hook ====================
 
+// Shared auth state - single source of truth for uid across all hooks/instances
+type UidListener = (uid: string | null) => void;
+const _authStore = {
+  _uid: null as string | null,
+  _listeners: [] as UidListener[],
+  setUid(uid: string | null) {
+    this._uid = uid;
+    this._listeners.forEach((l: UidListener) => l(uid));
+  },
+  subscribe(fn: UidListener) {
+    this._listeners.push(fn);
+    return () => { this._listeners = this._listeners.filter((l: UidListener) => l !== fn); };
+  },
+  getUid() {
+    return this._uid;
+  },
+};
+
 interface UseAuthReturn {
   user: TCBUser | null;
+  uid: string | null;
   loading: boolean;
   logout: () => Promise<void>;
 }
 
+/**
+ * External setter for uid (called by LoginModal after login)
+ */
+export function setAuthUid(uid: string | null) {
+  _authStore.setUid(uid);
+}
+
 export function useAuth(): UseAuthReturn {
   const [user, setUser] = useState<TCBUser | null>(null);
+  const [uid, setUid] = useState<string | null>(_authStore.getUid());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // Check initial session
     getCurrentUser().then((u) => {
       setUser(u);
+      if (u?.id) {
+        _authStore.setUid(u.id);
+        setUid(u.id);
+      }
       setLoading(false);
     });
 
     // Listen for auth state changes
     const unsubscribe = onAuthStateChange((u) => {
       setUser(u);
+      _authStore.setUid(u?.id || null);
+      setUid(u?.id || null);
     });
 
-    return unsubscribe;
+    // Subscribe to external uid changes (e.g., LoginModal)
+    const unsubStore = _authStore.subscribe((newUid) => {
+      setUid(newUid);
+    });
+
+    return () => { unsubscribe(); unsubStore(); };
   }, []);
 
   const logout = useCallback(async () => {
     await signOut();
     setUser(null);
+    _authStore.setUid(null);
+    setUid(null);
   }, []);
 
-  return { user, loading, logout };
+  return { user, uid, loading, logout };
 }

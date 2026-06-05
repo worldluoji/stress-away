@@ -17,7 +17,12 @@ export interface AuthContext {
 export function getAuthContext(request: Request): AuthContext {
   const cookieHeader = request.headers.get('cookie');
   const cookies = parseCookies(cookieHeader);
-  const uid = getUidFromRequest(cookies);
+
+  // Prefer header (set by frontend after login) over cookie
+  const headerUid = request.headers.get('x-user-id') || null;
+  const cookieUid = getUidFromRequest(cookies);
+  const uid = headerUid || cookieUid;
+
   const deviceId = request.headers.get('x-device-id') || null;
 
   return {

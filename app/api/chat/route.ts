@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { chatWithAI, type ChatMessage } from "@/lib/models";
 import { checkRateLimit, checkDeviceIdSpoofing, RATE_LIMITS, extractClientInfo } from "@/lib/ratelimit";
+import { getAuthContext } from "@/lib/api-auth";
+import { checkUsage, consumeOne } from "@/lib/subscription";
+import { sanitizeMarkdown } from "@/lib/sanitize";
 
 /**
  * @swagger
@@ -79,6 +82,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check usage quota before processing chat
+    const auth = getAuthContext(request);
+    const usage = await checkUsage(auth.uid, deviceId);
+    if (!usage.allowed) {
+      return NextResponse.json(
+        { error: 'no_quota', message: usage.isPaid ? '次数已用完，请升级' : '请登录后使用' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { messages, scenarioId } = body as { messages: ChatMessage[]; scenarioId?: string };
 
@@ -122,7 +135,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const reply = await chatWithAI(messages, scenarioId);
+    const rawReply = await chatWithAI(messages, scenarioId);
+    const reply = sanitizeMarkdown(
+      rawReply
+        .replace(/<think>[\s\S]*?<\/think>/gi, "")
+        .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
+        .trim()
+    );
+
+    // Consume one usage after successful chat
+    await consumeOne(auth.uid, deviceId);
 
     return NextResponse.json(
       { reply },

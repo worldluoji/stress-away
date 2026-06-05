@@ -75,10 +75,32 @@ export async function getCurrentUser(): Promise<TCBUser | null> {
 }
 
 /**
- * Password login (username or email)
+ * Send email verification code for registration
+ * Returns the verifyOtp function to complete registration
+ */
+export async function sendEmailCode(
+  email: string,
+  password: string
+): Promise<(code: string) => Promise<{ user: TCBUser; uid: string }>> {
+  const auth = getAuth();
+  const { data, error } = await auth.signUp({ email, password });
+  if (error) throw new Error(error.message);
+  if (!data?.verifyOtp) throw new Error('Invalid email registration response');
+
+  // Return a function that calls the verifyOtp from signUp response
+  return async (code: string) => {
+    const result = await data.verifyOtp!({ token: code });
+    if (result.error) throw new Error(result.error.message);
+    if (!result.data?.user) throw new Error('Verification failed');
+    return { user: result.data.user as unknown as TCBUser, uid: result.data.user.id };
+  };
+}
+
+/**
+ * Password login (email or username)
  */
 export async function signInWithPassword(
-  identifier: string, // username or email
+  identifier: string, // email or username
   password: string
 ): Promise<{ user: TCBUser; uid: string }> {
   const auth = getAuth();
@@ -90,43 +112,6 @@ export async function signInWithPassword(
     throw new Error(error?.message || 'Login failed');
   }
   return { user: data.user as unknown as TCBUser, uid: data.user.id };
-}
-
-/**
- * Register with email (sends verification code)
- * Returns a verify function to complete registration
- */
-export async function signUpEmail(
-  email: string,
-  password: string
-): Promise<(code: string) => Promise<{ user: TCBUser; uid: string }>> {
-  const auth = getAuth();
-  const { data, error } = await auth.signUp({ email, password });
-  if (error) throw new Error(error.message);
-
-  return async (code: string) => {
-    const { data: loginData, error: loginError } = await data.verifyOtp!({ token: code });
-    if (loginError) throw new Error(loginError.message);
-    if (!loginData?.user) throw new Error('Registration failed');
-    return { user: loginData.user as unknown as TCBUser, uid: loginData.user.id };
-  };
-}
-
-/**
- * Register with username (immediate, no verification)
- */
-export async function signUpUsername(
-  username: string,
-  password: string
-): Promise<{ user: TCBUser; uid: string }> {
-  const auth = getAuth();
-  const { data, error } = await auth.signUp({ username, password });
-  if (error) throw new Error(error.message);
-
-  const { data: loginData, error: loginError } = await data.verifyOtp!({ token: 'auto' });
-  if (loginError) throw new Error(loginError.message);
-  if (!loginData?.user) throw new Error('Registration failed');
-  return { user: loginData.user as unknown as TCBUser, uid: loginData.user.id };
 }
 
 /**
