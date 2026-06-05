@@ -59,8 +59,8 @@ export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProp
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative w-full max-w-2xl max-h-[80vh] mx-4 bg-[--card-bg] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-2xl max-h-[80vh] mx-4 bg-white dark:bg-[--card-bg] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[--border]">
           <h2 className="text-lg font-semibold text-[--foreground]">我的收藏</h2>
