@@ -23,6 +23,7 @@ const CARD_STYLES: CardStyle[] = [
 
 export function ShareCard({ content, scenario, onClose }: ShareCardProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const exportCanvasRef = useRef<HTMLCanvasElement>(null);
   const [selectedStyle, setSelectedStyle] = useState(0);
   const [generated, setGenerated] = useState(false);
   const [copying, setCopying] = useState(false);
@@ -51,16 +52,19 @@ export function ShareCard({ content, scenario, onClose }: ShareCardProps) {
   const hasContent = mild || sharp;
   const fallbackContent = !hasContent ? cleanContent.slice(0, 300) : '';
 
-  const drawCard = useCallback(() => {
-    const canvas = canvasRef.current;
+  const drawCard = useCallback((forExport = false) => {
+    const canvas = forExport ? exportCanvasRef.current : canvasRef.current;
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const style = CARD_STYLES[selectedStyle];
-    const width = 540;
-    const height = 720;
+    // Preview: render at display size so text is readable in preview
+    // Export: render at full 2x resolution
+    const width = forExport ? 540 : 380;
+    const height = forExport ? 720 : 507;
+    const scale = width / 540;
 
     canvas.width = width;
     canvas.height = height;
@@ -71,44 +75,44 @@ export function ShareCard({ content, scenario, onClose }: ShareCardProps) {
 
     // Accent bar at top
     ctx.fillStyle = style.accentColor;
-    ctx.fillRect(0, 0, width, 8);
+    ctx.fillRect(0, 0, width, width * 8 / 540);
 
     // Title area
     ctx.fillStyle = style.accentColor;
-    ctx.font = 'bold 24px sans-serif';
+    ctx.font = `bold ${Math.round(24 * scale)}px sans-serif`;
     const title = scenario ? scenario.replace(/^场景[：:]\s*/, '').trim() : '职场回复精选';
-    ctx.fillText(title, 32, 60);
+    ctx.fillText(title, Math.round(32 * scale), Math.round(60 * scale));
 
     ctx.fillStyle = style.secondaryText;
-    ctx.font = '14px sans-serif';
-    ctx.fillText('来自 StressAway', 32, 85);
+    ctx.font = `${Math.round(14 * scale)}px sans-serif`;
+    ctx.fillText('来自 StressAway', Math.round(32 * scale), Math.round(85 * scale));
 
     // Scenario tag if exists
-    let yPos = 120;
+    let yPos = Math.round(120 * scale);
     if (scenario) {
       ctx.fillStyle = style.accentColor + '33';
-      ctx.fillRect(32, yPos - 20, scenario.length * 14 + 24, 32);
+      ctx.fillRect(Math.round(32 * scale), yPos - Math.round(20 * scale), scenario.length * 14 * scale + 24 * scale, 32 * scale);
       ctx.fillStyle = style.accentColor;
-      ctx.font = '13px sans-serif';
-      ctx.fillText(`场景：${scenario}`, 44, yPos + 2);
-      yPos += 50;
+      ctx.font = `${Math.round(13 * scale)}px sans-serif`;
+      ctx.fillText(`场景：${scenario}`, Math.round(44 * scale), yPos + Math.round(2 * scale));
+      yPos += Math.round(50 * scale);
     }
 
     // Divider
     ctx.strokeStyle = style.secondaryText + '44';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(32, yPos);
-    ctx.lineTo(width - 32, yPos);
+    ctx.moveTo(Math.round(32 * scale), yPos);
+    ctx.lineTo(width - Math.round(32 * scale), yPos);
     ctx.stroke();
-    yPos += 24;
+    yPos += Math.round(24 * scale);
 
     // Content
     ctx.fillStyle = style.textColor;
-    ctx.font = '16px sans-serif';
+    ctx.font = `${Math.round(16 * scale)}px sans-serif`;
 
-    const maxWidth = width - 64;
-    const lineHeight = 26;
+    const maxWidth = width - Math.round(64 * scale);
+    const lineHeight = Math.round(26 * scale);
     const wrapText = (text: string, x: number, startY: number, maxW: number) => {
       let y = startY;
       const paragraphs = text.split('\n\n');
@@ -119,7 +123,7 @@ export function ShareCard({ content, scenario, onClose }: ShareCardProps) {
 
         const lines = para.split('\n');
         for (const line of lines) {
-          if (!line.trim()) { y += 10; continue; }
+          if (!line.trim()) { y += 10 * scale; continue; }
           const words = line.split('');
           let currentLine = '';
           for (const char of words) {
@@ -144,80 +148,74 @@ export function ShareCard({ content, scenario, onClose }: ShareCardProps) {
 
     if (mild) {
       ctx.fillStyle = style.secondaryText;
-      ctx.font = '12px sans-serif';
-      ctx.fillText('温和版', 32, yPos);
-      yPos += 18;
+      ctx.font = `${Math.round(12 * scale)}px sans-serif`;
+      ctx.fillText('温和版', Math.round(32 * scale), yPos);
+      yPos += Math.round(18 * scale);
 
       ctx.fillStyle = style.textColor;
-      ctx.font = '15px sans-serif';
+      ctx.font = `${Math.round(15 * scale)}px sans-serif`;
       const wrappedMild = mild.length > 200 ? mild.slice(0, 200) + '...' : mild;
       const mildLines = wrappedMild.split('\n');
       for (const line of mildLines) {
         if (!line.trim()) { yPos += 8; continue; }
-        ctx.fillText(line.trim().slice(0, 36), 32, yPos);
-        yPos += 22;
+        ctx.fillText(line.trim().slice(0, 36), Math.round(32 * scale), yPos);
+        yPos += Math.round(22 * scale);
       }
-      yPos += 12;
+      yPos += Math.round(12 * scale);
     }
 
-    if (sharp && yPos < 580) {
+    if (sharp && yPos < height * 0.8) {
       ctx.fillStyle = style.secondaryText;
-      ctx.font = '12px sans-serif';
-      ctx.fillText('犀利版', 32, yPos);
-      yPos += 18;
+      ctx.font = `${Math.round(12 * scale)}px sans-serif`;
+      ctx.fillText('犀利版', Math.round(32 * scale), yPos);
+      yPos += Math.round(18 * scale);
 
       ctx.fillStyle = style.textColor;
-      ctx.font = '15px sans-serif';
+      ctx.font = `${Math.round(15 * scale)}px sans-serif`;
       const wrappedSharp = sharp.length > 200 ? sharp.slice(0, 200) + '...' : sharp;
       const sharpLines = wrappedSharp.split('\n');
       for (const line of sharpLines) {
         if (!line.trim()) { yPos += 8; continue; }
-        ctx.fillText(line.trim().slice(0, 36), 32, yPos);
-        yPos += 22;
+        ctx.fillText(line.trim().slice(0, 36), Math.round(32 * scale), yPos);
+        yPos += Math.round(22 * scale);
       }
     }
 
     // Fallback: if no mild/sharp parsed, show raw content
     if (!mild && !sharp && fallbackContent) {
       ctx.fillStyle = style.textColor;
-      ctx.font = '15px sans-serif';
+      ctx.font = `${Math.round(15 * scale)}px sans-serif`;
       const lines = fallbackContent.split('\n');
       for (const line of lines) {
         if (!line.trim()) { yPos += 8; continue; }
-        ctx.fillText(line.trim().slice(0, 36), 32, yPos);
-        yPos += 22;
-        if (yPos > 600) break;
+        ctx.fillText(line.trim().slice(0, 36), Math.round(32 * scale), yPos);
+        yPos += Math.round(22 * scale);
+        if (yPos > height * 0.83) break;
       }
     }
 
     // Footer
-    const footerY = height - 40;
+    const footerY = height - Math.round(40 * scale);
     ctx.fillStyle = style.secondaryText + '88';
-    ctx.font = '11px sans-serif';
+    ctx.font = `${Math.round(11 * scale)}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.fillText('StressAway · 职场压力倾诉助手', width / 2, footerY);
     ctx.textAlign = 'left';
   }, [selectedStyle, cleanContent, mild, sharp, scenario, fallbackContent]);
 
-  useEffect(() => {
-    drawCard();
+useEffect(() => {
+    drawCard(false);
   }, [drawCard]);
 
-  useEffect(() => {
-    if (generated) {
-      const canvas = canvasRef.current;
-      if (canvas) {
-        const url = canvas.toDataURL('image/png');
-        const link = document.createElement('a');
-        link.download = 'fanpua-share.png';
-        link.href = url;
-        link.click();
-      }
-    }
-  }, [generated]);
-
   const handleGenerate = () => {
-    drawCard();
+    drawCard(true); // full resolution export
+    const exportCanvas = exportCanvasRef.current;
+    if (!exportCanvas) return;
+    const url = exportCanvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.download = 'stressaway-share.png';
+    link.href = url;
+    link.click();
     setGenerated(true);
   };
 
@@ -273,9 +271,12 @@ export function ShareCard({ content, scenario, onClose }: ShareCardProps) {
         {/* Preview canvas */}
         <div className="p-4 flex justify-center">
           <canvas
+            ref={exportCanvasRef}
+            className="hidden"
+          />
+          <canvas
             ref={canvasRef}
-            className="rounded-xl shadow-lg"
-            style={{ width: 270, height: 360 }}
+            className="rounded-xl shadow-lg w-full max-w-[400px] h-auto"
           />
         </div>
 
