@@ -22,6 +22,7 @@ export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProp
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [viewingMessage, setViewingMessage] = useState<SavedMessage | null>(null);
 
   useEffect(() => {
     if (uid) fetchSavedMessages();
@@ -70,11 +71,10 @@ export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProp
     setTimeout(() => setCopiedId(null), 1500);
   };
 
-  return (
+const panel = (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-2xl max-h-[80vh] mx-4 bg-white dark:bg-[--card-bg] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[--border]">
           <h2 className="text-lg font-semibold text-[--foreground]">我的收藏</h2>
           <button
@@ -87,7 +87,6 @@ export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProp
           </button>
         </div>
 
-        {/* Content */}
         <div className="flex-1 overflow-y-auto p-4">
           {loading && (
             <div className="flex items-center justify-center py-12">
@@ -131,6 +130,16 @@ export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProp
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       <button
+                        onClick={() => setViewingMessage(msg)}
+                        className="p-1.5 rounded-lg hover:bg-[--card-bg] text-[--foreground-tertiary] transition-colors"
+                        title="查看"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      </button>
+                      <button
                         onClick={() => handleCopy(msg.messageId, msg.content)}
                         className="p-1.5 rounded-lg hover:bg-[--card-bg] text-[--foreground-tertiary] transition-colors text-xs min-w-[2.5rem] flex items-center justify-center"
                         title="复制"
@@ -164,5 +173,53 @@ export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProp
         </div>
       </div>
     </div>
+  );
+
+  const modal = viewingMessage ? (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setViewingMessage(null)} />
+      <div className="relative w-full max-w-xl mx-4 bg-white dark:bg-[--card-bg] rounded-2xl shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[--border]">
+          <h3 className="text-base font-semibold text-[--foreground]">消息详情</h3>
+          <button
+            onClick={() => setViewingMessage(null)}
+            className="p-1 text-[--foreground-tertiary] hover:text-[--foreground]"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="px-5 py-4 max-h-[60vh] overflow-y-auto">
+          <p className="text-[--foreground] text-sm whitespace-pre-wrap leading-relaxed">
+            {viewingMessage.content}
+          </p>
+        </div>
+        <div className="flex gap-2 px-5 py-4 border-t border-[--border]">
+          <button
+            onClick={() => {
+              handleCopy(viewingMessage.messageId, viewingMessage.content);
+              setViewingMessage(null);
+            }}
+            className="flex-1 py-2 rounded-xl bg-[#007AFF] text-white text-sm font-medium hover:bg-[#007AFF]/90 transition-colors"
+          >
+            复制
+          </button>
+          <button
+            onClick={() => setViewingMessage(null)}
+            className="flex-1 py-2 rounded-xl border border-[--border] text-[--foreground] text-sm font-medium hover:bg-[--card-bg] transition-colors"
+          >
+            关闭
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  return (
+    <>
+      {modal}
+      {panel}
+    </>
   );
 }
