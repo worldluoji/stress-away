@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { consumeOne } from '@/lib/subscription';
+import { checkUsage } from '@/lib/subscription';
 import { getAuthContext } from '@/lib/api-auth';
 import { checkRateLimit, checkDeviceIdSpoofing, RATE_LIMITS, extractClientInfo } from '@/lib/ratelimit';
-import { recordEvent } from '@/lib/usage-events';
 
 export async function POST(request: NextRequest) {
   try {
@@ -39,16 +38,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await consumeOne(uid, deviceId);
+    // Only check usage — do NOT consume here
+    // Consumption happens ONLY in /api/chat after AI success
+    const usage = await checkUsage(uid, deviceId);
 
-    // Record usage event
-    if (result.isPaid) {
-      await recordEvent({ uid: uid ?? undefined, deviceId, eventType: 'chat' });
-    } else {
-      await recordEvent({ uid: uid ?? undefined, deviceId, eventType: 'free_consume' });
-    }
-
-    return NextResponse.json(result, {
+    return NextResponse.json(usage, {
       headers: {
         'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
         'X-RateLimit-Reset': rateLimitResult.resetAt.toString(),
