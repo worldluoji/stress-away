@@ -52,7 +52,6 @@ interface AdminActivationCodeRow {
   created_at: string;
   expires_at: string;
   total_times: number;
-  remaining_times: number;
   used: boolean;
   activation_time: string | null;
 }
@@ -248,9 +247,9 @@ export async function createAdminActivationCode(
   }
   try {
     await execute(
-      `INSERT INTO admin_activation_codes (code, created_at, expires_at, total_times, remaining_times)
-       VALUES (?, ?, ?, ?, ?)`,
-      [code, now, expiresAt, totalTimes, totalTimes]
+      `INSERT INTO admin_activation_codes (code, created_at, expires_at, total_times)
+       VALUES (?, ?, ?, ?)`,
+      [code, now, expiresAt, totalTimes]
     );
     return { code, expiresAt, totalTimes };
   } catch (err) {
@@ -286,9 +285,15 @@ export async function consumeAdminActivationCode(
         return { success: false, error: 'code_already_used' };
       }
 
-      // Same user - return success
+      // Same user - return success with their subscription remaining
       if (data.uid === uid) {
-        return { success: true, remainingCodes: data.remaining_times, expiresAt };
+        const subs = await txQuery<SubscriptionRow>(
+          conn,
+          'SELECT remaining_usage FROM subscriptions WHERE uid = ?',
+          [uid]
+        );
+        const remainingCodes = subs.length > 0 ? subs[0].remaining_usage : data.total_times;
+        return { success: true, remainingCodes, expiresAt };
       }
 
       const now = Date.now();
@@ -313,10 +318,16 @@ export async function consumeAdminActivationCode(
            claimed_at = VALUES(claimed_at),
            activation_code = VALUES(activation_code),
            expires_at = VALUES(expires_at)`,
-        [uid, deviceId ?? null, data.total_times, data.remaining_times, now, code, expiresAt]
+        [uid, deviceId ?? null, data.total_times, data.total_times, now, code, expiresAt]
       );
 
-      return { success: true, remainingCodes: data.remaining_times, expiresAt };
+      // Return subscription remaining usage
+      const subs = await txQuery<SubscriptionRow>(
+        conn,
+        'SELECT remaining_usage FROM subscriptions WHERE uid = ?',
+        [uid]
+      );
+      return { success: true, remainingCodes: subs[0]?.remaining_usage ?? data.total_times, expiresAt };
     });
   } catch (err) {
 
@@ -344,7 +355,6 @@ export async function listAdminActivationCodes(
       createdAt: Number(r.created_at),
       expiresAt: Number(r.expires_at),
       totalTimes: r.total_times,
-      remainingTimes: r.remaining_times,
       used: r.used,
       activationTime: r.activation_time ? Number(r.activation_time) : undefined,
     }));
@@ -511,7 +521,6 @@ export async function getAdminActivationCode(code: string): Promise<AdminActivat
       createdAt: Number(r.created_at),
       expiresAt: Number(r.expires_at),
       totalTimes: r.total_times,
-      remainingTimes: r.remaining_times,
       used: r.used,
       activationTime: r.activation_time ? Number(r.activation_time) : undefined,
     };
@@ -532,7 +541,6 @@ export interface AdminActivationCode {
   createdAt: number;
   expiresAt: number;
   totalTimes: number;
-  remainingTimes: number;
   used: boolean;
   activationTime?: number;
 }
