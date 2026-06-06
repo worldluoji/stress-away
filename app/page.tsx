@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, startTransition } from "react
 import ReactMarkdown from "react-markdown";
 import type { ChatMessage } from "@/lib/models";
 import { generateMessageId } from "@/lib/models";
-import { loadMessages, saveMessages, loadHistory, saveHistory, generateConversationId, generateTitle, type Conversation } from "@/lib/storage";
+import { generateConversationId, generateTitle, type Conversation } from "@/lib/storage";
 import { getDeviceId } from "@/lib/utils";
 import { SubscriptionActivate } from "./components/SubscriptionActivate";
 import dynamic from 'next/dynamic';
@@ -168,25 +168,6 @@ export default function Home() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    const saved = loadMessages();
-    if (saved.length > 0) {
-      startTransition(() => {
-        setMessages(saved);
-        setShowEmptyState(false);
-      });
-    }
-  }, []);
-
-  useEffect(() => {
-    if (messages.length > 0) {
-      startTransition(() => {
-        setShowEmptyState(false);
-        saveMessages(messages);
-      });
-    }
-  }, [messages]);
-
-  useEffect(() => {
     const init = async () => {
       try {
         const id = await getDeviceId();
@@ -199,9 +180,16 @@ export default function Home() {
           setScenarios(scenariosData.scenarios || []);
         }
 
-        // Load conversation history
-        const history = loadHistory();
-        setConversationHistory(history);
+        // Load conversation history from MySQL (logged-in users only)
+        if (uid) {
+          const res = await fetch('/api/conversations', {
+            headers: { 'X-User-Id': uid },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setConversationHistory(data.conversations || []);
+          }
+        }
       } catch {
         // ignore
       } finally {
@@ -209,7 +197,7 @@ export default function Home() {
       }
     };
     init();
-  }, []);
+  }, [uid]);
 
   // Fetch usage whenever uid or deviceId changes
   useEffect(() => {
@@ -302,29 +290,37 @@ export default function Home() {
   const handleDeleteConversation = (id: string) => {
     const updated = conversationHistory.filter((c) => c.id !== id);
     setConversationHistory(updated);
-    saveHistory({ conversations: updated });
+    fetch(`/api/conversations/${id}`, {
+      method: 'DELETE',
+      headers: uid ? { 'X-User-Id': uid } : {},
+    });
     if (currentConversationId === id) {
       setCurrentConversationId(undefined);
     }
   };
 
-  const handleSaveConversation = (newMessages: ChatMessage[]) => {
+  const handleSaveConversation = async (newMessages: ChatMessage[]) => {
     if (newMessages.length === 0) return;
+    if (!uid) return;
 
     const title = generateTitle(newMessages);
     const now = Date.now();
 
     if (currentConversationId) {
-      // Update existing conversation
-      const updated = conversationHistory.map((c) =>
-        c.id === currentConversationId
-          ? { ...c, messages: newMessages, updatedAt: now }
-          : c
-      );
-      setConversationHistory(updated);
-      saveHistory({ conversations: updated });
+      const conv = conversationHistory.find(c => c.id === currentConversationId);
+      if (conv) {
+        const updatedConv = { ...conv, messages: newMessages, updatedAt: now };
+        const updated = conversationHistory.map(c =>
+          c.id === currentConversationId ? updatedConv : c
+        );
+        setConversationHistory(updated);
+        fetch('/api/conversations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-User-Id': uid },
+          body: JSON.stringify(updatedConv),
+        });
+      }
     } else {
-      // Create new conversation
       const newConv: Conversation = {
         id: generateConversationId(),
         title,
@@ -332,9 +328,13 @@ export default function Home() {
         createdAt: now,
         updatedAt: now,
       };
-      const updated = [newConv, ...conversationHistory].slice(0, 50); // Keep max 50 conversations
+      const updated = [newConv, ...conversationHistory].slice(0, 50);
       setConversationHistory(updated);
-      saveHistory({ conversations: updated });
+      fetch('/api/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': uid },
+        body: JSON.stringify(newConv),
+      });
       setCurrentConversationId(newConv.id);
     }
   };
