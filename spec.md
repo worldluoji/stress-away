@@ -12,6 +12,7 @@
 - **AI**: DeepSeek V4 Flash / MiniMax 2.7
 - **存储**: MySQL 8.0（订阅/对话/事件）+ Redis（限流/免费计数/管理Token）+ LocalStorage（客户端缓存）
 - **支付**: 面包多
+- **部署**: Docker (multi-stage, Next.js standalone, node:22-alpine)
 
 ## 功能
 
@@ -118,6 +119,18 @@
 - 用户输入框限制 600 字
 - 后端 `/api/chat` 验证用户消息不超过 600 字
 - 场景前缀不计入用户输入字数
+
+### 部署架构
+
+- **镜像基座**：`node:22-alpine`，多阶段构建（deps → builder → runner）
+- **构建模式**：`output: 'standalone'`，生成最小化 `node_modules`
+- **运行时**：非 root 用户 `nextjs`（uid=1001），`NODE_ENV=production`
+- **端口**：容器内 3000（`HOSTNAME=0.0.0.0`），健康检查 `/` 路径
+- **环境变量**：
+  - 构建时变量（`NEXT_PUBLIC_*`）：在 `pnpm build` 阶段从项目根的 `.env.production` 读取并内联到客户端 JS bundle
+  - 运行时变量（API keys、数据库密码等）：通过 `docker run --env-file .env.production` 注入；服务端代码 `process.env` 在请求时读取
+  - **镜像安全**：Next.js 16 standalone 模式会自动将 `.env.production` 复制到 `.next/standalone/`，Dockerfile 在 runner 阶段显式 `rm` 掉它，避免敏感文件残留
+- **外部依赖**（不打包进镜像）：MySQL 8.0、Upstash Redis、Tencent CloudBase (TCB)
 
 ## 文件结构
 

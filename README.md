@@ -38,6 +38,7 @@
 - **存储**: MySQL 8.0（生产）/ LocalStorage（测试）
 - **缓存**: Upstash Redis（订阅状态读缓存，5分钟TTL）
 - **支付**: 面包多
+- **部署**: Docker (multi-stage, Next.js standalone)
 
 ## 快速开始
 
@@ -101,6 +102,42 @@ pnpm dev
 
 访问 http://localhost:3000
 
+## Docker 部署
+
+### 前置条件
+
+确保项目根目录存在 `.env.production`（Next.js 需要在 `pnpm build` 阶段读取它，将所有 `NEXT_PUBLIC_*` 变量内联到客户端 bundle）。如果你还没准备好，从 `.env.local.example` 复制一份并填入实际值：
+
+```bash
+cp .env.local.example .env.production
+# 编辑 .env.production，至少要填入 NEXT_PUBLIC_TCB_ENV_ID
+```
+
+### 构建镜像
+
+```bash
+docker build -t stress-away:latest .
+```
+
+构建过程中会读取 `.env.production`，将 `NEXT_PUBLIC_*` 变量内联到 JS 产物中。
+
+### 运行容器
+
+```bash
+docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
+```
+
+访问 http://localhost:3000
+
+### 环境变量分类
+
+| 阶段 | 变量类型 | 注入方式 | 说明 |
+|------|----------|----------|------|
+| 构建时 | `NEXT_PUBLIC_*` | 通过 `.env.production`（`docker build` 时读取） | 会被内联到客户端 JS |
+| 运行时 | 其他变量 | `docker run --env-file .env.production` | 仅服务端代码可读，客户端不可见 |
+
+> 安全性：Dockerfile 在最终镜像中会显式删除 `.env.production`（Next.js 16 standalone 模式会自动把它复制到 `.next/standalone/`）。因此最终镜像内**不含** `.env.production` 文件，但 `NEXT_PUBLIC_*` 变量已存在于客户端 JS 中（这是 `NEXT_PUBLIC_*` 设计的固有特性，无法避免）。
+
 ## 管理后台
 
 访问 `/admin` 输入管理密码后可：
@@ -159,8 +196,7 @@ pnpm dev
 | DEEPSEEK_API_KEY | 是 | - | DeepSeek Key |
 | MINIMAX_API_KEY | 是 | - | MiniMax Key |
 | MBAODU_APP_KEY | 是 | - | 面包多 Key |
-| ADMIN_PASSWORD | 是 | - | 管理后台密码 |
-| ADMIN_ALLOWED_DEVICES | 否 | - | 允许的管理端设备指纹，多个用逗号分隔 |
+| ADMIN_UIDS | 否 | - | 允许的管理端登录的用户uid |
 | MYSQL_HOST | 生产 | localhost | MySQL 主机 |
 | MYSQL_PORT | 生产 | 3306 | MySQL 端口 |
 | MYSQL_USER | 生产 | - | MySQL 用户名 |
@@ -169,6 +205,5 @@ pnpm dev
 | MYSQL_USE_SSL | 否 | false | MySQL SSL 连接 |
 | UPSTASH_REDIS_REST_URL | 缓存 | - | Redis URL（可选） |
 | UPSTASH_REDIS_REST_TOKEN | 缓存 | - | Redis Token（可选） |
-| USE_LOCAL_STORAGE | 测试 | true | true=LocalStorage，false=MySQL+Redis |
 | FREE_LIMIT_PER_DAY | 否 | 1 | 免费每日次数 |
 | PAID_LIMIT | 否 | 50 | 付费总次数 |
