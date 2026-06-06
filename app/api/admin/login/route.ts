@@ -2,22 +2,17 @@ import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { setAdminToken, checkAdminBlocked, recordAdminFailedAttempt, resetAdminFailedAttempts } from '@/lib/redis';
 import { getClientIP } from '@/lib/ratelimit';
+import { verifyTCBSession } from '@/lib/auth';
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
-const ADMIN_ALLOWED_DEVICES = (process.env.ADMIN_ALLOWED_DEVICES || '').split(',').filter(Boolean);
-const ADMIN_REQUIRE_DEVICE_CHECK = process.env.ADMIN_REQUIRE_DEVICE_CHECK !== 'false';
+const ADMIN_UIDS = (process.env.ADMIN_UIDS || '').split(',').filter(Boolean);
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { password } = body;
-    const deviceId = request.headers.get('x-device-id') || body.deviceId;
+    const body = await request.json().catch(() => ({}));
+    const sessionToken = body.sessionToken;
 
-    if (!ADMIN_PASSWORD) {
-      return NextResponse.json(
-        { error: 'Admin not configured' },
-        { status: 500 }
-      );
+    if (!sessionToken) {
+      return NextResponse.json({ error: 'session_required' }, { status: 400 });
     }
 
     // Brute force protection
@@ -37,32 +32,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (password !== ADMIN_PASSWORD) {
+    // Verify TCB session
+    const decoded = verifyTCBSession(sessionToken);
+    if (!decoded?.session?.uid) {
       await recordAdminFailedAttempt(ip);
-      return NextResponse.json(
-        { error: 'Invalid password' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'invalid_session' }, { status: 401 });
     }
 
-    // Device check if required and allowed devices list is configured
-    if (ADMIN_REQUIRE_DEVICE_CHECK && ADMIN_ALLOWED_DEVICES.length > 0) {
-      if (!deviceId) {
-        return NextResponse.json(
-          { error: 'Device ID required for admin login' },
-          { status: 400 }
-        );
-      }
+    const uid = decoded.session.uid;
 
-      if (!ADMIN_ALLOWED_DEVICES.includes(deviceId)) {
-        return NextResponse.json(
-          { error: 'Device not authorized' },
-          { status: 403 }
-        );
-      }
+    // Check if uid is in admin whitelist
+    if (ADMIN_UIDS.length > 0 && !ADMIN_UIDS.includes(uid)) {
+      await recordAdminFailedAttempt(ip);
+      return NextResponse.json({ error: 'not_admin' }, { status: 403 });
     }
 
-    // Success - clear failed attempts and generate token
+    // Success - clear failed attempts and generate admin token
     await resetAdminFailedAttempts(ip);
     const rawToken = crypto.randomBytes(32).toString('hex');
     await setAdminToken(rawToken);
@@ -77,11 +62,7 @@ export async function POST(request: NextRequest) {
     });
 
     return response;
-  } catch (error) {
-
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+  } catch {
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
