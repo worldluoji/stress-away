@@ -79,13 +79,16 @@ export async function consumeOne(
   if (uid) {
     const paid = await isPaidUserByUid(uid);
     if (paid) {
+      console.log('[consumeOne] paid user, decrementing uid=', uid);
       const remaining = await consumeUsageByUid(uid);
+      console.log('[consumeOne] after consumeUsageByUid, remaining=', remaining);
       return { remaining, isPaid: true };
     }
   }
 
   // Logged-in but not paid: consume from daily free count
   if (uid) {
+    console.log('[consumeOne] uid but not paid, using free count');
     await incrementFreeCount(deviceId || uid);
     const current = await getFreeCount(deviceId || uid);
     const remaining = Math.max(0, FREE_LIMIT_PER_DAY - current);
@@ -93,5 +96,6 @@ export async function consumeOne(
   }
 
   // Anonymous: not allowed
+  console.log('[consumeOne] anonymous, denied');
   return { remaining: 0, isPaid: false };
 }
