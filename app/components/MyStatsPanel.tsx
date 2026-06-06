@@ -47,7 +47,13 @@ const SCENARIO_NAMES: Record<string, string> = {
 
 export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
   const { uid } = useAuth();
-  const [stats, setStats] = useState<UserStats | null>(null);
+  const [stats, setStats] = useState<UserStats>({
+    totalChats: 0,
+    activeDays: 0,
+    scenarios: [],
+    keywords: [],
+    weeklyActivity: [],
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -130,7 +136,7 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
                 <div>
                   <h3 className="text-sm font-medium text-[--foreground-secondary] mb-3">本周活跃</h3>
                   <div className="flex items-end gap-1.5 h-16">
-                    {stats.weeklyActivity.map((day) => (
+                    {(stats.weeklyActivity || []).map((day) => (
                       <div key={day.date} className="flex-1 flex flex-col items-center gap-1">
                         <div
                           className="w-full rounded-sm bg-[#007AFF]/80 transition-all"
@@ -144,12 +150,12 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
               )}
 
               {/* Scenario distribution */}
-              {stats.scenarios.length > 0 && (
+              {(stats.scenarios || []).length > 0 && (
                 <div>
                   <h3 className="text-sm font-medium text-[--foreground-secondary] mb-3">话题分布</h3>
                   <div className="space-y-2">
-                    {stats.scenarios.map((s) => {
-                      const pct = Math.round((s.count / getMaxCount(stats.scenarios)) * 100);
+                    {(stats.scenarios || []).map((s) => {
+                      const pct = Math.round((s.count / getMaxCount(stats.scenarios || [])) * 100);
                       return (
                         <div key={s.scenarioId} className="flex items-center gap-3">
                           <span className="text-sm text-[--foreground] w-28 truncate">
@@ -170,11 +176,11 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
               )}
 
               {/* Keywords */}
-              {stats.keywords.length > 0 && (
+              {(stats.keywords || []).length > 0 && (
                 <div>
                   <h3 className="text-sm font-medium text-[--foreground-secondary] mb-3">高频关键词</h3>
                   <div className="flex flex-wrap gap-2">
-                    {stats.keywords.map((kw) => (
+                    {(stats.keywords || []).map((kw) => (
                       <span
                         key={kw.keyword}
                         className="px-3 py-1.5 bg-[--background-secondary] rounded-full text-xs text-[--foreground-secondary]"
