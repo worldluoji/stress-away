@@ -109,7 +109,10 @@ export default function Home() {
     });
     try {
       const method = isLiked ? 'DELETE' : 'POST';
-      await fetch(`/api/messages/${messageId}/reaction`, { method });
+      await fetch(`/api/messages/${messageId}/reaction`, {
+        method,
+        headers: uid ? { 'X-User-Id': uid } : {},
+      });
     } catch {
       // Revert on error
       setLikedIds(prev => {
@@ -140,11 +143,14 @@ export default function Home() {
     });
     try {
       if (isSaved) {
-        await fetch(`/api/messages/${messageId}/save`, { method: 'DELETE' });
+        await fetch(`/api/messages/${messageId}/save`, {
+          method: 'DELETE',
+          headers: uid ? { 'X-User-Id': uid } : {},
+        });
       } else {
         await fetch(`/api/messages/${messageId}/save`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-User-Id': uid || '' },
           body: JSON.stringify({
             conversationId: currentConversationId,
             messageIndex: msgIndex,
