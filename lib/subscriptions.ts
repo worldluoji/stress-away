@@ -218,25 +218,6 @@ const rows = await txQuery<SubscriptionRow>(
   } catch (err) {
     return 0;
   }
-      const newCount = rows[0].remaining_usage - 1;
-      console.log('[consumeUsageByUid] uid=', uid, 'before=', rows[0].remaining_usage, 'after=', newCount);
-      await txExecute(
-        conn,
-        'UPDATE subscriptions SET remaining_usage = ? WHERE uid = ?',
-        [newCount, uid]
-      );
-
-      // Sync cache
-      const sub = rowToSubscription(rows[0]);
-      sub.remainingUsage = newCount;
-      await cacheSet(SUB_CACHE_KEY(uid), sub, SUB_CACHE_TTL);
-      return newCount;
-    });
-  } catch (err) {
-    console.error('[consumeUsageByUid] error:', err);
-
-    return 0;
-  }
 }
 
 // ==================== Admin Activation Codes (account-bound) ====================
