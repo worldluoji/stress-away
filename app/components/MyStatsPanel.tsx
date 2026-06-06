@@ -80,7 +80,7 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
   const getScenarioName = (id: string) => SCENARIO_NAMES[id] || id;
 
   const getMaxCount = (items: { count: number }[]) =>
-    Math.max(...items.map(i => i.count), 1);
+    Math.max(...(items || []).map(i => i.count), 1);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -126,7 +126,7 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
               </div>
 
               {/* Weekly activity */}
-              {stats.weeklyActivity.length > 0 && (
+              {(stats.weeklyActivity || []).length > 0 && (
                 <div>
                   <h3 className="text-sm font-medium text-[--foreground-secondary] mb-3">本周活跃</h3>
                   <div className="flex items-end gap-1.5 h-16">
