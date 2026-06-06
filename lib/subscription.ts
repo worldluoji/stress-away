@@ -75,11 +75,13 @@ export async function consumeOne(
   uid: string | null,
   deviceId: string | null
 ): Promise<{ remaining: number; isPaid: boolean }> {
+  console.log('[consumeOne] called', { uid, deviceId });
   // Paid user first
   if (uid) {
     const paid = await isPaidUserByUid(uid);
+    console.log('[consumeOne] isPaidUserByUid=', paid);
     if (paid) {
-      console.log('[consumeOne] paid user, decrementing uid=', uid);
+      console.log('[consumeOne] taking paid path, calling consumeUsageByUid');
       const remaining = await consumeUsageByUid(uid);
       console.log('[consumeOne] after consumeUsageByUid, remaining=', remaining);
       return { remaining, isPaid: true };

@@ -184,7 +184,9 @@ export async function getRemainingUsageByUid(uid: string): Promise<number> {
 
 export async function isPaidUserByUid(uid: string): Promise<boolean> {
   const sub = await getSubscriptionByUid(uid);
-  return sub !== null && sub.status === 'active' && sub.remainingUsage > 0;
+  const paid = sub !== null && sub.status === 'active' && sub.remainingUsage > 0;
+  console.log('[isPaidUserByUid] uid=', uid, 'sub=', sub, 'paid=', paid);
+  return paid;
 }
 
 // ==================== Usage Consumption (uid-based, MySQL Transaction) ====================
@@ -198,10 +200,13 @@ export async function consumeUsageByUid(uid: string): Promise<number> {
         'SELECT * FROM subscriptions WHERE uid = ? FOR UPDATE',
         [uid]
       );
+      console.log('[consumeUsageByUid] found rows:', rows.length, 'status:', rows[0]?.status, 'remaining:', rows[0]?.remaining_usage);
       if (rows.length === 0 || rows[0].status !== 'active' || rows[0].remaining_usage <= 0) {
+        console.log('[consumeUsageByUid] early return, no valid subscription');
         return 0;
       }
       const newCount = rows[0].remaining_usage - 1;
+      console.log('[consumeUsageByUid] uid=', uid, 'before=', rows[0].remaining_usage, 'after=', newCount);
       await txExecute(
         conn,
         'UPDATE subscriptions SET remaining_usage = ? WHERE uid = ?',
@@ -215,6 +220,7 @@ export async function consumeUsageByUid(uid: string): Promise<number> {
       return newCount;
     });
   } catch (err) {
+    console.error('[consumeUsageByUid] error:', err);
 
     return 0;
   }

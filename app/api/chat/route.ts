@@ -49,6 +49,7 @@ import { sanitizeMarkdown } from "@/lib/sanitize";
  */
 export async function POST(request: NextRequest) {
   try {
+    console.log('[chat POST] new request');
     const { deviceId } = extractClientInfo(request);
     const { ip } = extractClientInfo(request, deviceId);
     const config = RATE_LIMITS.chat;
@@ -131,11 +132,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Consume AFTER AI success. If consume fails, still return the AI reply to the user.
+    console.log('[chat] AI success, about to consumeOne uid=', auth.uid, 'deviceId=', deviceId);
     try {
       await consumeOne(auth.uid, deviceId);
+      console.log('[chat] consumeOne done');
     } catch (err) {
       // Quota consume failed after AI succeeded — still return AI's reply
       // (the user got the response; quota will self-correct on next check)
+      console.log('[chat] consumeOne FAILED:', err);
     }
 
     const reply = sanitizeMarkdown(
