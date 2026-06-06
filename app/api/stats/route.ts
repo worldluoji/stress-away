@@ -57,11 +57,10 @@ export async function GET(request: NextRequest) {
     );
 
     // 3. Keywords from meta (last 30 days, last 20 chats)
-    const keywordRows = await query<{ meta: string | null; cnt: number }>(
-      `SELECT meta, COUNT(*) as cnt
+    const keywordRows = await query<{ meta: string | null }>(
+      `SELECT meta
        FROM usage_events
        WHERE uid = ? AND event_type = 'chat' AND meta IS NOT NULL AND created_at > ?
-       ORDER BY created_at DESC
        LIMIT 20`,
       [uid, thirtyDaysAgo]
     );
@@ -120,7 +119,6 @@ export async function GET(request: NextRequest) {
       weeklyActivity,
     });
   } catch (error) {
-
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
