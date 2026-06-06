@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
           mysql_not_configured: 'system_error',
           invalid_code: 'invalid_code',
           expired_code: 'expired_code',
+          code_already_used: 'invalid_code',
         };
         return NextResponse.json(
           {

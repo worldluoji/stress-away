@@ -267,10 +267,9 @@ export async function consumeAdminActivationCode(
         return { success: false, error: 'expired_code' };
       }
 
-      // Revoke previous user's subscription (if different uid)
+      // Admin codes are single-use — if already claimed by another user, reject
       if (data.uid && data.uid !== uid) {
-        await txExecute(conn, "UPDATE subscriptions SET status = 'inactive', remaining_usage = 0 WHERE uid = ?", [data.uid]);
-        await cacheDel(`sub:${data.uid}`);
+        return { success: false, error: 'code_already_used' };
       }
 
       // Same user - return success
