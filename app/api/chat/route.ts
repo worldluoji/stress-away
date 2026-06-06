@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { chatWithAI, type ChatMessage } from "@/lib/models";
 import { checkRateLimit, checkDeviceIdSpoofing, RATE_LIMITS, extractClientInfo } from "@/lib/ratelimit";
+import { getAuthContext } from "@/lib/api-auth";
+import { checkUsage, consumeOne } from "@/lib/subscription";
+import { sanitizeMarkdown } from "@/lib/sanitize";
 
 /**
  * @swagger
@@ -79,14 +82,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check usage quota before processing chat
+    const auth = getAuthContext(request);
+    const usage = await checkUsage(auth.uid, deviceId);
+    if (!usage.allowed) {
+      return NextResponse.json(
+        { error: 'no_quota', message: usage.isPaid ? '次数已用完，请升级' : '请登录后使用' },
+        { status: 403 }
+      );
+    }
+
+    // Parse body before consuming quota
     const body = await request.json();
     const { messages, scenarioId } = body as { messages: ChatMessage[]; scenarioId?: string };
 
     if (!messages || !Array.isArray(messages)) {
-      return NextResponse.json(
-        { error: "Missing messages" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing messages" }, { status: 400 });
     }
 
     // Validate messages: only allow 'user' and 'assistant' roles (prevent prompt injection)
@@ -95,34 +106,44 @@ export async function POST(request: NextRequest) {
     const MAX_MESSAGES = 50;
 
     if (messages.length > MAX_MESSAGES) {
-      return NextResponse.json(
-        { error: "Messages count exceeds limit" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Messages count exceeds limit" }, { status: 400 });
     }
 
     for (const msg of messages) {
       if (!msg.role || !['user', 'assistant'].includes(msg.role)) {
-        return NextResponse.json(
-          { error: "Invalid message role" },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: "Invalid message role" }, { status: 400 });
       }
       if (typeof msg.content !== 'string' || msg.content.length > MAX_MESSAGE_LENGTH) {
-        return NextResponse.json(
-          { error: "Invalid message content" },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: "Invalid message content" }, { status: 400 });
       }
       if (msg.role === 'user' && msg.content.length > MAX_USER_MESSAGE_LENGTH) {
-        return NextResponse.json(
-          { error: "Message content exceeds 600 characters" },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: "Message content exceeds 600 characters" }, { status: 400 });
       }
     }
 
-    const reply = await chatWithAI(messages, scenarioId);
+    // Call AI first — only consume quota on success
+    let rawReply: string;
+    try {
+      rawReply = await chatWithAI(messages, scenarioId);
+    } catch (err) {
+      // AI failed — do NOT consume quota
+      return NextResponse.json({ error: "AI error" }, { status: 500 });
+    }
+
+    // Consume AFTER AI success. If consume fails, still return the AI reply to the user.
+    try {
+      await consumeOne(auth.uid, deviceId);
+    } catch (err) {
+      // Quota consume failed after AI succeeded — still return AI's reply
+      // (the user got the response; quota will self-correct on next check)
+    }
+
+    const reply = sanitizeMarkdown(
+      rawReply
+        .replace(/<think>[\s\S]*?<\/think>/gi, "")
+        .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
+        .trim()
+    );
 
     return NextResponse.json(
       { reply },
@@ -134,7 +155,7 @@ export async function POST(request: NextRequest) {
       }
     );
   } catch (error) {
-    console.error("Chat API error:", error);
+
     return NextResponse.json(
       { error: "Internal error" },
       { status: 500 }

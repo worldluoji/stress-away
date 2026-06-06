@@ -10,7 +10,7 @@
 - **语言**: TypeScript + React 19
 - **样式**: Tailwind CSS 4
 - **AI**: DeepSeek V4 Flash / MiniMax 2.7
-- **存储**: Upstash Redis（生产）/ LocalStorage（测试）
+- **存储**: MySQL 8.0（订阅/对话/事件）+ Redis（限流/免费计数/管理Token）+ LocalStorage（客户端缓存）
 - **支付**: 面包多
 
 ## 功能
@@ -19,7 +19,7 @@
 - [x] 聊天界面：用户输入职场困境 → AI 输出反PUA建议（结构化四段式输出：话术反击、心态调整、行动建议、法律参考）
 - [x] 场景模板：内置 12 个常见职场困境模板，支持场景细分问答生成专属话术
 - [x] 场景细分：选择场景后可回答 2-3 个跟进问题（场合、严重程度、具体情况），AI 生成更贴合的话术
-- [x] 历史记录：本地存储最多50条对话，可切换/删除/继续追问
+- [x] 历史记录：MySQL 持久化存储最多50条对话，可切换/删除/继续追问
 - [x] 输入限制：用户输入最多600字，前端+后端双重校验
 - [x] 模型配置：通过 DEFAULT_MODEL 环境变量选择模型
 
@@ -70,6 +70,30 @@
 **限流响应：**
 - HTTP 429 状态码
 - 响应头：`X-RateLimit-Remaining`、`X-RateLimit-Reset`、`Retry-After`
+
+### 数据层架构
+
+**MySQL 8.0（持久化）**
+- `subscriptions`：订阅状态、设备绑定、剩余次数
+- `activation_codes` / `admin_activation_codes`：激活码及使用记录
+- `conversations`：对话历史（JSON 存储，最多50条）
+- `usage_events`：使用事件（场景浏览/聊天/复制）
+- `scenario_stats`：场景统计数据（视图数/聊天数/复制数）
+- `orders`：面包多订单记录
+
+**Redis（高频/缓存）**
+- 限流计数（TTL）
+- 免费用户每日计数（TTL）
+- 管理端 Token（短期）
+- 订阅状态读缓存（5分钟 TTL，MySQL 为 source of truth）
+
+**缓存策略（subscriptions）**
+- 读：Redis 优先 → 未命中则查 MySQL → 回填 Redis
+- 写：先写 MySQL → 再更新 Redis（失效或更新）
+- 如果 MySQL 不可用，写入静默跳过（fail-closed，不阻塞服务）
+
+**LocalStorage（客户端）**
+- 前端对话缓存（临时，不影响 MySQL 持久化）
 
 ### 管理端设备绑定
 
@@ -123,13 +147,20 @@
 │   └── page.tsx                      # 主页
 ├── lib/
 │   ├── activation-security.ts         # 激活码防暴力破解
-│   ├── mbaodu.ts                     # 面包多 API
-│   ├── models.ts                     # 模型配置
-│   ├── ratelimit.ts                  # 限流
-│   ├── redis.ts                       # 存储层
-│   ├── scenarios.ts                   # 场景数据
-│   ├── storage.ts                    # LocalStorage
-│   └── subscription.ts               # 订阅逻辑
+│   ├── db.ts                         # MySQL 连接池
+│   ├── conversations.ts             # 对话历史 MySQL 持久化
+│   ├── subscriptions.ts             # 订阅/激活码 MySQL + Redis 缓存
+│   ├── usage-events.ts              # 使用事件追踪 + 场景统计
+│   ├── mbaodu.ts                    # 面包多 API
+│   ├── models.ts                    # 模型配置
+│   ├── ratelimit.ts                 # 限流
+│   ├── redis.ts                     # Redis（限流/免费计数/管理Token）
+│   ├── scenarios.ts                # 场景数据
+│   ├── storage.ts                  # LocalStorage（客户端缓存）
+│   └── subscription.ts             # 订阅逻辑（入口）
+├── sql/
+│   └── migrations/
+│       └── 001_initial.sql         # MySQL 建表语句
 ├── .env.local.example
 └── package.json
 ```
@@ -311,8 +342,14 @@ Headers: `x-device-id`
 | MINIMAX_API_KEY | 是 | - | MiniMax Key |
 | MBAODU_APP_KEY | 是 | - | 面包多 Key |
 | ADMIN_PASSWORD | 是 | - | 管理后台密码 |
-| UPSTASH_REDIS_REST_URL | 生产 | - | Redis URL |
-| UPSTASH_REDIS_REST_TOKEN | 生产 | - | Redis Token |
-| USE_LOCAL_STORAGE | 测试 | true | 使用 LocalStorage |
+| UPSTASH_REDIS_REST_URL | 缓存 | - | Redis URL（订阅缓存/限流/管理Token） |
+| UPSTASH_REDIS_REST_TOKEN | 缓存 | - | Redis Token |
+| MYSQL_HOST | 生产 | localhost | MySQL 主机 |
+| MYSQL_PORT | 生产 | 3306 | MySQL 端口 |
+| MYSQL_USER | 生产 | - | MySQL 用户名 |
+| MYSQL_PASSWORD | 生产 | - | MySQL 密码 |
+| MYSQL_DATABASE | 生产 | - | MySQL 数据库名 |
+| MYSQL_USE_SSL | 否 | false | MySQL SSL 连接 |
+| USE_LOCAL_STORAGE | 测试 | true | true=LocalStorage，false=MySQL+Redis |
 | FREE_LIMIT_PER_DAY | 否 | 1 | 免费每日次数 |
 | PAID_LIMIT | 否 | 50 | 付费总次数 |

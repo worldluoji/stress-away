@@ -7,7 +7,7 @@
 ### 核心功能
 - **AI 反PUA建议**：描述职场困境，AI 生成定制化建议（话术反击、心态调整、行动建议、法律参考）
 - **场景模板**：内置 12 个常见职场困境模板，支持场景细分问答生成专属话术
-- **聊天历史**：对话记录本地存储，刷新后保留
+- **聊天历史**：对话记录持久化存储（MySQL），跨设备同步
 - **历史记录**：保存最多50条历史对话，可切换/删除/继续追问
 
 ### 订阅与激活
@@ -35,7 +35,8 @@
 - **语言**: TypeScript
 - **样式**: Tailwind CSS 4
 - **AI**: DeepSeek / MiniMax API
-- **存储**: Upstash Redis（生产）/ LocalStorage（测试）
+- **存储**: MySQL 8.0（生产）/ LocalStorage（测试）
+- **缓存**: Upstash Redis（订阅状态读缓存，5分钟TTL）
 - **支付**: 面包多
 
 ## 快速开始
@@ -66,17 +67,33 @@ MBAODU_APP_KEY=your_mbaodu_key
 # 管理后台密码
 ADMIN_PASSWORD=your_admin_password
 
-# Redis（生产环境）
+# Redis（订阅状态缓存，可选）
 UPSTASH_REDIS_REST_URL=your_redis_url
 UPSTASH_REDIS_REST_TOKEN=your_redis_token
 
-# 开发模式
-USE_LOCAL_STORAGE=true
+# MySQL（生产）
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_USER=root
+MYSQL_PASSWORD=your_password
+MYSQL_DATABASE=stress_away
+MYSQL_USE_SSL=false
+
+# 开发模式（true = 用 LocalStorage，false = 用 MySQL + Redis）
+USE_LOCAL_STORAGE=false
 FREE_LIMIT_PER_DAY=1
 PAID_LIMIT=50
 ```
 
-### 3. 启动
+### 4. 初始化数据库
+
+运行 sql/migrations/001_initial.sql 创建数据表：
+
+```bash
+mysql -u root -p stress_away < sql/migrations/001_initial.sql
+```
+
+### 5. 启动
 
 ```bash
 pnpm dev
@@ -117,13 +134,20 @@ pnpm dev
 │   └── page.tsx                       # 主页
 ├── lib/
 │   ├── activation-security.ts         # 激活码防暴力破解
-│   ├── mbaodu.ts                      # 面包多 API
-│   ├── models.ts                      # 模型配置
-│   ├── ratelimit.ts                   # 限流
-│   ├── redis.ts                       # 存储层
-│   ├── scenarios.ts                   # 场景数据
-│   ├── storage.ts                     # LocalStorage
-│   └── subscription.ts                 # 订阅逻辑
+│   ├── db.ts                         # MySQL 连接池
+│   ├── conversations.ts               # 对话历史 MySQL 持久化
+│   ├── subscriptions.ts              # 订阅/激活码 MySQL + Redis 缓存
+│   ├── usage-events.ts               # 使用事件追踪 + 场景统计
+│   ├── mbaodu.ts                    # 面包多 API
+│   ├── models.ts                    # 模型配置
+│   ├── ratelimit.ts                 # 限流
+│   ├── redis.ts                     # Redis（限流/免费计数/管理Token）
+│   ├── scenarios.ts                 # 场景数据
+│   ├── storage.ts                 # LocalStorage（客户端缓存）
+│   └── subscription.ts             # 订阅逻辑（入口）
+├── sql/
+│   └── migrations/
+│       └── 001_initial.sql         # MySQL 建表语句
 └── spec.md                            # 详细规格文档
 ```
 
@@ -137,8 +161,14 @@ pnpm dev
 | MBAODU_APP_KEY | 是 | - | 面包多 Key |
 | ADMIN_PASSWORD | 是 | - | 管理后台密码 |
 | ADMIN_ALLOWED_DEVICES | 否 | - | 允许的管理端设备指纹，多个用逗号分隔 |
-| UPSTASH_REDIS_REST_URL | 生产 | - | Redis URL |
-| UPSTASH_REDIS_REST_TOKEN | 生产 | - | Redis Token |
-| USE_LOCAL_STORAGE | 测试 | true | 使用 LocalStorage |
+| MYSQL_HOST | 生产 | localhost | MySQL 主机 |
+| MYSQL_PORT | 生产 | 3306 | MySQL 端口 |
+| MYSQL_USER | 生产 | - | MySQL 用户名 |
+| MYSQL_PASSWORD | 生产 | - | MySQL 密码 |
+| MYSQL_DATABASE | 生产 | - | MySQL 数据库名 |
+| MYSQL_USE_SSL | 否 | false | MySQL SSL 连接 |
+| UPSTASH_REDIS_REST_URL | 缓存 | - | Redis URL（可选） |
+| UPSTASH_REDIS_REST_TOKEN | 缓存 | - | Redis Token（可选） |
+| USE_LOCAL_STORAGE | 测试 | true | true=LocalStorage，false=MySQL+Redis |
 | FREE_LIMIT_PER_DAY | 否 | 1 | 免费每日次数 |
 | PAID_LIMIT | 否 | 50 | 付费总次数 |

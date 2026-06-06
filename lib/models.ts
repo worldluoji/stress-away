@@ -16,8 +16,13 @@ export const AI_MODELS = {
 export type ModelProvider = keyof typeof AI_MODELS;
 
 export interface ChatMessage {
+  id?: string;       // auto-generated unique id
   role: "user" | "assistant";
   content: string;
+}
+
+export function generateMessageId(): string {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
 import { getScenarioById } from './scenarios';
@@ -121,6 +126,9 @@ export async function chatWithAI(
   }
 
   const data = await response.json();
+  if (!data.choices?.length || !data.choices[0]?.message?.content) {
+    throw new Error('Invalid API response: missing choices or content');
+  }
   return data.choices[0].message.content;
 }
 

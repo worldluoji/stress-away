@@ -1,34 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { consumeOne } from '@/lib/subscription';
+import { checkUsage } from '@/lib/subscription';
+import { getAuthContext } from '@/lib/api-auth';
 import { checkRateLimit, checkDeviceIdSpoofing, RATE_LIMITS, extractClientInfo } from '@/lib/ratelimit';
 
-/**
- * @swagger
- * /api/usage/consume:
- *   post:
- *     summary: 消费用量
- *     tags: [Usage]
- *     security:
- *       - DeviceId: []
- *     responses:
- *       200:
- *         description: 消费结果
- *       400:
- *         description: 缺少设备ID
- *       429:
- *         description: 请求过于频繁
- *       500:
- *         description: 服务器内部错误
- */
 export async function POST(request: NextRequest) {
   try {
-    const deviceId = request.headers.get('x-device-id');
+    const { uid, deviceId } = getAuthContext(request);
 
     if (!deviceId) {
       return NextResponse.json({ error: 'Device ID required' }, { status: 400 });
     }
 
-    // Rate limit check
     const { ip } = extractClientInfo(request, deviceId);
     const rateLimitResult = await checkRateLimit(deviceId, ip, RATE_LIMITS.usage);
 
@@ -42,15 +24,12 @@ export async function POST(request: NextRequest) {
         {
           status: 429,
           headers: {
-            'X-RateLimit-Remaining': '0',
-            'X-RateLimit-Reset': rateLimitResult.resetAt.toString(),
             'Retry-After': Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000).toString(),
           },
         }
       );
     }
 
-    // Device ID anti-spoofing check
     const deviceIdCheck = await checkDeviceIdSpoofing(ip, deviceId);
     if (!deviceIdCheck.allowed) {
       return NextResponse.json(
@@ -59,22 +38,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await consumeOne(deviceId);
+    // Only check usage — do NOT consume here
+    // Consumption happens ONLY in /api/chat after AI success
+    const usage = await checkUsage(uid, deviceId);
 
-    return NextResponse.json(
-      result,
-      {
-        headers: {
-          'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-          'X-RateLimit-Reset': rateLimitResult.resetAt.toString(),
-        },
-      }
-    );
+    return NextResponse.json(usage, {
+      headers: {
+        'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+        'X-RateLimit-Reset': rateLimitResult.resetAt.toString(),
+      },
+    });
   } catch (error) {
-    console.error('Consume error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

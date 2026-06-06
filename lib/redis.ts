@@ -1,9 +1,7 @@
 import crypto from 'crypto';
 import { Redis } from '@upstash/redis';
 
-const USE_LOCAL_STORAGE = process.env.USE_LOCAL_STORAGE === 'true';
-const PAID_LIMIT = parseInt(process.env.PAID_LIMIT || '50', 10);
-const FREE_LIMIT_PER_DAY = parseInt(process.env.FREE_LIMIT_PER_DAY || '1', 10);
+
 
 export function isRedisConfigured(): boolean {
   return !!(
@@ -27,73 +25,6 @@ export function getRedis(): Redis {
   return _redis;
 }
 
-export const isRedisAvailable = !USE_LOCAL_STORAGE && isRedisConfigured();
-
-// LocalStorage keys
-const LS_PREFIX = 'sa:';
-
-function lsKey(key: string): string {
-  return `${LS_PREFIX}${key}`;
-}
-
-// LocalStorage helpers
-function lsGet<T>(key: string): T | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = localStorage.getItem(lsKey(key));
-    if (!raw) return null;
-    return JSON.parse(raw) as T;
-  } catch {
-    return null;
-  }
-}
-
-function lsSet(key: string, value: unknown): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(lsKey(key), JSON.stringify(value));
-  } catch {
-    // ignore
-  }
-}
-
-function lsDel(key: string): void {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(lsKey(key));
-}
-
-// Interfaces
-export interface Subscription {
-  status: 'active' | 'inactive';
-  source: 'mbaodu' | 'admin';  // 激活来源
-  remainingCodes: number;
-  activationTime?: number;
-  activationCodeIndex?: 1 | 2; // 记录激活时使用的是哪个码，用于后续同步
-  orderId?: string; // 记录订单号（仅 mbaodu）
-  expiresAt?: number; // 仅 admin 来源有
-  activationCode?: string; // 使用的激活码（仅 admin 来源有）
-}
-
-export interface ActivationCode {
-  code: string;
-  used: boolean;
-  deviceId?: string;
-  remainingCodes: number; // 码上剩余次数，与设备订阅同步
-  activationTime?: number;
-}
-
-// 管理端激活码
-export interface AdminActivationCode {
-  code: string;
-  createdAt: number;
-  expiresAt: number;
-  totalTimes: number;
-  remainingTimes: number;
-  used: boolean;
-  deviceId?: string;
-  activationTime?: number;
-}
-
 // Free count (daily) - use local date to match user's timezone
 function getLocalDateString(): string {
   const now = new Date();
@@ -114,14 +45,6 @@ interface FreeCountData {
 
 export async function getFreeCount(deviceId: string): Promise<number> {
   const key = getTodayKey(deviceId);
-
-  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    const data = lsGet<FreeCountData>(key);
-    if (!data || data.date !== getLocalDateString()) return 0;
-    return data.count;
-  }
-
-  // Redis branch - check date stored alongside count
   const data = await getRedis().get<FreeCountData>(key);
   if (!data || typeof data !== 'object') return 0;
   if (data.date !== getLocalDateString()) return 0;
@@ -132,18 +55,7 @@ export async function incrementFreeCount(deviceId: string): Promise<number> {
   const key = getTodayKey(deviceId);
   const today = getLocalDateString();
 
-  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    const data = lsGet<FreeCountData>(key);
-    if (!data || data.date !== today) {
-      lsSet(key, { count: 1, date: today });
-      return 1;
-    }
-    data.count++;
-    lsSet(key, data);
-    return data.count;
-  }
-
-  // Redis branch - store data as object with date
+  // Store data as object with date
   const existing = await getRedis().get<FreeCountData>(key);
   if (!existing || typeof existing !== 'object' || (existing as FreeCountData).date !== today) {
     // New day or no data - reset count
@@ -164,296 +76,17 @@ export async function incrementFreeCount(deviceId: string): Promise<number> {
   return count;
 }
 
-// Subscription
-export async function getSubscription(deviceId: string): Promise<Subscription | null> {
-  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    return lsGet<Subscription>(`device:${deviceId}:sub`);
+export async function decrementFreeCount(deviceId: string): Promise<number> {
+  const key = getTodayKey(deviceId);
+  const today = getLocalDateString();
+  const existing = await getRedis().get<FreeCountData>(key);
+  if (!existing || typeof existing !== 'object' || (existing as FreeCountData).date !== today) {
+    return 0;
   }
-  const key = `device:${deviceId}:subscription`;
-  const data = await getRedis().get<Subscription>(key);
-  return data ?? null;
-}
-
-// Usage tracking for paid users
-export async function getRemainingUsage(deviceId: string): Promise<number> {
-  const sub = await getSubscription(deviceId);
-  if (!sub || sub.status !== 'active') return 0;
-  return sub.remainingCodes;
-}
-
-export async function setSubscription(
-  deviceId: string,
-  subscription: Subscription
-): Promise<void> {
-  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    lsSet(`device:${deviceId}:sub`, subscription);
-    return;
-  }
-  const key = `device:${deviceId}:subscription`;
-  await getRedis().set(key, subscription);
-}
-
-// Activation codes
-export async function setActivationCodes(
-  orderId: string,
-  code1: string,
-  code2: string,
-  remainingCodes?: number
-): Promise<void> {
-  await setActivationCode(orderId, 1, code1, remainingCodes ?? PAID_LIMIT);
-  await setActivationCode(orderId, 2, code2, remainingCodes ?? PAID_LIMIT);
-}
-
-export async function setActivationCode(
-  orderId: string,
-  index: 1 | 2,
-  code: string,
-  remainingCodes: number = PAID_LIMIT
-): Promise<void> {
-  const codeData: ActivationCode = {
-    code,
-    used: false,
-    remainingCodes,
-  };
-  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    lsSet(`activation:${orderId}:${index}`, codeData);
-    return;
-  }
-  const key = `activation:${orderId}:${index}`;
-  const ttl = 60 * 60 * 24 * 30;
-  await getRedis().set(key, codeData, { ex: ttl });
-}
-
-export async function getActivationCode(
-  orderId: string,
-  index: 1 | 2
-): Promise<ActivationCode | null> {
-  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    return lsGet<ActivationCode>(`activation:${orderId}:${index}`);
-  }
-  const key = `activation:${orderId}:${index}`;
-  const data = await getRedis().get<ActivationCode>(key);
-  return data ?? null;
-}
-
-export async function consumeActivationCode(
-  orderId: string,
-  index: 1 | 2,
-  deviceId: string
-): Promise<{ success: boolean; error?: string; previousDeviceId?: string; remainingCodes?: number }> {
-  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    const key = `activation:${orderId}:${index}`;
-    const data = lsGet<ActivationCode>(key);
-    if (!data) return { success: false, error: 'invalid_code' };
-
-    // If code already used by another device, revoke that device's subscription
-    if (data.used && data.deviceId && data.deviceId !== deviceId) {
-      lsDel(`device:${data.deviceId}:sub`);
-    }
-
-    // Update activation code - inherit remainingCodes from code
-    lsSet(key, {
-      ...data,
-      used: true,
-      deviceId,
-      remainingCodes: data.remainingCodes,
-      activationTime: data.activationTime || Date.now()
-    });
-
-    // Return the remaining codes from the code itself
-    return { success: true, previousDeviceId: data.deviceId, remainingCodes: data.remainingCodes };
-  }
-
-  const key = `activation:${orderId}:${index}`;
-  const data = await getRedis().get<ActivationCode>(key);
-
-  if (!data) {
-    return { success: false, error: 'invalid_code' };
-  }
-
-  if (data.used && data.deviceId && data.deviceId !== deviceId) {
-    await clearDeviceSubscription(data.deviceId);
-  }
-
-  const now = Math.floor(Date.now() / 1000);
-
-  await getRedis().set(
-    key,
-    {
-      ...data,
-      used: true,
-      deviceId,
-      remainingCodes: data.remainingCodes,
-      activationTime: data.activationTime || now
-    },
-    { ex: 60 * 60 * 24 * 30 }
-  );
-
-  return { success: true, previousDeviceId: data.deviceId, remainingCodes: data.remainingCodes };
-}
-
-export async function clearDeviceSubscription(deviceId: string): Promise<void> {
-  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    lsDel(`device:${deviceId}:sub`);
-    return;
-  }
-  const key = `device:${deviceId}:subscription`;
-  await getRedis().set(key, { status: 'inactive', remainingCodes: 0 } as Subscription, { ex: 60 * 60 * 24 * 30 });
-}
-
-// Usage tracking for paid users - also syncs with activation code
-export async function consumeUsage(deviceId: string): Promise<number> {
-  const sub = await getSubscription(deviceId);
-  if (!sub || sub.remainingCodes <= 0) return 0;
-
-  sub.remainingCodes--;
-
-  // Sync to activation code if this device is activated
-  if (sub.orderId && sub.activationCodeIndex) {
-    // Mbaodu activation code
-    const codeKey = `activation:${sub.orderId}:${sub.activationCodeIndex}`;
-    const codeData = await getActivationCodeInternal(codeKey);
-    if (codeData) {
-      codeData.remainingCodes = sub.remainingCodes;
-      await setActivationCodeInternal(codeKey, codeData);
-    }
-  } else if (sub.source === 'admin' && sub.activationCode) {
-    // Admin activation code
-    const codeKey = `admin:code:${sub.activationCode}`;
-    const codeData = await getAdminActivationCodeInternal(codeKey);
-    if (codeData) {
-      codeData.remainingTimes = sub.remainingCodes;
-      await setAdminActivationCodeInternal(codeKey, codeData);
-    }
-  }
-
-  await setSubscription(deviceId, sub);
-  return sub.remainingCodes;
-}
-
-// Internal helpers for use by consumeUsage
-async function getActivationCodeInternal(key: string): Promise<ActivationCode | null> {
-  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    return lsGet<ActivationCode>(key);
-  }
-  const data = await getRedis().get<ActivationCode>(key);
-  return data ?? null;
-}
-
-async function setActivationCodeInternal(key: string, data: ActivationCode): Promise<void> {
-  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    lsSet(key, data);
-    return;
-  }
-  await getRedis().set(key, data, { ex: 60 * 60 * 24 * 30 });
-}
-
-async function getAdminActivationCodeInternal(key: string): Promise<AdminActivationCode | null> {
-  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    return lsGet<AdminActivationCode>(key);
-  }
-  const data = await getRedis().get<AdminActivationCode>(key);
-  return data ?? null;
-}
-
-async function setAdminActivationCodeInternal(key: string, data: AdminActivationCode): Promise<void> {
-  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    lsSet(key, data);
-    return;
-  }
-  await getRedis().set(key, data, { ex: ADMIN_CODE_TTL });
-}
-
-// Check if paid user
-export async function isPaidUser(deviceId: string): Promise<boolean> {
-  const sub = await getSubscription(deviceId);
-  return sub !== null && sub.status === 'active' && sub.remainingCodes > 0;
-}
-
-// Constants
-export { PAID_LIMIT, FREE_LIMIT_PER_DAY };
-
-// Order activation tracking
-export async function isOrderActivated(orderId: string): Promise<boolean> {
-  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    return lsGet<string>(`used_order:${orderId}`) !== null;
-  }
-  const key = `used_order:${orderId}`;
-  const data = await getRedis().get<string>(key);
-  return data !== null;
-}
-
-export async function markOrderActivated(orderId: string): Promise<void> {
-  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    lsSet(`used_order:${orderId}`, '1');
-    return;
-  }
-  const key = `used_order:${orderId}`;
-  await getRedis().set(key, '1', { ex: 60 * 60 * 24 * 30 });
-}
-
-export async function setUsedOrderTTL(orderId: string, ttlDays = 30): Promise<void> {
-  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    lsSet(`used_order:${orderId}`, '1');
-    return;
-  }
-  const key = `used_order:${orderId}`;
-  await getRedis().expire(key, ttlDays * 24 * 60 * 60);
-}
-
-// Order creation time tracking for 48-hour query restriction
-export async function setOrderCreatedTime(orderId: string, timestamp: number): Promise<void> {
-  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    lsSet(`order_created:${orderId}`, timestamp);
-    return;
-  }
-  const key = `order_created:${orderId}`;
-  await getRedis().set(key, timestamp, { ex: 60 * 60 * 24 * 60 }); // 60 days TTL
-}
-
-export async function getOrderCreatedTime(orderId: string): Promise<number | null> {
-  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    return lsGet<number>(`order_created:${orderId}`);
-  }
-  const key = `order_created:${orderId}`;
-  const data = await getRedis().get<number>(key);
-  return data ?? null;
-}
-
-export async function canQueryOrder(orderId: string): Promise<{ allowed: boolean; remainingSeconds: number }> {
-  const createdTime = await getOrderCreatedTime(orderId);
-  if (createdTime === null) {
-    // No creation time means callback not called - allow query
-    return { allowed: true, remainingSeconds: 0 };
-  }
-
-  const now = Date.now();
-  const elapsed = now - createdTime;
-  const LIMIT_MS = 48 * 60 * 60 * 1000; // 48 hours
-
-  if (elapsed >= LIMIT_MS) {
-    // Beyond 48 hours, cannot query
-    return { allowed: false, remainingSeconds: 0 };
-  }
-
-  // Within 48 hours, allow query
-  return { allowed: true, remainingSeconds: Math.ceil((LIMIT_MS - elapsed) / 1000) };
-}
-
-// Admin functions - get both activation codes for an order
-export async function getActivationCodes(orderId: string): Promise<{ code1: ActivationCode | null; code2: ActivationCode | null }> {
-  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    const code1 = lsGet<ActivationCode>(`activation:${orderId}:1`);
-    const code2 = lsGet<ActivationCode>(`activation:${orderId}:2`);
-    return { code1, code2 };
-  }
-  const key1 = `activation:${orderId}:1`;
-  const key2 = `activation:${orderId}:2`;
-  const [code1, code2] = await Promise.all([
-    getRedis().get<ActivationCode>(key1),
-    getRedis().get<ActivationCode>(key2),
-  ]);
-  return { code1: code1 ?? null, code2: code2 ?? null };
+  const current = (existing as FreeCountData).count ?? 0;
+  const newCount = Math.max(0, current - 1);
+  await getRedis().set(key, { count: newCount, date: today });
+  return newCount;
 }
 
 // Admin token management
@@ -466,10 +99,6 @@ const ADMIN_TOKEN_TTL = 60 * 60 * 2; // 2 hours
  */
 export async function setAdminToken(rawToken: string): Promise<void> {
   const hash = crypto.createHash('sha256').update(rawToken).digest('hex');
-  if (USE_LOCAL_STORAGE || !isRedisConfigured()) {
-    lsSet(`${ADMIN_TOKEN_PREFIX}${hash}`, Date.now().toString());
-    return;
-  }
   await getRedis().set(`${ADMIN_TOKEN_PREFIX}${hash}`, Date.now().toString(), { ex: ADMIN_TOKEN_TTL });
 }
 
@@ -484,17 +113,6 @@ interface AdminFailData {
 }
 
 export async function checkAdminBlocked(ip: string): Promise<{ blocked: boolean; remainingSeconds: number }> {
-  if (USE_LOCAL_STORAGE || !isRedisConfigured()) {
-    const key = `${ADMIN_FAIL_KEY_PREFIX}${ip}`;
-    const data = lsGet<AdminFailData>(key);
-    if (!data || !data.blockedUntil) return { blocked: false, remainingSeconds: 0 };
-    const now = Date.now();
-    if (now < data.blockedUntil) {
-      return { blocked: true, remainingSeconds: Math.ceil((data.blockedUntil - now) / 1000) };
-    }
-    lsSet(key, { count: 0 });
-    return { blocked: false, remainingSeconds: 0 };
-  }
   const key = `${ADMIN_FAIL_KEY_PREFIX}${ip}`;
   const data = await getRedis().get<AdminFailData>(key);
   if (!data || !data.blockedUntil) return { blocked: false, remainingSeconds: 0 };
@@ -507,16 +125,6 @@ export async function checkAdminBlocked(ip: string): Promise<{ blocked: boolean;
 }
 
 export async function recordAdminFailedAttempt(ip: string): Promise<void> {
-  if (USE_LOCAL_STORAGE || !isRedisConfigured()) {
-    const key = `${ADMIN_FAIL_KEY_PREFIX}${ip}`;
-    const data = lsGet<AdminFailData>(key) || { count: 0 };
-    data.count++;
-    if (data.count >= ADMIN_MAX_FAIL) {
-      data.blockedUntil = Date.now() + ADMIN_BLOCK_MS;
-    }
-    lsSet(key, data);
-    return;
-  }
   const key = `${ADMIN_FAIL_KEY_PREFIX}${ip}`;
   const data = await getRedis().get<AdminFailData>(key) || { count: 0 };
   data.count++;
@@ -527,167 +135,53 @@ export async function recordAdminFailedAttempt(ip: string): Promise<void> {
 }
 
 export async function resetAdminFailedAttempts(ip: string): Promise<void> {
-  if (USE_LOCAL_STORAGE || !isRedisConfigured()) {
-    lsSet(`${ADMIN_FAIL_KEY_PREFIX}${ip}`, { count: 0 });
-    return;
-  }
   await getRedis().set(`${ADMIN_FAIL_KEY_PREFIX}${ip}`, { count: 0 });
 }
 
-// ==================== Admin Activation Codes ====================
+// ==================== Activation Code Rate Limiting ====================
 
-const ADMIN_CODE_PREFIX = 'admin:code:';
-const ADMIN_CODE_LIST_KEY = 'admin:codes:list';
-const ADMIN_CODE_TTL = 60 * 60 * 24 * 31; // 31 days
+const ACT_FAIL_KEY_PREFIX = 'act:fail:';
+const ACT_MAX_FAIL = 5;
+const ACT_BLOCK_MS = 15 * 60 * 1000; // 15 minutes
 
-export async function createAdminActivationCode(
-  code: string,
-  totalTimes: number = 50
-): Promise<AdminActivationCode> {
-  const now = Date.now();
-  const adminCode: AdminActivationCode = {
-    code,
-    createdAt: now,
-    expiresAt: now + 30 * 24 * 60 * 60 * 1000,
-    totalTimes,
-    remainingTimes: totalTimes,
-    used: false,
-  };
-
-  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    lsSet(`${ADMIN_CODE_PREFIX}${code}`, adminCode);
-    // Also store in list for enumeration
-    const list = lsGet<string[]>(ADMIN_CODE_LIST_KEY) || [];
-    list.push(code);
-    lsSet(ADMIN_CODE_LIST_KEY, list);
-    return adminCode;
-  }
-
-  await getRedis().set(`${ADMIN_CODE_PREFIX}${code}`, adminCode, { ex: ADMIN_CODE_TTL });
-  // Add to sorted set for listing (score = createdAt)
-  await getRedis().zadd(ADMIN_CODE_LIST_KEY, { score: now, member: code });
-  return adminCode;
+interface ActFailData {
+  count: number;
+  blockedUntil?: number;
 }
 
-export async function getAdminActivationCode(code: string): Promise<AdminActivationCode | null> {
-  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    return lsGet<AdminActivationCode>(`${ADMIN_CODE_PREFIX}${code}`);
-  }
-  const data = await getRedis().get<AdminActivationCode>(`${ADMIN_CODE_PREFIX}${code}`);
-  return data ?? null;
-}
-
-export async function listAdminActivationCodes(
-  page: number = 1,
-  limit: number = 20
-): Promise<{ codes: AdminActivationCode[]; total: number }> {
-  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    const codeList = lsGet<string[]>(ADMIN_CODE_LIST_KEY) || [];
-    const start = (page - 1) * limit;
-    const codes: AdminActivationCode[] = [];
-    for (let i = start; i < Math.min(start + limit, codeList.length); i++) {
-      const c = lsGet<AdminActivationCode>(`${ADMIN_CODE_PREFIX}${codeList[i]}`);
-      if (c) codes.push(c);
-    }
-    return { codes, total: codeList.length };
-  }
-
-  const total = await getRedis().zcard(ADMIN_CODE_LIST_KEY);
-  const results = await getRedis().zrange(ADMIN_CODE_LIST_KEY, (page - 1) * limit, page * limit - 1);
-  const codes: AdminActivationCode[] = [];
-  for (const code of results) {
-    const data = await getRedis().get<AdminActivationCode>(`${ADMIN_CODE_PREFIX}${code}`);
-    if (data) codes.push(data);
-  }
-  return { codes, total };
-}
-
-export async function consumeAdminActivationCode(
-  code: string,
+export async function checkActivationBlockedRedis(
+  ip: string,
   deviceId: string
-): Promise<{ success: boolean; error?: string; remainingCodes?: number; expiresAt?: number }> {
-  if (USE_LOCAL_STORAGE || !isRedisAvailable) {
-    const key = `${ADMIN_CODE_PREFIX}${code}`;
-    const data = lsGet<AdminActivationCode>(key);
-    if (!data) return { success: false, error: 'invalid_code' };
-
-    // Check expiry
-    if (Date.now() > data.expiresAt) {
-      return { success: false, error: 'expired_code' };
+): Promise<{ blocked: boolean; remainingSeconds: number }> {
+  const key = `${ACT_FAIL_KEY_PREFIX}${ip}:${deviceId}`;
+  const data = await getRedis().get<ActFailData>(key);
+  if (!data) return { blocked: false, remainingSeconds: 0 };
+  if (data.blockedUntil) {
+    const now = Date.now();
+    if (now < data.blockedUntil) {
+      return { blocked: true, remainingSeconds: Math.ceil((data.blockedUntil - now) / 1000) };
     }
-
-    // If code already used by another device, revoke that device's subscription
-    if (data.used && data.deviceId && data.deviceId !== deviceId) {
-      lsDel(`device:${data.deviceId}:sub`);
-    }
-
-    // Same device - just return success
-    if (data.deviceId === deviceId) {
-      return {
-        success: true,
-        remainingCodes: data.remainingTimes,
-        expiresAt: data.expiresAt
-      };
-    }
-
-    // New device - update
-    lsSet(key, {
-      ...data,
-      used: true,
-      deviceId,
-      remainingTimes: data.remainingTimes,
-      activationTime: data.activationTime || Date.now()
-    });
-
-    return {
-      success: true,
-      remainingCodes: data.remainingTimes,
-      expiresAt: data.expiresAt
-    };
+    await getRedis().set(key, { count: 0 });
   }
+  return { blocked: false, remainingSeconds: 0 };
+}
 
-  const key = `${ADMIN_CODE_PREFIX}${code}`;
-  const data = await getRedis().get<AdminActivationCode>(key);
-
-  if (!data) {
-    return { success: false, error: 'invalid_code' };
+export async function recordActivationFailedAttemptRedis(
+  ip: string,
+  deviceId: string
+): Promise<void> {
+  const key = `${ACT_FAIL_KEY_PREFIX}${ip}:${deviceId}`;
+  const data = await getRedis().get<ActFailData>(key) || { count: 0 };
+  data.count++;
+  if (data.count >= ACT_MAX_FAIL) {
+    data.blockedUntil = Date.now() + ACT_BLOCK_MS;
   }
+  await getRedis().set(key, data, { ex: Math.ceil(ACT_BLOCK_MS / 1000) });
+}
 
-  // Check expiry
-  if (Date.now() > data.expiresAt) {
-    return { success: false, error: 'expired_code' };
-  }
-
-  // If code already used by another device, revoke that device's subscription
-  if (data.used && data.deviceId && data.deviceId !== deviceId) {
-    await clearDeviceSubscription(data.deviceId);
-  }
-
-  // Same device - just return success
-  if (data.deviceId === deviceId) {
-    return {
-      success: true,
-      remainingCodes: data.remainingTimes,
-      expiresAt: data.expiresAt
-    };
-  }
-
-  // New device - update
-  await getRedis().set(
-    key,
-    {
-      ...data,
-      used: true,
-      deviceId,
-      remainingTimes: data.remainingTimes,
-      activationTime: data.activationTime || Date.now()
-    },
-    { ex: ADMIN_CODE_TTL }
-  );
-
-  return {
-    success: true,
-    remainingCodes: data.remainingTimes,
-    expiresAt: data.expiresAt
-  };
+export async function resetActivationFailedAttemptsRedis(
+  ip: string,
+  deviceId: string
+): Promise<void> {
+  await getRedis().set(`${ACT_FAIL_KEY_PREFIX}${ip}:${deviceId}`, { count: 0 });
 }

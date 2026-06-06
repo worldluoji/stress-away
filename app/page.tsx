@@ -3,12 +3,20 @@
 import { useState, useEffect, useCallback, useRef, startTransition } from "react";
 import ReactMarkdown from "react-markdown";
 import type { ChatMessage } from "@/lib/models";
-import { loadMessages, saveMessages, loadHistory, saveHistory, generateConversationId, generateTitle, type Conversation } from "@/lib/storage";
+import { generateMessageId } from "@/lib/models";
+import { generateConversationId, generateTitle, type Conversation } from "@/lib/storage";
 import { getDeviceId } from "@/lib/utils";
 import { SubscriptionActivate } from "./components/SubscriptionActivate";
+import dynamic from 'next/dynamic';
+const LoginModal = dynamic(() => import('./components/LoginModal').then(m => ({ default: m.LoginModal })), { ssr: false });
+const AccountStatus = dynamic(() => import('./components/LoginModal').then(m => ({ default: m.AccountStatus })), { ssr: false });
+import { useAuth } from './components/LoginModal';
 import { ScenarioCard } from "./components/ScenarioCard";
 import { ScenarioModal } from "./components/ScenarioModal";
 import { HistoryPanel } from "./components/HistoryPanel";
+import { SavedMessagesPanel } from "./components/SavedMessagesPanel";
+import { ShareCard } from "./components/ShareCard";
+import { MyStatsPanel } from "./components/MyStatsPanel";
 import type { ScenarioTemplate } from "@/lib/scenarios";
 
 interface UsageStatus {
@@ -73,52 +81,127 @@ export default function Home() {
   const [conversationHistory, setConversationHistory] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | undefined>();
   const [showHistory, setShowHistory] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const [showSaved, setShowSaved] = useState(false);
+  const [showShare, setShowShare] = useState(false);
+  const [showStats, setShowStats] = useState(false);
+  const [shareContent, setShareContent] = useState('');
+  const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
+  const [likedAnimating, setLikedAnimating] = useState<string | null>(null);
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const { user, uid, loading: authLoading, logout } = useAuth();
+
+  const handleLoginSuccess = useCallback(() => {
+    // Login succeeded, auth state will update via onAuthStateChange
+  }, []);
+
+  const handleToggleLike = useCallback(async (messageId: string) => {
+    if (!user) {
+      setShowLogin(true);
+      return;
+    }
+    const isLiked = likedIds.has(messageId);
+    // Optimistic update
+    setLikedIds(prev => {
+      const next = new Set(prev);
+      if (isLiked) next.delete(messageId);
+      else next.add(messageId);
+      return next;
+    });
+    // Trigger animation on like (not unlike)
+    if (!isLiked) {
+      setLikedAnimating(messageId);
+      setTimeout(() => setLikedAnimating(null), 600);
+    }
+    try {
+      const method = isLiked ? 'DELETE' : 'POST';
+      await fetch(`/api/messages/${messageId}/reaction`, {
+        method,
+        headers: uid ? { 'X-User-Id': uid } : {},
+      });
+    } catch {
+      // Revert on error
+      setLikedIds(prev => {
+        const next = new Set(prev);
+        if (isLiked) next.add(messageId);
+        else next.delete(messageId);
+        return next;
+      });
+    }
+  }, [user, likedIds]);
+
+  const handleToggleSave = useCallback(async (messageId: string) => {
+    if (!user) {
+      setShowLogin(true);
+      return;
+    }
+    const isSaved = savedIds.has(messageId);
+    // Find the message for content
+    const msg = messages.find(m => m.id === messageId);
+    const conv = conversationHistory.find(c => c.id === currentConversationId);
+    const msgIndex = messages.indexOf(msg!);
+    // Optimistic update
+    setSavedIds(prev => {
+      const next = new Set(prev);
+      if (isSaved) next.delete(messageId);
+      else next.add(messageId);
+      return next;
+    });
+    try {
+      if (isSaved) {
+        await fetch(`/api/messages/${messageId}/save`, {
+          method: 'DELETE',
+          headers: uid ? { 'X-User-Id': uid } : {},
+        });
+      } else {
+        await fetch(`/api/messages/${messageId}/save`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-User-Id': uid || '' },
+          body: JSON.stringify({
+            conversationId: currentConversationId,
+            messageIndex: msgIndex,
+            content: msg?.content || '',
+            scenarioId: selectedScenario?.id,
+          }),
+        });
+      }
+    } catch {
+      // Revert on error
+      setSavedIds(prev => {
+        const next = new Set(prev);
+        if (isSaved) next.add(messageId);
+        else next.delete(messageId);
+        return next;
+      });
+    }
+  }, [user, savedIds, messages, currentConversationId, conversationHistory, selectedScenario]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    const saved = loadMessages();
-    if (saved.length > 0) {
-      startTransition(() => {
-        setMessages(saved);
-        setShowEmptyState(false);
-      });
-    }
-  }, []);
-
-  useEffect(() => {
-    if (messages.length > 0) {
-      startTransition(() => {
-        setShowEmptyState(false);
-        saveMessages(messages);
-      });
-    }
-  }, [messages]);
 
   useEffect(() => {
     const init = async () => {
       try {
         const id = await getDeviceId();
         setDeviceId(id);
-        const res = await fetch("/api/usage", {
-          headers: { "x-device-id": id },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setUsage(data);
-        }
 
-        // Load scenarios
+        // Load scenarios (independent of auth)
         const scenariosRes = await fetch("/api/scenarios");
         if (scenariosRes.ok) {
           const scenariosData = await scenariosRes.json();
           setScenarios(scenariosData.scenarios || []);
         }
 
-        // Load conversation history
-        const history = loadHistory();
-        setConversationHistory(history);
+        // Load conversation history from MySQL (logged-in users only)
+        if (uid) {
+          const res = await fetch('/api/conversations', {
+            headers: { 'X-User-Id': uid },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setConversationHistory(data.conversations || []);
+          }
+        }
       } catch {
         // ignore
       } finally {
@@ -126,7 +209,26 @@ export default function Home() {
       }
     };
     init();
-  }, []);
+  }, [uid]);
+
+  // Fetch usage whenever uid or deviceId changes
+  useEffect(() => {
+    if (!deviceId) return;
+    const fetchUsage = async () => {
+      try {
+        const headers: Record<string, string> = { "x-device-id": deviceId };
+        if (uid) headers["x-user-id"] = uid;
+        const res = await fetch("/api/usage", { headers });
+        if (res.ok) {
+          const data = await res.json();
+          setUsage(data);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    fetchUsage();
+  }, [uid, deviceId]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -137,16 +239,16 @@ export default function Home() {
     setShowActivate(false);
     const recheck = async () => {
       if (!deviceId) return;
-      const res = await fetch("/api/usage", {
-        headers: { "x-device-id": deviceId },
-      });
+      const headers: Record<string, string> = { "x-device-id": deviceId };
+      if (uid) headers["x-user-id"] = uid;
+      const res = await fetch("/api/usage", { headers });
       if (res.ok) {
         const data = await res.json();
         setUsage(data);
       }
     };
     recheck();
-  }, [deviceId]);
+  }, [uid, deviceId]);
 
   const handleCopy = async (content: string, index: number) => {
     try {
@@ -200,29 +302,37 @@ export default function Home() {
   const handleDeleteConversation = (id: string) => {
     const updated = conversationHistory.filter((c) => c.id !== id);
     setConversationHistory(updated);
-    saveHistory({ conversations: updated });
+    fetch(`/api/conversations/${id}`, {
+      method: 'DELETE',
+      headers: uid ? { 'X-User-Id': uid } : {},
+    });
     if (currentConversationId === id) {
       setCurrentConversationId(undefined);
     }
   };
 
-  const handleSaveConversation = (newMessages: ChatMessage[]) => {
+  const handleSaveConversation = async (newMessages: ChatMessage[]) => {
     if (newMessages.length === 0) return;
+    if (!uid) return;
 
     const title = generateTitle(newMessages);
     const now = Date.now();
 
     if (currentConversationId) {
-      // Update existing conversation
-      const updated = conversationHistory.map((c) =>
-        c.id === currentConversationId
-          ? { ...c, messages: newMessages, updatedAt: now }
-          : c
-      );
-      setConversationHistory(updated);
-      saveHistory({ conversations: updated });
+      const conv = conversationHistory.find(c => c.id === currentConversationId);
+      if (conv) {
+        const updatedConv = { ...conv, messages: newMessages, updatedAt: now };
+        const updated = conversationHistory.map(c =>
+          c.id === currentConversationId ? updatedConv : c
+        );
+        setConversationHistory(updated);
+        fetch('/api/conversations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-User-Id': uid },
+          body: JSON.stringify(updatedConv),
+        });
+      }
     } else {
-      // Create new conversation
       const newConv: Conversation = {
         id: generateConversationId(),
         title,
@@ -230,9 +340,13 @@ export default function Home() {
         createdAt: now,
         updatedAt: now,
       };
-      const updated = [newConv, ...conversationHistory].slice(0, 50); // Keep max 50 conversations
+      const updated = [newConv, ...conversationHistory].slice(0, 50);
       setConversationHistory(updated);
-      saveHistory({ conversations: updated });
+      fetch('/api/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': uid },
+        body: JSON.stringify(newConv),
+      });
       setCurrentConversationId(newConv.id);
     }
   };
@@ -256,7 +370,11 @@ export default function Home() {
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-User-Id": uid || "",
+          "x-device-id": deviceId,
+        },
         body: JSON.stringify({
           messages: newMessages,
           scenarioId: selectedScenario?.id,
@@ -268,8 +386,9 @@ export default function Home() {
         .replace(/<think>[\s\S]*?<\/think>/gi, "")
         .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
         .trim();
-      setMessages([...newMessages, { role: "assistant", content: reply }]);
-      handleSaveConversation([...newMessages, { role: "assistant", content: reply }]);
+      const replyMsg = { role: "assistant" as const, content: reply, id: generateMessageId() };
+      setMessages([...newMessages, replyMsg]);
+      handleSaveConversation([...newMessages, replyMsg]);
 
       // Keep scenario context for follow-up messages
       if (selectedScenario) {
@@ -277,9 +396,11 @@ export default function Home() {
       }
 
       if (deviceId) {
+        const usageHeaders: Record<string, string> = { "x-device-id": deviceId };
+        if (uid) usageHeaders["x-user-id"] = uid;
         const usageRes = await fetch("/api/usage/consume", {
           method: "POST",
-          headers: { "x-device-id": deviceId },
+          headers: usageHeaders,
         });
         if (usageRes.ok) {
           const usageData = await usageRes.json();
@@ -316,6 +437,26 @@ export default function Home() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </button>
+              {user && (
+                <button
+                  onClick={() => setShowStats(true)}
+                  className="w-8 h-8 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                </button>
+              )}
+              {user && (
+                <button
+                  onClick={() => setShowSaved(true)}
+                  className="w-8 h-8 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                  </svg>
+                </button>
+              )}
               {messages.length > 0 && (
                 <button
                   onClick={() => {
@@ -342,6 +483,11 @@ export default function Home() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <AccountStatus
+                user={user}
+                onLogout={logout}
+                onLoginClick={() => setShowLogin(true)}
+              />
               {usage && !isInitializing && (
                 <span
                   className={`px-3 py-1.5 rounded-full text-xs font-medium ${
@@ -355,12 +501,12 @@ export default function Home() {
                     : `${usage.remaining}/${usage.total} 次`}
                 </span>
               )}
-              {!usage?.isPaid && !isInitializing && usage && (
+              {usage && !isInitializing && user && !usage.isPaid && usage.total > 0 && (
                 <button
                   onClick={() => setShowActivate(true)}
                   className="px-4 py-1.5 rounded-full text-xs font-medium bg-[#007AFF] text-white hover:bg-[#007AFF]/90 transition-all active:scale-95"
                 >
-                  激活
+                  升级
                 </button>
               )}
             </div>
@@ -386,6 +532,30 @@ export default function Home() {
           onDelete={handleDeleteConversation}
           onClose={() => setShowHistory(false)}
         />
+      )}
+
+      {/* Saved Messages Panel */}
+      {showSaved && (
+        <SavedMessagesPanel
+          onClose={() => setShowSaved(false)}
+          onSelect={(messageId) => {
+            setShowSaved(false);
+          }}
+        />
+      )}
+
+      {/* Share Card Modal */}
+      {showShare && (
+        <ShareCard
+          content={shareContent}
+          scenario={selectedScenario?.name}
+          onClose={() => setShowShare(false)}
+        />
+      )}
+
+      {/* My Stats Modal */}
+      {showStats && (
+        <MyStatsPanel onClose={() => setShowStats(false)} />
       )}
 
       {/* Activation Modal */}
@@ -517,6 +687,7 @@ export default function Home() {
                       <>
                         <div className="group">
                           <ReactMarkdown
+                            disallowedElements={['script', 'style', 'iframe', 'object', 'embed', 'applet', 'form', 'meta', 'link', 'body', 'html', 'head']}
                             components={{
                               p: ({ children }) => (
                                 <p className="mb-2 last:mb-0">{children}</p>
@@ -541,6 +712,10 @@ export default function Home() {
                                   {children}
                                 </blockquote>
                               ),
+                              // Render any unknown HTML-like tags as plain text (not executed)
+                              pre: ({ children }) => (
+                                <pre className="whitespace-pre-wrap break-words">{children}</pre>
+                              ),
                             }}
                           >
                             {msg.content}
@@ -551,20 +726,55 @@ export default function Home() {
                   </div>
                   {msg.role === "assistant" && (
                     <div className="flex items-center gap-1 mt-1.5 ml-1">
-                      <button
-                        onClick={() => handleCopy(msg.content, i)}
-                        className="p-1.5 rounded-lg hover:bg-[--background-secondary] text-[--foreground-tertiary] transition-colors"
-                      >
-                        {copiedIndex === i ? (
-                          <svg className="w-3.5 h-3.5 text-[#34C759]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                        ) : (
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                        )}
-                      </button>
+<button
+                            onClick={() => handleCopy(msg.content, i)}
+                            className="p-1.5 rounded-lg hover:bg-[--background-secondary] text-[--foreground-tertiary] transition-colors"
+                          >
+                            {copiedIndex === i ? (
+                              <svg className="w-3.5 h-3.5 text-[#34C759]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            ) : (
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                              </svg>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => { setShareContent(msg.content); setShowShare(true); }}
+                            className="p-1.5 rounded-lg hover:bg-[--background-secondary] text-[--foreground-tertiary] transition-colors"
+                            title="分享卡片"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                            </svg>
+                          </button>
+                      {msg.id && (
+                        <>
+                          <button
+                            onClick={() => handleToggleLike(msg.id!)}
+                            className={`p-1.5 rounded-lg hover:bg-[--background-secondary] transition-colors ${likedIds.has(msg.id!) || likedAnimating === msg.id ? 'text-[#FF9500]' : 'text-[--foreground-tertiary]'}`}
+                            title={likedIds.has(msg.id!) ? '取消点赞' : '点赞'}
+                          >
+                            <svg
+                              className={`w-3.5 h-3.5 transition-all ${likedAnimating === msg.id ? 'scale-150' : 'scale-100'}`}
+                              fill={likedIds.has(msg.id!) ? 'currentColor' : 'none'}
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleToggleSave(msg.id!)}
+                            className={`p-1.5 rounded-lg hover:bg-[--background-secondary] transition-colors ${savedIds.has(msg.id!) ? 'text-[#007AFF]' : 'text-[--foreground-tertiary]'}`}
+                          >
+                            <svg className="w-3.5 h-3.5" fill={savedIds.has(msg.id!) ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                            </svg>
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -648,6 +858,13 @@ export default function Home() {
           `}</style>
         </div>
       </footer>
+
+      {/* Login Modal */}
+      <LoginModal
+        isOpen={showLogin}
+        onClose={() => setShowLogin(false)}
+        onSuccess={handleLoginSuccess}
+      />
     </div>
   );
 }

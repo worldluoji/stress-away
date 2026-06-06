@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { getDeviceId } from '@/lib/utils';
+import { signInWithPassword, getCurrentUser } from '@/lib/tcb';
 
 interface CodeInfo {
   code: string;
@@ -23,6 +23,7 @@ type Tab = 'order' | 'admin-code';
 
 export default function AdminPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [tab, setTab] = useState<Tab>('order');
   const [orderId, setOrderId] = useState('');
@@ -43,24 +44,47 @@ export default function AdminPage() {
     setLoading(true);
 
     try {
-      const deviceId = await getDeviceId();
+      // 1. TCB login
+      await signInWithPassword(email, password);
+
+      // 2. Get uid from TCB session
+      const user = await getCurrentUser();
+      if (!user?.id) {
+        setError('登录失败，未获取到会话');
+        return;
+      }
+
+      // 3. Exchange TCB session for admin token
       const res = await fetch('/api/admin/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password, deviceId }),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': user.id,
+        },
+        body: JSON.stringify({ uid: user.id }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || '登录失败');
+        setError(data.error === 'not_admin' ? '当前账号无管理权限' : data.error || '登录失败');
         return;
       }
 
       setIsLoggedIn(true);
       setPassword('');
-    } catch {
-      setError('网络错误');
+      setEmail('');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('Invalid username') || msg.includes('wrong password')) {
+        setError('邮箱或密码错误');
+      } else if (msg.includes('fail to fetch') || msg.includes('fetch') || msg.includes('network') || msg.includes('Network')) {
+        setError('网络连接失败，请检查网络后重试');
+      } else if (msg) {
+        setError(msg);
+      } else {
+        setError('登录失败，请重试');
+      }
     } finally {
       setLoading(false);
     }
@@ -191,14 +215,30 @@ export default function AdminPage() {
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium text-[--foreground-secondary] block mb-1.5">
-                管理密码
+                管理员邮箱
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                placeholder="输入管理员邮箱"
+                autoComplete="username"
+                className="w-full px-4 py-3 bg-[--background-secondary] rounded-xl text-[--foreground] placeholder:text-[--foreground-tertiary] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-[--foreground-secondary] block mb-1.5">
+                密码
               </label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                placeholder="输入管理密码"
+                placeholder="输入密码"
+                autoComplete="current-password"
                 className="w-full px-4 py-3 bg-[--background-secondary] rounded-xl text-[--foreground] placeholder:text-[--foreground-tertiary] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
               />
             </div>
@@ -211,7 +251,7 @@ export default function AdminPage() {
 
             <button
               onClick={handleLogin}
-              disabled={loading || !password.trim()}
+              disabled={loading || !email.trim() || !password.trim()}
               className="w-full py-3.5 bg-[#007AFF] text-white rounded-xl text-sm font-medium disabled:opacity-40 disabled:active:scale-100 transition-all active:scale-[0.98]"
             >
               {loading ? '登录中...' : '登录'}

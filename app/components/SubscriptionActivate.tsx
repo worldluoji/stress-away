@@ -2,11 +2,7 @@
 
 import { useState } from 'react';
 import { getDeviceId } from '@/lib/utils';
-
-interface ActivationCode {
-  code: string;
-  used: boolean;
-}
+import { useAuth } from './LoginModal';
 
 interface Props {
   onActivated?: () => void;
@@ -15,17 +11,15 @@ interface Props {
 type ActivationMode = 'mbaodu' | 'admin';
 
 export function SubscriptionActivate({ onActivated }: Props) {
+  const { uid } = useAuth();
   const [mode, setMode] = useState<ActivationMode>('mbaodu');
   const [orderId, setOrderId] = useState('');
-  const [activationCode, setActivationCode] = useState('');
   const [adminCode, setAdminCode] = useState('');
-  const [codes, setCodes] = useState<ActivationCode[]>([]);
-  const [step, setStep] = useState<'query' | 'activate'>('query');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ remaining: number; expiresAt?: number } | null>(null);
 
-  const handleQueryCodes = async () => {
+  const handleMbaoduClaim = async () => {
     if (!orderId.trim()) {
       setError('请输入订单号');
       return;
@@ -35,69 +29,37 @@ export function SubscriptionActivate({ onActivated }: Props) {
     setError(null);
 
     try {
-      const response = await fetch('/api/subscription/query-codes', {
+      const deviceId = await getDeviceId();
+      const response = await fetch('/api/orders/claim', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': uid || '',
+          'x-device-id': deviceId,
+        },
         body: JSON.stringify({ order_id: orderId.trim() }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        // Log full response for debugging
-        console.error('Query codes failed:', response.status, data);
-        if (data.error === 'query_expired') {
-          setError('激活码查询窗口已过期（购买后48小时内可查询）');
-        } else if (data.error === 'mbaodu_auth_error') {
-          setError('激活码服务配置错误，请联系管理员');
-        } else if (data.error === 'mbaodu_api_error') {
-          setError('激活码服务暂不可用，请稍后再试');
+        if (data.error === 'already_claimed_by_you') {
+          setError('此订单已被你认领过了');
+        } else if (data.error === 'already_claimed') {
+          setError('此订单已被其他账号认领');
+        } else if (data.error === 'claim_window_expired') {
+          setError('订单认领窗口已过期（购买后3天内可认领）');
+        } else if (data.error === 'order_not_paid') {
+          setError('订单未支付，请确认支付成功后再试');
+        } else if (data.error === 'invalid_order') {
+          setError('订单号无效，请检查后重试');
         } else {
-          setError(data.error || data.message || '查询失败');
+          setError(data.error || '认领失败，请稍后重试');
         }
         return;
       }
 
-      setCodes(data.codes || []);
-      setStep('activate');
-    } catch {
-      setError('网络错误，请稍后重试');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleActivate = async () => {
-    if (!activationCode.trim()) {
-      setError('请输入激活码');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const deviceId = await getDeviceId();
-      const response = await fetch('/api/subscription/mbaodu/activate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-device-id': deviceId,
-        },
-        body: JSON.stringify({
-          order_id: orderId.trim(),
-          activation_code: activationCode.trim().toUpperCase(),
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || '激活失败');
-        return;
-      }
-
-      setSuccess({ remaining: data.remaining_codes });
+      setSuccess({ remaining: data.remaining });
       onActivated?.();
     } catch {
       setError('网络错误，请稍后重试');
@@ -121,6 +83,7 @@ export function SubscriptionActivate({ onActivated }: Props) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-User-Id': uid || '',
           'x-device-id': deviceId,
         },
         body: JSON.stringify({
@@ -170,7 +133,7 @@ export function SubscriptionActivate({ onActivated }: Props) {
       <div className="text-center mb-6">
         <h2 className="text-lg font-semibold text-[--foreground] mb-1">激活设备</h2>
         <p className="text-sm text-[--foreground-tertiary]">
-          {mode === 'mbaodu' ? '输入面包多订单号获取激活码' : '输入管理端生成的激活码'}
+          {mode === 'mbaodu' ? '输入面包多订单号直接认领' : '输入管理端生成的激活码'}
         </p>
       </div>
 
@@ -187,7 +150,7 @@ export function SubscriptionActivate({ onActivated }: Props) {
           面包多订单
         </button>
         <button
-          onClick={() => { setMode('admin'); setError(null); setStep('query'); }}
+          onClick={() => { setMode('admin'); setError(null); }}
           className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
             mode === 'admin'
               ? 'bg-[--card-bg] text-[--foreground] shadow-sm'
@@ -227,114 +190,33 @@ export function SubscriptionActivate({ onActivated }: Props) {
         </div>
       )}
 
-      {/* Mbaodu Mode */}
+      {/* Mbaodu Mode: Direct Claim */}
       {mode === 'mbaodu' && (
-        <>
-          {/* Step 1: Query Codes */}
-          <div className="space-y-3">
+        <div className="space-y-3">
+          <div className="space-y-1.5">
             <label className="text-sm font-medium text-[--foreground-secondary]">
-              订单号
+              面包多订单号
             </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={orderId}
-                onChange={(e) => setOrderId(e.target.value)}
-                placeholder="输入面包多订单号"
-                disabled={loading}
-                className="flex-1 px-4 py-3 bg-[--background-secondary] rounded-xl text-[--foreground] placeholder:text-[--foreground-tertiary] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 disabled:opacity-50"
-              />
-              <button
-                onClick={handleQueryCodes}
-                disabled={loading || !orderId.trim()}
-                className="px-5 py-3 bg-[#007AFF] text-white rounded-xl text-sm font-medium disabled:opacity-40 disabled:active:scale-100 transition-all active:scale-95"
-              >
-                {loading ? '查询中' : '查询'}
-              </button>
-            </div>
+            <input
+              type="text"
+              value={orderId}
+              onChange={(e) => setOrderId(e.target.value)}
+              placeholder="输入面包多订单号"
+              disabled={loading}
+              className="w-full px-4 py-3 bg-[--background-secondary] rounded-xl text-[--foreground] placeholder:text-[--foreground-tertiary] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 disabled:opacity-50"
+            />
           </div>
-
-          {/* Display Codes */}
-          {step === 'activate' && codes.length > 0 && (
-            <div className="bg-[#FF9500]/10 border border-[#FF9500]/20 rounded-xl p-4 space-y-3">
-              <div className="flex items-center gap-2 text-[#FF9500]">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                <span className="text-sm font-medium">激活码只显示一次，请妥善保存</span>
-              </div>
-              <div className="space-y-2">
-                {codes.map((code, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between bg-[--card-bg] rounded-lg p-3"
-                  >
-                    <span className="font-mono text-base tracking-wider text-[--foreground]">{code.code}</span>
-                    <span
-                      className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                        code.used
-                          ? 'bg-[--apple-gray-light]/30 text-[--foreground-tertiary]'
-                          : 'bg-[#34C759]/10 text-[#34C759]'
-                      }`}
-                    >
-                      {code.used ? '已使用' : '未使用'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs text-[--foreground-tertiary]">
-                购买后48小时内可查询，超时后将无法获取
-              </p>
-            </div>
-          )}
-
-          {/* Step 2: Activate Device */}
-          {step === 'activate' && codes.some((c) => !c.used) && (
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-[--foreground-secondary]">
-                  订单号
-                </label>
-                <input
-                  type="text"
-                  value={orderId}
-                  disabled
-                  className="w-full px-4 py-3 bg-[--background-secondary] rounded-xl text-[--foreground] text-[15px] opacity-60"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-[--foreground-secondary]">
-                  激活码
-                </label>
-                <input
-                  type="text"
-                  value={activationCode}
-                  onChange={(e) => setActivationCode(e.target.value.toUpperCase())}
-                  placeholder="输入激活码"
-                  disabled={loading}
-                  className="w-full px-4 py-3 bg-[--background-secondary] rounded-xl text-[--foreground] placeholder:text-[--foreground-tertiary] text-[15px] font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 disabled:opacity-50"
-                />
-              </div>
-              <button
-                onClick={handleActivate}
-                disabled={loading || !activationCode.trim()}
-                className="w-full py-3.5 bg-[#007AFF] text-white rounded-xl text-sm font-medium disabled:opacity-40 disabled:active:scale-100 transition-all active:scale-[0.98]"
-              >
-                {loading ? '激活中...' : '激活设备'}
-              </button>
-            </div>
-          )}
-
-          {/* All codes used */}
-          {step === 'activate' && codes.length > 0 && codes.every((c) => c.used) && (
-            <div className="bg-[--background-secondary] rounded-xl p-6 text-center">
-              <svg className="w-10 h-10 mx-auto mb-2 text-[--foreground-tertiary]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="text-[--foreground-secondary]">该订单的激活码已全部使用</p>
-            </div>
-          )}
-        </>
+          <p className="text-xs text-[--foreground-tertiary]">
+            购买后3天内可认领，每个订单只能认领一次
+          </p>
+          <button
+            onClick={handleMbaoduClaim}
+            disabled={loading || !orderId.trim()}
+            className="w-full py-3.5 bg-[#007AFF] text-white rounded-xl text-sm font-medium disabled:opacity-40 disabled:active:scale-100 transition-all active:scale-[0.98]"
+          >
+            {loading ? '认领中...' : '认领订单'}
+          </button>
+        </div>
       )}
 
       {/* Error */}
@@ -343,6 +225,13 @@ export function SubscriptionActivate({ onActivated }: Props) {
           {error}
         </div>
       )}
+
+      {/* Support contact */}
+      <div className="text-center pt-2">
+        <p className="text-xs text-[--foreground-tertiary]">
+          遇到问题？联系客服微信 <span className="text-[#007AFF]">jmst_cute</span>
+        </p>
+      </div>
     </div>
   );
 }
