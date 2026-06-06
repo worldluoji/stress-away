@@ -358,7 +358,11 @@ export default function Home() {
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-User-Id": uid || "",
+          "x-device-id": deviceId,
+        },
         body: JSON.stringify({
           messages: newMessages,
           scenarioId: selectedScenario?.id,
