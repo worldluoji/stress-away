@@ -17,8 +17,8 @@ interface CardStyle {
 
 const CARD_STYLES: CardStyle[] = [
   { bgColor: '#1a1a2e', accentColor: '#e94560', textColor: '#ffffff', secondaryText: '#8e8e93' },
-  { bgColor: '#16213e', accentColor: '#0f3460', textColor: '#e8e8e8', secondaryText: '#94a3b8' },
-  { bgColor: '#0f0f23', accentColor: '#bb86fc', textColor: '#e1e1e1', secondaryText: '#8b8ba3' },
+  { bgColor: '#f0f4f8', accentColor: '#007AFF', textColor: '#1a1a2e', secondaryText: '#64748b' },
+  { bgColor: '#fefce8', accentColor: '#d97706', textColor: '#292524', secondaryText: '#a8a29e' },
 ];
 
 export function ShareCard({ content, scenario, onClose }: ShareCardProps) {
@@ -48,6 +48,8 @@ export function ShareCard({ content, scenario, onClose }: ShareCardProps) {
   };
 
   const { mild, sharp } = parseSections(cleanContent);
+  const hasContent = mild || sharp;
+  const fallbackContent = !hasContent ? cleanContent.slice(0, 300) : '';
 
   const drawCard = useCallback(() => {
     const canvas = canvasRef.current;
@@ -74,11 +76,12 @@ export function ShareCard({ content, scenario, onClose }: ShareCardProps) {
     // Title area
     ctx.fillStyle = style.accentColor;
     ctx.font = 'bold 24px sans-serif';
-    ctx.fillText('职场反PUA话术', 32, 60);
+    const title = scenario ? scenario.replace(/^场景[：:]\s*/, '').trim() : '职场回复精选';
+    ctx.fillText(title, 32, 60);
 
     ctx.fillStyle = style.secondaryText;
     ctx.font = '14px sans-serif';
-    ctx.fillText('来自「反PUA手册」', 32, 85);
+    ctx.fillText('来自 StressAway', 32, 85);
 
     // Scenario tag if exists
     let yPos = 120;
@@ -174,14 +177,27 @@ export function ShareCard({ content, scenario, onClose }: ShareCardProps) {
       }
     }
 
+    // Fallback: if no mild/sharp parsed, show raw content
+    if (!mild && !sharp && fallbackContent) {
+      ctx.fillStyle = style.textColor;
+      ctx.font = '15px sans-serif';
+      const lines = fallbackContent.split('\n');
+      for (const line of lines) {
+        if (!line.trim()) { yPos += 8; continue; }
+        ctx.fillText(line.trim().slice(0, 36), 32, yPos);
+        yPos += 22;
+        if (yPos > 600) break;
+      }
+    }
+
     // Footer
     const footerY = height - 40;
     ctx.fillStyle = style.secondaryText + '88';
     ctx.font = '11px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('反PUA手册 · 职场困境应对指南', width / 2, footerY);
+    ctx.fillText('StressAway · 职场压力倾诉助手', width / 2, footerY);
     ctx.textAlign = 'left';
-  }, [selectedStyle, cleanContent, mild, sharp, scenario]);
+  }, [selectedStyle, cleanContent, mild, sharp, scenario, fallbackContent]);
 
   useEffect(() => {
     drawCard();
@@ -208,10 +224,11 @@ export function ShareCard({ content, scenario, onClose }: ShareCardProps) {
   const handleCopyText = async () => {
     setCopying(true);
     // Format content for copying
-    let text = '【职场反PUA话术】\n\n';
+    let text = '【职场回复精选】\n\n';
     if (mild) text += `温和版：\n"${mild.slice(0, 300)}"\n\n`;
     if (sharp) text += `犀利版：\n"${sharp.slice(0, 300)}"\n\n`;
-    text += '—— 反PUA手册';
+    if (!mild && !sharp && fallbackContent) text += `${fallbackContent}\n\n`;
+    text += '—— StressAway';
 
     try {
       await navigator.clipboard.writeText(text);
@@ -228,7 +245,7 @@ export function ShareCard({ content, scenario, onClose }: ShareCardProps) {
       <div className="relative w-full max-w-md mx-4 bg-white dark:bg-[--card-bg] rounded-2xl shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[--border]">
-          <h2 className="text-lg font-semibold text-[--foreground]">生成分享卡片</h2>
+          <h2 className="text-lg font-semibold text-[--foreground]">分享回复</h2>
           <button onClick={onClose} className="p-1 text-[--foreground-tertiary] hover:text-[--foreground]">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
