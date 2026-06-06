@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from './LoginModal';
 
 interface SavedMessage {
   messageId: string;
@@ -16,18 +17,21 @@ interface SavedMessagesPanelProps {
 }
 
 export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProps) {
+  const { uid } = useAuth();
   const [messages, setMessages] = useState<SavedMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchSavedMessages();
-  }, []);
+    if (uid) fetchSavedMessages();
+  }, [uid]);
 
   const fetchSavedMessages = async () => {
     try {
-      const res = await fetch('/api/messages/saved');
-      if (res.status === 401) {
+      const res = await fetch('/api/messages/saved', {
+        headers: uid ? { 'X-User-Id': uid } : {},
+      });
+      if (res.status === 401 || !uid) {
         setError('请先登录');
         return;
       }
@@ -44,7 +48,10 @@ export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProp
   const handleUnsave = async (messageId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      const res = await fetch(`/api/messages/${messageId}/save`, { method: 'DELETE' });
+      const res = await fetch(`/api/messages/${messageId}/save`, {
+        method: 'DELETE',
+        headers: uid ? { 'X-User-Id': uid } : {},
+      });
       if (res.ok) {
         setMessages(prev => prev.filter(m => m.messageId !== messageId));
       }

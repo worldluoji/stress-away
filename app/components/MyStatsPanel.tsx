@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from './LoginModal';
 
 interface ScenarioStat {
   scenarioId: string;
@@ -45,18 +46,21 @@ const SCENARIO_NAMES: Record<string, string> = {
 };
 
 export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
+  const { uid } = useAuth();
   const [stats, setStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchStats();
-  }, []);
+    if (uid) fetchStats();
+  }, [uid]);
 
   const fetchStats = async () => {
     try {
-      const res = await fetch('/api/stats');
-      if (res.status === 401) {
+      const res = await fetch('/api/stats', {
+        headers: uid ? { 'X-User-Id': uid } : {},
+      });
+      if (res.status === 401 || !uid) {
         setError('请先登录');
         return;
       }
