@@ -2,7 +2,7 @@
  * Message reactions (like) and bookmarks (save) - MySQL backed
  */
 
-import { query, execute, isMySQLAvailable } from './db';
+import { query, execute, isMySQLAvailable, queryWithLimit } from './db';
 
 // ==================== Types ====================
 
@@ -116,7 +116,7 @@ export async function getLikedMessages(uid: string, limit = 50, offset = 0): Pro
 }[]> {
   if (!isMySQLAvailable) return [];
   try {
-    const rows = await query<{
+    const rows = await queryWithLimit<{
       message_id: string;
       content: string;
       conversation_id: string;
@@ -127,9 +127,10 @@ export async function getLikedMessages(uid: string, limit = 50, offset = 0): Pro
        FROM message_reactions r
        JOIN messages m ON r.message_id = m.message_id
        WHERE r.uid = ?
-       ORDER BY r.created_at DESC
-       LIMIT ? OFFSET ?`,
-      [uid, limit, offset]
+       ORDER BY r.created_at DESC`,
+      limit,
+      offset,
+      [uid]
     );
     return rows.map(r => ({
       messageId: r.message_id,
@@ -220,7 +221,7 @@ export async function getSavedMessages(uid: string, limit = 50, offset = 0): Pro
 }[]> {
   if (!isMySQLAvailable) return [];
   try {
-    const rows = await query<{
+    const rows = await queryWithLimit<{
       message_id: string;
       content: string;
       conversation_id: string;
@@ -230,9 +231,10 @@ export async function getSavedMessages(uid: string, limit = 50, offset = 0): Pro
       `SELECT message_id, content, conversation_id, scenario_id, created_at
        FROM saved_messages
        WHERE uid = ?
-       ORDER BY created_at DESC
-       LIMIT ? OFFSET ?`,
-      [uid, limit, offset]
+       ORDER BY created_at DESC`,
+      limit,
+      offset,
+      [uid]
     );
     return rows.map(r => ({
       messageId: r.message_id,
