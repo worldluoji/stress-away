@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { saveMessage, unsaveMessage } from '@/lib/reactions';
 import { getAuthContext } from '@/lib/api-auth';
+import { query } from '@/lib/db';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { uid, deviceId } = await getAuthContext(request);
+    const { uid } = await getAuthContext(request);
     const { id } = await params;
 
     if (!uid) {
@@ -25,10 +26,19 @@ export async function POST(
       return NextResponse.json({ error: 'conversationId and messageIndex required' }, { status: 400 });
     }
 
+    // Verify conversation belongs to this user (IDOR check)
+    const convRows = await query<{ uid: string | null }>(
+      'SELECT uid FROM conversations WHERE id = ?',
+      [conversationId]
+    );
+    if (!convRows.length || (convRows[0].uid !== null && convRows[0].uid !== uid)) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    }
+
     await saveMessage(uid, id, conversationId, messageIndex, content || '', scenarioId);
     return NextResponse.json({ saved: true });
   } catch (error) {
-    console.error('[save] POST error:', error);
+
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -38,7 +48,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { uid, deviceId } = await getAuthContext(request);
+    const { uid } = await getAuthContext(request);
     const { id } = await params;
 
     if (!uid) {
@@ -52,7 +62,7 @@ export async function DELETE(
     await unsaveMessage(uid, id);
     return NextResponse.json({ saved: false });
   } catch (error) {
-    console.error('[save] DELETE error:', error);
+
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

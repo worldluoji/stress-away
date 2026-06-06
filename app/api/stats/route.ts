@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query, isMySQLAvailable } from '@/lib/db';
 import { getAuthContext } from '@/lib/api-auth';
+import { checkRateLimit, RATE_LIMITS, extractClientInfo } from '@/lib/ratelimit';
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,6 +13,12 @@ export async function GET(request: NextRequest) {
 
     if (!uid) {
       return NextResponse.json({ error: 'login_required' }, { status: 401 });
+    }
+
+    const { ip } = extractClientInfo(request, uid);
+    const rateLimitResult = await checkRateLimit(uid, ip, RATE_LIMITS.usage);
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json({ error: 'rate_limit_exceeded' }, { status: 429 });
     }
 
     if (!isMySQLAvailable) {
@@ -113,7 +120,7 @@ export async function GET(request: NextRequest) {
       weeklyActivity,
     });
   } catch (error) {
-    console.error('[stats] GET error:', error);
+
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

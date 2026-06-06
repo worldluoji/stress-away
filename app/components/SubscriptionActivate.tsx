@@ -45,7 +45,7 @@ export function SubscriptionActivate({ onActivated }: Props) {
 
       if (!response.ok) {
         // Log full response for debugging
-        console.error('Query codes failed:', response.status, data);
+
         if (data.error === 'query_expired') {
           setError('激活码查询窗口已过期（购买后48小时内可查询）');
         } else if (data.error === 'mbaodu_auth_error') {

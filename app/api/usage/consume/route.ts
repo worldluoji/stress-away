@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Consume error:', error);
+
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

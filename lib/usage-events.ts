@@ -54,7 +54,7 @@ export async function recordEvent(event: UsageEvent): Promise<void> {
       ]
     );
   } catch (err) {
-    console.error('[usage-events] recordEvent error:', err);
+
   }
 }
 
@@ -90,7 +90,7 @@ export async function getScenarioStats(): Promise<ScenarioStat[]> {
       copyCount: r.copy_count,
     }));
   } catch (err) {
-    console.error('[usage-events] getScenarioStats error:', err);
+
     return [];
   }
 }
@@ -106,7 +106,7 @@ export async function incrementViewCount(scenarioId: string): Promise<void> {
     // Also record event
     await recordEvent({ eventType: 'scenario_view', scenarioId });
   } catch (err) {
-    console.error('[usage-events] incrementViewCount error:', err);
+
   }
 }
 
@@ -120,7 +120,7 @@ export async function incrementChatCount(scenarioId: string, deviceId?: string):
     );
     await recordEvent({ deviceId, eventType: 'chat', scenarioId });
   } catch (err) {
-    console.error('[usage-events] incrementChatCount error:', err);
+
   }
 }
 
@@ -134,7 +134,7 @@ export async function incrementCopyCount(scenarioId: string, deviceId?: string):
     );
     await recordEvent({ deviceId, eventType: 'copy', scenarioId });
   } catch (err) {
-    console.error('[usage-events] incrementCopyCount error:', err);
+
   }
 }
 
@@ -166,7 +166,7 @@ export async function getTotalUsage(): Promise<{
       activeDevices: deviceRows[0]?.cnt ?? 0,
     };
   } catch (err) {
-    console.error('[usage-events] getTotalUsage error:', err);
+
     return { totalChats: 0, totalViews: 0, totalCopies: 0, activeDevices: 0 };
   }
 }

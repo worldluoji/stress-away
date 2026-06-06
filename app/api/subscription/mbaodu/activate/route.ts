@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       message: '请先登录账号，再认领面包多订单',
     }, { status: 401 });
   } catch (error) {
-    console.error('MBAODU activate deprecated error:', error);
+
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

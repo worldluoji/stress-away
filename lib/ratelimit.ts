@@ -1,3 +1,5 @@
+import { getRedis } from '@/lib/redis';
+
 export interface RateLimitConfig {
   windowMs: number;
   maxRequests: number;
@@ -28,12 +30,7 @@ export async function checkRateLimit(
   const now = Date.now();
   const resetAt = Math.ceil(now / 60000) * 60000;
 
-  const { Redis } = await import('@upstash/redis');
-  const redis = new Redis({
-    url: process.env.UPSTASH_REDIS_REST_URL!,
-    token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-  });
-
+  const redis = getRedis();
   const count = await redis.incr(minuteKey);
   if (count === 1) {
     await redis.expire(minuteKey, getTTL());
@@ -79,12 +76,7 @@ export interface DeviceIdCheckResult {
 }
 
 export async function checkDeviceIdSpoofing(ip: string, deviceId: string): Promise<DeviceIdCheckResult> {
-  const { Redis } = await import('@upstash/redis');
-  const redis = new Redis({
-    url: process.env.UPSTASH_REDIS_REST_URL!,
-    token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-  });
-
+  const redis = getRedis();
   const key = `${DEVICE_ID_TRACK_PREFIX}${ip}`;
 
   // Check if deviceId already exists in the set
@@ -96,7 +88,6 @@ export async function checkDeviceIdSpoofing(ip: string, deviceId: string): Promi
   // New deviceId - check total count
   const count = await redis.scard(key);
   if (count >= DEVICE_ID_MAX_PER_IP) {
-    console.warn(`[Security] Device ID spoofing detected. IP: ${ip}, deviceId: ${deviceId}, count: ${count}`);
     return {
       allowed: false,
       reason: 'device_id_rejected',

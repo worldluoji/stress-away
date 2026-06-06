@@ -11,13 +11,13 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100);
-    const offset = parseInt(searchParams.get('offset') || '0');
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10) || 0, 100);
+    const offset = parseInt(searchParams.get('offset') || '0', 10) || 0;
 
     const messages = await getLikedMessages(uid, limit, offset);
     return NextResponse.json({ messages });
   } catch (error) {
-    console.error('[liked] GET error:', error);
+
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

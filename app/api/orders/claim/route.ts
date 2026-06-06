@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
       throw err;
     }
   } catch (err) {
-    console.error('[orders/claim] error:', err);
+
     return NextResponse.json({ error: 'internal_error' }, { status: 500 });
   }
 }
@@ -177,7 +177,7 @@ export async function GET(request: NextRequest) {
       claimed_uid: order.claimed_uid || null,
     });
   } catch (err) {
-    console.error('[orders/claim GET] error:', err);
+
     return NextResponse.json({ error: 'internal_error' }, { status: 500 });
   }
 }

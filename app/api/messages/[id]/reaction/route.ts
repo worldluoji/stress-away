@@ -7,7 +7,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { uid, deviceId } = await getAuthContext(request);
+    const { uid } = await getAuthContext(request);
     const { id } = await params;
 
     if (!uid) {
@@ -21,7 +21,7 @@ export async function POST(
     await addReaction(uid, id);
     return NextResponse.json({ liked: true });
   } catch (error) {
-    console.error('[reaction] POST error:', error);
+
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -31,7 +31,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { uid, deviceId } = await getAuthContext(request);
+    const { uid } = await getAuthContext(request);
     const { id } = await params;
 
     if (!uid) {
@@ -45,7 +45,7 @@ export async function DELETE(
     await removeReaction(uid, id);
     return NextResponse.json({ liked: false });
   } catch (error) {
-    console.error('[reaction] DELETE error:', error);
+
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

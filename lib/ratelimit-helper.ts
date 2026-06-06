@@ -40,18 +40,3 @@ export async function withRateLimit(
   response.headers.set('X-RateLimit-Reset', result.resetAt.toString());
   return response;
 }
-
-export function rateLimitError(retryAfter: number) {
-  return NextResponse.json(
-    {
-      error: 'rate_limit_exceeded',
-      message: '请求过于频繁，请稍后再试',
-    },
-    {
-      status: 429,
-      headers: {
-        'Retry-After': retryAfter.toString(),
-      },
-    }
-  );
-}

@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (error) {
-    console.error('Admin login error:', error);
+
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -50,7 +50,7 @@ export async function listConversationsByUid(uid: string): Promise<Conversation[
     );
     return rows.map(rowToConversation);
   } catch (err) {
-    console.error('[conversations] listConversationsByUid error:', err);
+
     return [];
   }
 }
@@ -81,7 +81,7 @@ export async function saveConversationByUid(conv: Conversation, uid: string): Pr
       ]
     );
   } catch (err) {
-    console.error('[conversations] saveConversationByUid error:', err);
+
   }
 }
 
@@ -96,7 +96,7 @@ export async function listConversationsByDevice(deviceId: string): Promise<Conve
     );
     return rows.map(rowToConversation);
   } catch (err) {
-    console.error('[conversations] listConversationsByDevice error:', err);
+
     return [];
   }
 }
@@ -128,7 +128,7 @@ export async function saveConversation(conv: Conversation, uid?: string): Promis
       ]
     );
   } catch (err) {
-    console.error('[conversations] saveConversation error:', err);
+
   }
 }
 
@@ -139,7 +139,7 @@ export async function getConversation(id: string): Promise<Conversation | null> 
     if (rows.length === 0) return null;
     return rowToConversation(rows[0]);
   } catch (err) {
-    console.error('[conversations] getConversation error:', err);
+
     return null;
   }
 }
@@ -149,7 +149,7 @@ export async function deleteConversation(id: string): Promise<void> {
   try {
     await execute('DELETE FROM conversations WHERE id = ?', [id]);
   } catch (err) {
-    console.error('[conversations] deleteConversation error:', err);
+
   }
 }
 
@@ -183,6 +183,6 @@ export async function updateConversation(
     values.push(id);
     await execute(`UPDATE conversations SET ${fields.join(', ')} WHERE id = ?`, values);
   } catch (err) {
-    console.error('[conversations] updateConversation error:', err);
+
   }
 }

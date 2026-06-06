@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getActivationCode, setActivationCodes, canQueryOrder, markOrderActivated } from '@/lib/subscriptions';
+import { getActivationCode, setActivationCodes, canQueryOrder } from '@/lib/subscriptions';
 import { queryOrder, generateActivationCode, MbaoduApiError } from '@/lib/mbaodu';
 import { checkRateLimit, checkDeviceIdSpoofing, RATE_LIMITS, getClientIP } from '@/lib/ratelimit';
 
@@ -108,7 +108,6 @@ export async function POST(request: NextRequest) {
           const newCode1 = generateActivationCode();
           const newCode2 = generateActivationCode();
           await setActivationCodes(order_id, newCode1, newCode2);
-          await markOrderActivated(order_id);
 
           return NextResponse.json(
             {
@@ -130,10 +129,10 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Order not found or payment not completed' }, { status: 404 });
         }
       } catch (error) {
-        console.error('Mbaodu query failed:', error);
+
         if (error instanceof MbaoduApiError) {
           const logId = Date.now().toString(36);
-          console.error(`[${logId}] MbaoduApiError: code=${error.code}, message=${error.message}`);
+
           if (error.code === 403) {
             return NextResponse.json(
               { error: 'service_error', message: `系统正忙，请稍后再试（${logId}）` },
@@ -146,7 +145,7 @@ export async function POST(request: NextRequest) {
           );
         }
         const logId = Date.now().toString(36);
-        console.error(`[${logId}] Query codes unexpected error:`, error);
+
         return NextResponse.json(
           { error: 'service_error', message: `系统正忙，请稍后再试（${logId}）` },
           { status: 503 }
@@ -171,7 +170,7 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     const logId = Date.now().toString(36);
-    console.error(`[${logId}] Query codes error:`, error);
+
     return NextResponse.json(
       { error: 'service_error', message: `系统正忙，请稍后再试（${logId}）` },
       { status: 500 }

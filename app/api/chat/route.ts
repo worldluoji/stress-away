@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
       await consumeOne(auth.uid, deviceId);
       consumed = true;
     } catch (err) {
-      console.error('[chat] consumeOne failed, rejecting request:', err);
+
       return NextResponse.json(
         { error: 'quota_error', message: '系统正忙，请稍后再试' },
         { status: 503 }
@@ -166,7 +166,7 @@ export async function POST(request: NextRequest) {
       }
     );
   } catch (error) {
-    console.error("Chat API error:", error);
+
     return NextResponse.json(
       { error: "Internal error" },
       { status: 500 }

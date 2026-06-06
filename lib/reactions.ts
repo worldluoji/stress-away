@@ -44,7 +44,7 @@ export async function storeMessage(
       [conversationId, messageIndex, messageId, role, content, scenarioId ?? null, createdAt ?? Date.now()]
     );
   } catch (err) {
-    console.error('[reactions] storeMessage error:', err);
+
   }
 }
 
@@ -59,7 +59,7 @@ export async function addReaction(uid: string, messageId: string): Promise<boole
     );
     return true;
   } catch (err) {
-    console.error('[reactions] addReaction error:', err);
+
     return false;
   }
 }
@@ -73,7 +73,7 @@ export async function removeReaction(uid: string, messageId: string): Promise<bo
     );
     return true;
   } catch (err) {
-    console.error('[reactions] removeReaction error:', err);
+
     return false;
   }
 }
@@ -87,7 +87,7 @@ export async function isMessageLikedByUid(uid: string, messageId: string): Promi
     );
     return rows[0]?.cnt > 0;
   } catch (err) {
-    console.error('[reactions] isMessageLikedByUid error:', err);
+
     return false;
   }
 }
@@ -102,7 +102,7 @@ export async function getLikedMessageIds(uid: string, messageIds: string[]): Pro
     );
     return new Set(rows.map(r => r.message_id));
   } catch (err) {
-    console.error('[reactions] getLikedMessageIds error:', err);
+
     return new Set();
   }
 }
@@ -139,7 +139,7 @@ export async function getLikedMessages(uid: string, limit = 50, offset = 0): Pro
       createdAt: Number(r.created_at),
     }));
   } catch (err) {
-    console.error('[reactions] getLikedMessages error:', err);
+
     return [];
   }
 }
@@ -163,7 +163,7 @@ export async function saveMessage(
     );
     return true;
   } catch (err) {
-    console.error('[reactions] saveMessage error:', err);
+
     return false;
   }
 }
@@ -177,7 +177,7 @@ export async function unsaveMessage(uid: string, messageId: string): Promise<boo
     );
     return true;
   } catch (err) {
-    console.error('[reactions] unsaveMessage error:', err);
+
     return false;
   }
 }
@@ -191,7 +191,7 @@ export async function isMessageSavedByUid(uid: string, messageId: string): Promi
     );
     return rows[0]?.cnt > 0;
   } catch (err) {
-    console.error('[reactions] isMessageSavedByUid error:', err);
+
     return false;
   }
 }
@@ -206,7 +206,7 @@ export async function getSavedMessageIds(uid: string, messageIds: string[]): Pro
     );
     return new Set(rows.map(r => r.message_id));
   } catch (err) {
-    console.error('[reactions] getSavedMessageIds error:', err);
+
     return new Set();
   }
 }
@@ -242,7 +242,7 @@ export async function getSavedMessages(uid: string, limit = 50, offset = 0): Pro
       createdAt: Number(r.created_at),
     }));
   } catch (err) {
-    console.error('[reactions] getSavedMessages error:', err);
+
     return [];
   }
 }

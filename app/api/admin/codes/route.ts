@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       totalTimes: adminCode.totalTimes,
     });
   } catch (error) {
-    console.error('Admin create code error:', error);
+
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
       page,
     });
   } catch (error) {
-    console.error('Admin list codes error:', error);
+
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

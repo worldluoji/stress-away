@@ -132,7 +132,7 @@ export async function getSubscriptionByUid(uid: string): Promise<Subscription | 
     await cacheSet(SUB_CACHE_KEY(uid), sub, SUB_CACHE_TTL);
     return sub;
   } catch (err) {
-    console.error('[subscriptions] getSubscriptionByUid error:', err);
+
     return null;
   }
 }
@@ -173,7 +173,7 @@ export async function setSubscription(
     const updated = await getSubscriptionByUid(uid);
     if (updated) await cacheSet(SUB_CACHE_KEY(uid), updated, SUB_CACHE_TTL);
   } catch (err) {
-    console.error('[subscriptions] setSubscription error:', err);
+
   }
 }
 
@@ -216,7 +216,7 @@ export async function consumeUsageByUid(uid: string): Promise<number> {
       return newCount;
     });
   } catch (err) {
-    console.error('[subscriptions] consumeUsageByUid error:', err);
+
     return 0;
   }
 }
@@ -240,7 +240,7 @@ export async function createAdminActivationCode(
     );
     return { code, expiresAt, totalTimes };
   } catch (err) {
-    console.error('[subscriptions] createAdminActivationCode error:', err);
+
     return { code, expiresAt, totalTimes };
   }
 }
@@ -306,7 +306,7 @@ export async function consumeAdminActivationCode(
       return { success: true, remainingCodes: data.remaining_times, expiresAt };
     });
   } catch (err) {
-    console.error('[subscriptions] consumeAdminActivationCode error:', err);
+
     return { success: false, error: 'db_error' };
   }
 }
@@ -337,7 +337,7 @@ export async function listAdminActivationCodes(
     }));
     return { codes, total };
   } catch (err) {
-    console.error('[subscriptions] listAdminActivationCodes error:', err);
+
     return { codes: [], total: 0 };
   }
 }
@@ -353,7 +353,7 @@ export async function isOrderClaimed(orderId: string): Promise<boolean> {
     );
     return row?.claimed ?? false;
   } catch (err) {
-    console.error('[subscriptions] isOrderClaimed error:', err);
+
     return false;
   }
 }
@@ -399,7 +399,7 @@ export async function getActivationCode(
       activationTime: r.activation_time ? Number(r.activation_time) : undefined,
     };
   } catch (err) {
-    console.error('[subscriptions] getActivationCode error:', err);
+
     return null;
   }
 }
@@ -419,7 +419,7 @@ export async function setActivationCode(
       [orderId, index, code, remainingCodes]
     );
   } catch (err) {
-    console.error('[subscriptions] setActivationCode error:', err);
+
   }
 }
 
@@ -449,17 +449,8 @@ export async function setActivationCodes(
       [orderId, code2, remainingCodes]
     );
   } catch (err) {
-    console.error('[subscriptions] setActivationCodes error:', err);
-  }
-}
 
-// Mark that activation codes have been successfully queried for an order.
-// The 48h window is enforced by canQueryOrder via payment_time.
-// This function exists as a hook point; currently a no-op since
-// canQueryOrder handles the time-based restriction correctly.
-export async function markOrderActivated(orderId: string): Promise<void> {
-  // No-op: canQueryOrder already enforces 48h window via payment_time.
-  // If we need a separate "codes queried at" timestamp, add a column to orders table.
+  }
 }
 
 // ==================== 48-hour order query window ====================
@@ -473,7 +464,7 @@ export async function getOrderCreatedTime(orderId: string): Promise<number | nul
     );
     return row?.payment_time ?? null;
   } catch (err) {
-    console.error('[subscriptions] getOrderCreatedTime error:', err);
+
     return null;
   }
 }
@@ -512,7 +503,7 @@ export async function getAdminActivationCode(code: string): Promise<AdminActivat
       activationTime: r.activation_time ? Number(r.activation_time) : undefined,
     };
   } catch (err) {
-    console.error('[subscriptions] getAdminActivationCode error:', err);
+
     return null;
   }
 }

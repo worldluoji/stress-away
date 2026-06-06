@@ -19,7 +19,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ orderId: string }> }
 ) {
-  if (!ADMIN_PASSWORD || !verifyPassword(request)) {
+  if (!ADMIN_PASSWORD || !(await verifyPassword(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -36,7 +36,7 @@ export async function GET(
       ].filter(Boolean),
     });
   } catch (error) {
-    console.error('Admin query error:', error);
+
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -48,7 +48,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ orderId: string }> }
 ) {
-  if (!ADMIN_PASSWORD || !verifyPassword(request)) {
+  if (!ADMIN_PASSWORD || !(await verifyPassword(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -76,7 +76,7 @@ export async function POST(
       ],
     });
   } catch (error) {
-    console.error('Admin regenerate error:', error);
+
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

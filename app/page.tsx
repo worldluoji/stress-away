@@ -10,7 +10,7 @@ import { SubscriptionActivate } from "./components/SubscriptionActivate";
 import dynamic from 'next/dynamic';
 const LoginModal = dynamic(() => import('./components/LoginModal').then(m => ({ default: m.LoginModal })), { ssr: false });
 const AccountStatus = dynamic(() => import('./components/LoginModal').then(m => ({ default: m.AccountStatus })), { ssr: false });
-const { useAuth } = require('./components/LoginModal');
+import { useAuth } from './components/LoginModal';
 import { ScenarioCard } from "./components/ScenarioCard";
 import { ScenarioModal } from "./components/ScenarioModal";
 import { HistoryPanel } from "./components/HistoryPanel";

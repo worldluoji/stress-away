@@ -70,8 +70,17 @@ export async function POST(request: NextRequest) {
       const consumeResult = await consumeAdminActivationCode(normalizedCode, uid, deviceId);
       if (!consumeResult.success) {
         await recordFailedAttemptAsync(ip, deviceId);
+        const ERROR_MAP: Record<string, string> = {
+          mysql_not_configured: 'system_error',
+          invalid_code: 'invalid_code',
+          expired_code: 'expired_code',
+        };
         return NextResponse.json(
-          { success: false, error: consumeResult.error, remainingAttempts: getRemainingAttempts(ip, deviceId) },
+          {
+            success: false,
+            error: ERROR_MAP[consumeResult.error ?? ''] ?? 'system_error',
+            remainingAttempts: getRemainingAttempts(ip, deviceId),
+          },
           { status: 400 }
         );
       }
@@ -90,7 +99,7 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   } catch (error) {
-    console.error('Admin activate error:', error);
+
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
