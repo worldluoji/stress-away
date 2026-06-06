@@ -208,7 +208,7 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
           {/* Support contact */}
           <div className="text-center pt-3 border-t border-[--border]">
             <p className="text-xs text-[--foreground-tertiary]">
-              遇到问题？联系客服 <span className="text-[#007AFF]">jmst_cute</span>
+              遇到问题？联系客服微信 <span className="text-[#007AFF]">jmst_cute</span>
             </p>
           </div>
         </div>
