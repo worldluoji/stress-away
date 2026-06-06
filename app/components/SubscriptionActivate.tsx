@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { getDeviceId } from '@/lib/utils';
+import { useAuth } from './LoginModal';
 
 interface ActivationCode {
   code: string;
@@ -15,6 +16,7 @@ interface Props {
 type ActivationMode = 'mbaodu' | 'admin';
 
 export function SubscriptionActivate({ onActivated }: Props) {
+  const { uid } = useAuth();
   const [mode, setMode] = useState<ActivationMode>('mbaodu');
   const [orderId, setOrderId] = useState('');
   const [activationCode, setActivationCode] = useState('');
@@ -35,9 +37,14 @@ export function SubscriptionActivate({ onActivated }: Props) {
     setError(null);
 
     try {
+      const deviceId = await getDeviceId();
       const response = await fetch('/api/subscription/query-codes', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': uid || '',
+          'x-device-id': deviceId,
+        },
         body: JSON.stringify({ order_id: orderId.trim() }),
       });
 
@@ -82,6 +89,7 @@ export function SubscriptionActivate({ onActivated }: Props) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-User-Id': uid || '',
           'x-device-id': deviceId,
         },
         body: JSON.stringify({
@@ -121,6 +129,7 @@ export function SubscriptionActivate({ onActivated }: Props) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-User-Id': uid || '',
           'x-device-id': deviceId,
         },
         body: JSON.stringify({
