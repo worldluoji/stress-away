@@ -223,6 +223,20 @@ export async function consumeUsageByUid(uid: string): Promise<number> {
 
 // ==================== Admin Activation Codes (account-bound) ====================
 
+export async function refundUsageByUid(uid: string): Promise<void> {
+  if (!isMySQLAvailable) return;
+  try {
+    await execute(
+      'UPDATE subscriptions SET remaining_usage = remaining_usage + 1 WHERE uid = ? AND status = ?',
+      [uid, 'active']
+    );
+    // Invalidate cache
+    await cacheDel(SUB_CACHE_KEY(uid));
+  } catch (err) {
+    // Swallow — refund failure should not break the response
+  }
+}
+
 export async function createAdminActivationCode(
   code: string,
   totalTimes = TOTAL_USAGE

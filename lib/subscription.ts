@@ -10,11 +10,13 @@ import {
   isPaidUserByUid,
   getRemainingUsageByUid,
   consumeUsageByUid,
+  refundUsageByUid,
   FREE_LIMIT_PER_DAY,
 } from './subscriptions';
 import {
   getFreeCount,
   incrementFreeCount,
+  decrementFreeCount,
 } from './redis';
 
 export interface UsageStatus {
@@ -67,6 +69,8 @@ export async function checkUsage(uid: string | null, deviceId: string | null): P
  * @param uid TCB user ID (null = anonymous)
  * @param deviceId Device fingerprint (for anonymous free count)
  */
+export { refundUsageByUid } from './subscriptions';
+
 export async function consumeOne(
   uid: string | null,
   deviceId: string | null

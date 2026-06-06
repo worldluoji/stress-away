@@ -76,7 +76,18 @@ export async function incrementFreeCount(deviceId: string): Promise<number> {
   return count;
 }
 
-
+export async function decrementFreeCount(deviceId: string): Promise<number> {
+  const key = getTodayKey(deviceId);
+  const today = getLocalDateString();
+  const existing = await getRedis().get<FreeCountData>(key);
+  if (!existing || typeof existing !== 'object' || (existing as FreeCountData).date !== today) {
+    return 0;
+  }
+  const current = (existing as FreeCountData).count ?? 0;
+  const newCount = Math.max(0, current - 1);
+  await getRedis().set(key, { count: newCount, date: today });
+  return newCount;
+}
 
 // Admin token management
 const ADMIN_TOKEN_PREFIX = 'admin:token:';
