@@ -87,6 +87,7 @@ export default function Home() {
   const [showStats, setShowStats] = useState(false);
   const [shareContent, setShareContent] = useState('');
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
+  const [likedAnimating, setLikedAnimating] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const { user, uid, loading: authLoading, logout } = useAuth();
 
@@ -107,6 +108,11 @@ export default function Home() {
       else next.add(messageId);
       return next;
     });
+    // Trigger animation on like (not unlike)
+    if (!isLiked) {
+      setLikedAnimating(messageId);
+      setTimeout(() => setLikedAnimating(null), 600);
+    }
     try {
       const method = isLiked ? 'DELETE' : 'POST';
       await fetch(`/api/messages/${messageId}/reaction`, {
@@ -747,10 +753,17 @@ export default function Home() {
                         <>
                           <button
                             onClick={() => handleToggleLike(msg.id!)}
-                            className={`p-1.5 rounded-lg hover:bg-[--background-secondary] transition-colors text-base leading-none ${likedIds.has(msg.id!) ? 'text-[#FF9500]' : 'text-[--foreground-tertiary]'}`}
+                            className={`p-1.5 rounded-lg hover:bg-[--background-secondary] transition-colors ${likedIds.has(msg.id!) || likedAnimating === msg.id ? 'text-[#FF9500]' : 'text-[--foreground-tertiary]'}`}
                             title={likedIds.has(msg.id!) ? '取消点赞' : '点赞'}
                           >
-                            👍
+                            <svg
+                              className={`w-3.5 h-3.5 transition-all ${likedAnimating === msg.id ? 'scale-150' : 'scale-100'}`}
+                              fill={likedIds.has(msg.id!) ? 'currentColor' : 'none'}
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                            </svg>
                           </button>
                           <button
                             onClick={() => handleToggleSave(msg.id!)}
