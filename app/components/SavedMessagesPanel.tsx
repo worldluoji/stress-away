@@ -21,6 +21,7 @@ export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProp
   const [messages, setMessages] = useState<SavedMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (uid) fetchSavedMessages();
@@ -63,8 +64,10 @@ export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProp
     }
   };
 
-  const handleCopy = async (content: string) => {
+  const handleCopy = async (messageId: string, content: string) => {
     await navigator.clipboard.writeText(content);
+    setCopiedId(messageId);
+    setTimeout(() => setCopiedId(null), 1500);
   };
 
   return (
@@ -128,13 +131,17 @@ export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProp
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       <button
-                        onClick={() => handleCopy(msg.content)}
-                        className="p-1.5 rounded-lg hover:bg-[--card-bg] text-[--foreground-tertiary] transition-colors"
+                        onClick={() => handleCopy(msg.messageId, msg.content)}
+                        className="p-1.5 rounded-lg hover:bg-[--card-bg] text-[--foreground-tertiary] transition-colors text-xs min-w-[2.5rem] flex items-center justify-center"
                         title="复制"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                        </svg>
+                        {copiedId === msg.messageId ? (
+                          <span className="text-[#34C759]">已复制</span>
+                        ) : (
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        )}
                       </button>
                       <button
                         onClick={(e) => handleUnsave(msg.messageId, e)}
