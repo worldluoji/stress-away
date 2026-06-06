@@ -35,11 +35,14 @@ export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProp
         setError('请先登录');
         return;
       }
-      if (!res.ok) throw new Error('获取收藏失败');
+      // 即使返回非200也显示空状态，不显示报错
       const data = await res.json();
       setMessages(data.messages || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '获取收藏失败');
+      setError(null);
+    } catch {
+      // 网络错误也显示空状态
+      setMessages([]);
+      setError(null);
     } finally {
       setLoading(false);
     }
@@ -56,7 +59,7 @@ export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProp
         setMessages(prev => prev.filter(m => m.messageId !== messageId));
       }
     } catch {
-      // ignore
+      // network error - silent, leave message in list
     }
   };
 

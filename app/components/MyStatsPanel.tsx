@@ -64,11 +64,14 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
         setError('请先登录');
         return;
       }
-      if (!res.ok) throw new Error('获取数据失败');
+      // 即使返回非200也显示空状态，不显示报错
       const data = await res.json();
       setStats(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '获取数据失败');
+      setError(null);
+    } catch {
+      // 网络错误也显示空状态
+      setStats({ totalChats: 0, activeDays: 0, scenarios: [], keywords: [], weeklyActivity: [] });
+      setError(null);
     } finally {
       setLoading(false);
     }
