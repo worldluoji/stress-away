@@ -225,7 +225,7 @@ export function ShareCard({ content, scenario, onClose }: ShareCardProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative w-full max-w-md mx-4 bg-[--card-bg] rounded-2xl shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-md mx-4 bg-white dark:bg-[--card-bg] rounded-2xl shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[--border]">
           <h2 className="text-lg font-semibold text-[--foreground]">生成分享卡片</h2>
@@ -266,7 +266,7 @@ export function ShareCard({ content, scenario, onClose }: ShareCardProps) {
         <div className="px-5 pb-5 flex gap-3">
           <button
             onClick={handleCopyText}
-            className="flex-1 py-3 bg-[--background-secondary] text-[--foreground] rounded-xl text-sm font-medium hover:bg-[--background-tertiary] transition-colors"
+            className="flex-1 py-3 bg-gray-100 dark:bg-[--background-secondary] text-[--foreground] rounded-xl text-sm font-medium hover:bg-gray-200 dark:hover:bg-[--background-tertiary] transition-colors"
           >
             {copying ? '已复制' : '复制文字'}
           </button>
