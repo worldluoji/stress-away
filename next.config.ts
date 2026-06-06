@@ -17,7 +17,7 @@ const nextConfig: NextConfig = {
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https:",
-              "connect-src 'self' https://tcb-api.tencentcloudsa.com https://api.minimaxi.chat https://api.minimax.io https://api.tiamat.cn",
+              "connect-src 'self' https://*.tencentcloudapi.com https://*.tencentcloudsa.com https://*.cloud.tencent.com https://api.minimaxi.chat https://api.minimax.io https://api.tiamat.cn",
               "frame-ancestors 'none'",
             ].join('; '),
           },

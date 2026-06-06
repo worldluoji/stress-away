@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { signInWithPassword } from '@/lib/tcb';
+import { signInWithPassword, getCurrentUser } from '@/lib/tcb';
 
 interface CodeInfo {
   code: string;
@@ -47,13 +47,9 @@ export default function AdminPage() {
       // 1. TCB login
       await signInWithPassword(email, password);
 
-      // 2. Get raw tcb_session cookie value to send to backend
-      const sessionToken = document.cookie
-        .split('; ')
-        .find((row) => row.startsWith('tcb_session='))
-        ?.slice('tcb_session='.length);
-
-      if (!sessionToken) {
+      // 2. Get uid from TCB session
+      const user = await getCurrentUser();
+      if (!user?.id) {
         setError('登录失败，未获取到会话');
         return;
       }
@@ -61,8 +57,11 @@ export default function AdminPage() {
       // 3. Exchange TCB session for admin token
       const res = await fetch('/api/admin/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionToken }),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': user.id,
+        },
+        body: JSON.stringify({ uid: user.id }),
       });
 
       const data = await res.json();
@@ -76,13 +75,15 @@ export default function AdminPage() {
       setPassword('');
       setEmail('');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '';
+      const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('Invalid username') || msg.includes('wrong password')) {
         setError('邮箱或密码错误');
+      } else if (msg.includes('fail to fetch') || msg.includes('fetch') || msg.includes('network') || msg.includes('Network')) {
+        setError('网络连接失败，请检查网络后重试');
       } else if (msg) {
         setError(msg);
       } else {
-        setError('网络错误');
+        setError('登录失败，请重试');
       }
     } finally {
       setLoading(false);

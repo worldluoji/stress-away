@@ -6,14 +6,23 @@ import { verifyTCBSession } from '@/lib/auth';
 
 const ADMIN_UIDS = (process.env.ADMIN_UIDS || '').split(',').filter(Boolean);
 
+// Verify session token (old way) or accept uid directly from X-User-Id header (new way)
+function extractUid(request: NextRequest, body: { uid?: string; sessionToken?: string }): string | null {
+  // New way: uid from body (verified by TCB SDK on frontend)
+  if (body.uid) return body.uid;
+
+  // Old way: tcb_session cookie token
+  if (body.sessionToken) {
+    const decoded = verifyTCBSession(body.sessionToken);
+    return decoded?.session?.uid || null;
+  }
+
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
-    const sessionToken = body.sessionToken;
-
-    if (!sessionToken) {
-      return NextResponse.json({ error: 'session_required' }, { status: 400 });
-    }
 
     // Brute force protection
     const ip = getClientIP(request);
@@ -32,14 +41,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify TCB session
-    const decoded = verifyTCBSession(sessionToken);
-    if (!decoded?.session?.uid) {
+    const uid = extractUid(request, body);
+    if (!uid) {
       await recordAdminFailedAttempt(ip);
       return NextResponse.json({ error: 'invalid_session' }, { status: 401 });
     }
-
-    const uid = decoded.session.uid;
 
     // Check if uid is in admin whitelist
     if (ADMIN_UIDS.length > 0 && !ADMIN_UIDS.includes(uid)) {
