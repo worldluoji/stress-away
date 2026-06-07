@@ -131,7 +131,7 @@ export async function getSubscriptionByUid(uid: string): Promise<Subscription | 
     await cacheSet(SUB_CACHE_KEY(uid), sub, SUB_CACHE_TTL);
     return sub;
   } catch (err) {
-
+    console.error('[getSubscriptionByUid] failed:', err);
     return null;
   }
 }
@@ -172,7 +172,7 @@ export async function setSubscription(
     const updated = await getSubscriptionByUid(uid);
     if (updated) await cacheSet(SUB_CACHE_KEY(uid), updated, SUB_CACHE_TTL);
   } catch (err) {
-
+    console.error('[setSubscription] failed:', err);
   }
 }
 
@@ -216,6 +216,7 @@ const rows = await txQuery<SubscriptionRow>(
       return newCount;
     });
   } catch (err) {
+    console.error('[consumeUsageByUid] failed:', err);
     return 0;
   }
 }
@@ -233,6 +234,7 @@ export async function refundUsageByUid(uid: string): Promise<void> {
     await cacheDel(SUB_CACHE_KEY(uid));
   } catch (err) {
     // Swallow — refund failure should not break the response
+    console.error('[refundUsageByUid] failed:', err);
   }
 }
 
@@ -253,7 +255,7 @@ export async function createAdminActivationCode(
     );
     return { code, expiresAt, totalTimes };
   } catch (err) {
-
+    console.error('[createAdminActivationCode] failed:', err);
     return { code, expiresAt, totalTimes };
   }
 }
@@ -330,7 +332,7 @@ export async function consumeAdminActivationCode(
       return { success: true, remainingCodes: subs[0]?.remaining_usage ?? data.total_times, expiresAt };
     });
   } catch (err) {
-
+    console.error('[consumeAdminActivationCode] failed:', err);
     return { success: false, error: 'db_error' };
   }
 }
@@ -360,7 +362,7 @@ export async function listAdminActivationCodes(
     }));
     return { codes, total };
   } catch (err) {
-
+    console.error('[listAdminActivationCodes] failed:', err);
     return { codes: [], total: 0 };
   }
 }
@@ -376,7 +378,7 @@ export async function isOrderClaimed(orderId: string): Promise<boolean> {
     );
     return row?.claimed ?? false;
   } catch (err) {
-
+    console.error('[isOrderClaimed] failed:', err);
     return false;
   }
 }
@@ -422,7 +424,7 @@ export async function getActivationCode(
       activationTime: r.activation_time ? Number(r.activation_time) : undefined,
     };
   } catch (err) {
-
+    console.error('[getActivationCode] failed:', err);
     return null;
   }
 }
@@ -442,7 +444,7 @@ export async function setActivationCode(
       [orderId, index, code, remainingCodes]
     );
   } catch (err) {
-
+    console.error('[setActivationCode] failed:', err);
   }
 }
 
@@ -472,7 +474,7 @@ export async function setActivationCodes(
       [orderId, code2, remainingCodes]
     );
   } catch (err) {
-
+    console.error('[setActivationCodes] failed:', err);
   }
 }
 
@@ -487,7 +489,7 @@ export async function getOrderCreatedTime(orderId: string): Promise<number | nul
     );
     return row?.payment_time ?? null;
   } catch (err) {
-
+    console.error('[getOrderCreatedTime] failed:', err);
     return null;
   }
 }
@@ -525,7 +527,7 @@ export async function getAdminActivationCode(code: string): Promise<AdminActivat
       activationTime: r.activation_time ? Number(r.activation_time) : undefined,
     };
   } catch (err) {
-
+    console.error('[getAdminActivationCode] failed:', err);
     return null;
   }
 }
