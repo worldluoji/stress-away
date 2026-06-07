@@ -18,6 +18,13 @@ WORKDIR /app
 RUN corepack enable
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+
+ARG NEXT_PUBLIC_TCB_ENV_ID
+ARG NEXT_PUBLIC_TCB_ACCESS_KEY
+
+ENV NEXT_PUBLIC_TCB_ENV_ID=${NEXT_PUBLIC_TCB_ENV_ID} \
+    NEXT_PUBLIC_TCB_ACCESS_KEY=${NEXT_PUBLIC_TCB_ACCESS_KEY}
+
 COPY --from=deps /app/node_modules ./node_modules
 # .env.production is brought in by `COPY . .` below; it must exist at the
 # project root so Next.js can inline all NEXT_PUBLIC_* into the client bundle.
