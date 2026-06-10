@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminActivationCode, listAdminActivationCodes, getAdminActivationCode } from '@/lib/subscriptions';
-import { generateActivationCode } from '@/lib/mbaodu';
+import { generateActivationCode } from '@/lib/activation-codes';
 import { verifyAdminToken } from '@/app/api/admin/verify';
 
 export async function POST(request: NextRequest) {
