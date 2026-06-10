@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  swagger-client: 3.28.2
+
 importers:
 
   .:
