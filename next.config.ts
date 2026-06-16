@@ -4,7 +4,7 @@ const assetPrefix = process.env.NEXT_PUBLIC_ASSET_PREFIX || '';
 
 const nextConfig: NextConfig = {
   // basePath: '/untipua',
-  assetPrefix: assetPrefix,
+  assetPrefix: '/untipua',
   output: 'standalone',
   async headers() {
     return [
