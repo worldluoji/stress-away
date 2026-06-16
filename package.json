@@ -47,5 +47,6 @@
     "overrides": {
       "swagger-client": "3.28.2"
     }
-  }
+  },
+  "packageManager": "pnpm@11.7.0"
 }
