@@ -6,7 +6,7 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // console.log(`Middleware request for: ${pathname}, basePath: ${basePath}`);
+  console.log(`Middleware request for: ${pathname}, basePath: ${basePath}`);
 
   // Only expose Swagger docs in development mode
   if (pathname.startsWith('/docs/') && process.env.NODE_ENV !== 'development') {
