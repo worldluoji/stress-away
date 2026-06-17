@@ -93,9 +93,9 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative w-full max-w-md mx-4 max-h-[85vh] bg-white dark:bg-[--card-bg] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+      <div className="relative w-full max-w-md mx-4 max-h-[85vh] bg-[--card-bg] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[--border]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[--card-border]">
           <h2 className="text-lg font-semibold text-[--foreground]">我的数据</h2>
           <button onClick={onClose} className="p-1 text-[--foreground-tertiary] hover:text-[--foreground]">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -207,7 +207,7 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
           )}
 
           {/* Support contact */}
-          <div className="text-center pt-3 border-t border-[--border]">
+          <div className="text-center pt-3 border-t border-[--card-border]">
             <p className="text-xs text-[--foreground-tertiary]">
               遇到问题？联系客服微信 <span className="text-[#007AFF]">jmst_cute</span>
             </p>

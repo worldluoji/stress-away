@@ -75,8 +75,8 @@ export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProp
 const panel = (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-2xl max-h-[80vh] mx-4 bg-white dark:bg-[--card-bg] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[--border]">
+      <div className="relative w-full max-w-2xl max-h-[80vh] mx-4 bg-[--card-bg] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[--card-border]">
           <h2 className="text-lg font-semibold text-[--foreground]">我的收藏</h2>
           <button
             onClick={onClose}
@@ -179,8 +179,8 @@ const panel = (
   const modal = viewingMessage ? (
     <div className="fixed inset-0 z-[60] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setViewingMessage(null)} />
-      <div className="relative w-full max-w-xl mx-4 bg-white dark:bg-[--card-bg] rounded-2xl shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[--border]">
+      <div className="relative w-full max-w-xl mx-4 bg-[--card-bg] rounded-2xl shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[--card-border]">
           <h3 className="text-base font-semibold text-[--foreground]">消息详情</h3>
           <button
             onClick={() => setViewingMessage(null)}
@@ -196,7 +196,7 @@ const panel = (
             {viewingMessage.content}
           </p>
         </div>
-        <div className="flex gap-2 px-5 py-4 border-t border-[--border]">
+        <div className="flex gap-2 px-5 py-4 border-t border-[--card-border]">
           <button
             onClick={() => {
               handleCopy(viewingMessage.messageId, viewingMessage.content);
@@ -208,7 +208,7 @@ const panel = (
           </button>
           <button
             onClick={() => setViewingMessage(null)}
-            className="flex-1 py-2 rounded-xl border border-[--border] text-[--foreground] text-sm font-medium hover:bg-[--card-bg] transition-colors"
+            className="flex-1 py-2 rounded-xl border border-[--card-border] text-[--foreground] text-sm font-medium hover:bg-[--card-bg] transition-colors"
           >
             关闭
           </button>
