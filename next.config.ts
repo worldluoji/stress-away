@@ -30,15 +30,6 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${basePath}/api/:path*`,
-        basePath: false,
-      },
-    ];
-  }
 };
 
 export default nextConfig;
