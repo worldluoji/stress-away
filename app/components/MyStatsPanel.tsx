@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './LoginModal';
+import { apiFetch } from '@/lib/request-api';
 
 interface ScenarioStat {
   scenarioId: string;
@@ -63,7 +64,7 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch('/api/stats', {
+      const res = await apiFetch('/api/stats', {
         headers: uid ? { 'X-User-Id': uid } : {},
       });
       if (res.status === 401 || !uid) {

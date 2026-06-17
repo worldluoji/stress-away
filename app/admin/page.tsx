@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { signInWithPassword, getCurrentUser } from '@/lib/tcb';
+import { apiFetch } from '@/lib/request-api';
 
 interface AdminCodeInfo {
   code: string;
@@ -40,7 +41,7 @@ export default function AdminPage() {
         return;
       }
 
-      const res = await fetch('/api/admin/login', {
+      const res = await apiFetch('/api/admin/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -75,7 +76,7 @@ export default function AdminPage() {
     setError('');
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/codes?page=${page}&limit=20`);
+      const res = await apiFetch(`/api/admin/codes?page=${page}&limit=20`);
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || '获取失败');
@@ -97,7 +98,7 @@ export default function AdminPage() {
     setGeneratedCode(null);
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/codes', {
+      const res = await apiFetch('/api/admin/codes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ times: newCodeTimes }),

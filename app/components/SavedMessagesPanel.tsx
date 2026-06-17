@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './LoginModal';
+import { apiFetch } from '@/lib/request-api';
 
 interface SavedMessage {
   messageId: string;
@@ -30,7 +31,7 @@ export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProp
 
   const fetchSavedMessages = async () => {
     try {
-      const res = await fetch('/api/messages/saved', {
+      const res = await apiFetch('/api/messages/saved', {
         headers: uid ? { 'X-User-Id': uid } : {},
       });
       if (res.status === 401 || !uid) {
@@ -53,7 +54,7 @@ export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProp
   const handleUnsave = async (messageId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      const res = await fetch(`/api/messages/${messageId}/save`, {
+      const res = await apiFetch(`/api/messages/${messageId}/save`, {
         method: 'DELETE',
         headers: uid ? { 'X-User-Id': uid } : {},
       });

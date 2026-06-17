@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { getDeviceId } from '@/lib/utils';
 import { useAuth } from './LoginModal';
+import { apiFetch } from '@/lib/request-api';
 
 interface Props {
   onActivated?: () => void;
@@ -26,7 +27,7 @@ export function SubscriptionActivate({ onActivated }: Props) {
 
     try {
       const deviceId = await getDeviceId();
-      const response = await fetch('/api/subscription/admin/activate', {
+      const response = await apiFetch('/api/subscription/admin/activate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
