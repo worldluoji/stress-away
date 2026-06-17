@@ -1,10 +1,10 @@
 import type { NextConfig } from "next";
 
-const assetPrefix = process.env.NEXT_PUBLIC_ASSET_PREFIX || '';
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
 const nextConfig: NextConfig = {
-  basePath: '/untipua',
-  assetPrefix: assetPrefix,
+  basePath: basePath,
+  assetPrefix: basePath,
   output: 'standalone',
   async headers() {
     return [
@@ -30,6 +30,14 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${basePath}/api/:path*`,
+      },
+    ];
+  }
 };
 
 export default nextConfig;
