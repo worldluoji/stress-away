@@ -9,7 +9,7 @@ interface AdminCodeInfo {
   createdAt: number;
   expiresAt: number;
   totalTimes: number;
-  remainingTimes: number;
+  userSubRemaining?: number;
   used: boolean;
   deviceId?: string;
   activationTime?: number;
@@ -259,7 +259,7 @@ export default function AdminPage() {
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs text-[--foreground-tertiary]">
-                    <span>剩余 {code.remainingTimes}/{code.totalTimes} 次</span>
+                    <span>码额度 {code.totalTimes} 次{code.userSubRemaining !== undefined && ` · 账号剩余 ${code.userSubRemaining}`}</span>
                     <span>过期 {new Date(code.expiresAt).toLocaleDateString('zh-CN')}</span>
                   </div>
                   {code.deviceId && (

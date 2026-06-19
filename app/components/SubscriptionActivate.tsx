@@ -100,7 +100,7 @@ export function SubscriptionActivate({ onActivated }: Props) {
           />
         </div>
         <p className="text-xs text-[--foreground-tertiary]">
-          激活码有效期30天，每个码只能绑定一个账号
+          激活码有效期30天，支持多次叠加绑定，额度和有效期累加
         </p>
         <button
           onClick={handleActivate}
