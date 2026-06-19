@@ -1,15 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { listConversationsByUid, saveConversationByUid } from '@/lib/conversations';
+import { listConversationsByUid, listConversationsByDevice, saveConversationByUid } from '@/lib/conversations';
 import { getAuthContext } from '@/lib/api-auth';
 import type { ChatMessage } from '@/lib/models';
 
 export async function GET(request: NextRequest) {
   try {
-    const { uid } = await getAuthContext(request);
+    const { uid, deviceId } = await getAuthContext(request);
     if (!uid) {
       return NextResponse.json({ error: 'login_required' }, { status: 401 });
     }
     const conversations = await listConversationsByUid(uid);
+    // 兼容匿名期间创建的对话：尝试用 deviceId 补充查询
+    if (deviceId) {
+      const deviceConvs = await listConversationsByDevice(deviceId);
+      // 合并去重（以 uid 记录优先，deviceId 记录补充进来）
+      const uidIds = new Set(conversations.map(c => c.id));
+      const merged = [
+        ...conversations,
+        ...deviceConvs.filter(c => !uidIds.has(c.id)),
+      ];
+      return NextResponse.json({ conversations: merged });
+    }
     return NextResponse.json({ conversations });
   } catch {
     return NextResponse.json({ conversations: [] });

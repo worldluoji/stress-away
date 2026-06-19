@@ -9,13 +9,13 @@ import { checkRateLimit, RATE_LIMITS, extractClientInfo } from '@/lib/ratelimit'
 
 export async function GET(request: NextRequest) {
   try {
-    const { uid } = await getAuthContext(request);
+    const { uid, deviceId } = await getAuthContext(request);
 
     if (!uid) {
       return NextResponse.json({ error: 'login_required' }, { status: 401 });
     }
 
-    const { ip } = extractClientInfo(request, uid);
+    const { ip } = extractClientInfo(request, deviceId ?? 'unknown');
     const rateLimitResult = await checkRateLimit(uid, ip, RATE_LIMITS.usage);
     if (!rateLimitResult.allowed) {
       return NextResponse.json({ error: 'rate_limit_exceeded' }, { status: 429 });
