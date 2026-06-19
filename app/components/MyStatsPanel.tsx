@@ -91,11 +91,11 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative w-full max-w-md mx-4 max-h-[85vh] bg-[--card-bg] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+      <div className="relative w-full max-w-md mx-4 max-h-[85vh] bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[--card-border]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-neutral-700">
           <h2 className="text-lg font-semibold text-[--foreground]">我的数据</h2>
           <button onClick={onClose} className="p-1 text-[--foreground-tertiary] hover:text-[--foreground]">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

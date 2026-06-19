@@ -100,7 +100,7 @@ export async function getSubscriptionByUid(uid: string): Promise<Subscription | 
   const cached = await cacheGet<Subscription>(SUB_CACHE_KEY(uid));
   if (cached) return cached;
 
-  if (!isMySQLAvailable) return null;
+  if (!isMySQLAvailable()) return null;
   try {
     const rows = await query<SubscriptionRow>(
       'SELECT * FROM subscriptions WHERE uid = ?',
@@ -120,7 +120,7 @@ export async function setSubscription(
   uid: string,
   subscription: Partial<Subscription>
 ): Promise<void> {
-  if (!isMySQLAvailable) return;
+  if (!isMySQLAvailable()) return;
   try {
     await execute(
       `INSERT INTO subscriptions (uid, device_id, status, source, total_usage, remaining_usage, activation_code, expires_at)
@@ -167,7 +167,7 @@ export async function isPaidUserByUid(uid: string): Promise<boolean> {
 // ==================== Usage Consumption ====================
 
 export async function consumeUsageByUid(uid: string): Promise<number> {
-  if (!isMySQLAvailable) return 0;
+  if (!isMySQLAvailable()) return 0;
   try {
     return await withTransaction(async (conn) => {
       const rows = await txQuery<SubscriptionRow>(
@@ -202,7 +202,7 @@ export async function consumeUsageByUid(uid: string): Promise<number> {
 }
 
 export async function refundUsageByUid(uid: string): Promise<void> {
-  if (!isMySQLAvailable) return;
+  if (!isMySQLAvailable()) return;
   try {
     await execute(
       'UPDATE subscriptions SET remaining_usage = remaining_usage + 1 WHERE uid = ? AND status = ?',
@@ -222,7 +222,7 @@ export async function createAdminActivationCode(
 ): Promise<{ code: string; expiresAt: number; totalTimes: number }> {
   const now = Date.now();
   const expiresAt = now + 30 * 24 * 60 * 60 * 1000;
-  if (!isMySQLAvailable) {
+  if (!isMySQLAvailable()) {
     return { code, expiresAt, totalTimes };
   }
   try {
@@ -243,7 +243,7 @@ export async function consumeAdminActivationCode(
   uid: string,
   deviceId?: string
 ): Promise<{ success: boolean; error?: string; remainingCodes?: number; expiresAt?: number }> {
-  if (!isMySQLAvailable) return { success: false, error: 'mysql_not_configured' };
+  if (!isMySQLAvailable()) return { success: false, error: 'mysql_not_configured' };
   try {
     return await withTransaction(async (conn) => {
       // ── 锁码行：先锁码再锁订阅，避免死锁保持固定顺序
@@ -349,7 +349,7 @@ export async function consumeAdminActivationCode(
 }
 
 export async function getAdminActivationCode(code: string): Promise<AdminActivationCode | null> {
-  if (!isMySQLAvailable) return null;
+  if (!isMySQLAvailable()) return null;
   try {
     const rows = await query<AdminActivationCodeRow & { user_sub_remaining: number | string | null }>(
       `SELECT a.*, s.remaining_usage AS user_sub_remaining
@@ -381,7 +381,7 @@ export async function listAdminActivationCodes(
   page = 1,
   limit = 20
 ): Promise<{ codes: AdminActivationCode[]; total: number }> {
-  if (!isMySQLAvailable) return { codes: [], total: 0 };
+  if (!isMySQLAvailable()) return { codes: [], total: 0 };
   try {
     const countRows = await query<{ cnt: number }>('SELECT COUNT(*) as cnt FROM admin_activation_codes');
     const total = countRows[0]?.cnt ?? 0;

@@ -35,7 +35,9 @@ export function getPool(): mysql.Pool {
   return _pool;
 }
 
-export const isMySQLAvailable = isMySQLConfigured();
+export function isMySQLAvailable(): boolean {
+  return isMySQLConfigured();
+}
 
 // Use execute() for most queries (prepared statements)
 export async function query<T = unknown>(
