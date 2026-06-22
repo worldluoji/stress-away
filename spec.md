@@ -36,24 +36,27 @@
 ### 激活码规则
 
 **激活码结构：**
-- 每个面包多订单生成 2 个激活码
+- 每个管理端激活码从生成时刻起有效期 30 天，含固定次数（默认 50，可定制）
 - 格式：`XXXX-XXXX-XXXX-XX`（带 Mod 97 校验位）
-- 每个码记录 `remainingCodes`，初始值 50
+- 旧的"每订单 2 个码"语义已被清理（见 migration 004），仅保留管理端单码
 
-**设备挤占逻辑：**
-1. 设备 A 使用 CODE1 激活 → 设备 A 获得 CODE1.remainingCodes（50）次额度
-2. 设备 A 用 10 次 → CODE1.remainingCodes = 40，设备 A 订阅 remainingCodes = 40
-3. 设备 B 使用 CODE1 激活 → 设备 A 被清退，设备 B 获得 CODE1.remainingCodes（40）次额度
-4. 每个激活码只能有一台设备处于激活状态，次数自动继承
+**多码叠加规则（管理端激活码，TCB 账号模式）：**
+- 一个 TCB 账号可绑定**多个**管理端激活码，叠加规则：
+  - **额度叠加**：`remaining_usage += new_code.total_times`，`total_usage += new_code.total_times`
+  - **时间叠加**：`expires_at = max(current_expires_at, new_code_expires_at)`（取所有绑定码中最晚到期时间）
+  - **同码重复绑定**：幂等返回当前订阅状态，不重复扣减
+  - **订阅过期后绑新码**：不继承过期前剩余次数（已失效），以新码 `total_times` 起步
+- **设备 ID**：首次绑定的 `device_id` 在该 uid 后续叠加中保留（`COALESCE`），避免设备混乱
+- **单码单用户约束保留**：码一旦绑定给某 uid，其他 uid 尝试绑定同一码返回 `code_already_used`
 
-**同一设备重复激活：**
-- 保持原有有效期，额度不变
+**过期语义：**
+- 当 `now > subscriptions.expires_at` 时，订阅视为失效
+- `isPaidUserByUid` / `consumeUsageByUid` 会拒绝该订阅，剩余次数不可用
+- 用户必须绑定新码才能恢复（绑定时不携带过期前剩余次数）
 
-**设备已激活检查：**
-- 设备已激活时，无法再激活其他订单
-
-**管理端重新生成码：**
-- 继承原码的 remainingCodes，不重置为 50
+**数据层映射：**
+- `subscriptions.activation_code` = 最近一次绑定的码（叠加模式下不代表唯一）
+- `subscriptions.expires_at` = 所有绑定码 `expires_at` 的最大值
 
 ### 限流规则
 
@@ -318,18 +321,20 @@ Headers: `x-device-id`
   "createdAt": 1751212800000,
   "expiresAt": 1751395200000,
   "totalTimes": 50,
-  "remainingTimes": 45,
+  "userSubRemaining": 45,
   "used": true,
   "deviceId": "xxx",
   "activationTime": 1751300000000
 }
 ```
 
+> `userSubRemaining` 是绑定该码的 TCB 账号当前订阅的剩余次数（叠加模式下等于账号下所有码的合并剩余）；`totalTimes` 是码本身的总次数。
+
 ### POST /api/subscription/admin/activate
 
-使用管理端激活码激活设备。
+使用管理端激活码激活/叠加到 TCB 账号。
 
-Headers: `x-device-id`
+Headers: `x-device-id` + 已登录 TCB 用户
 
 请求：
 ```json
@@ -338,13 +343,15 @@ Headers: `x-device-id`
 
 响应：
 ```json
-{ "success": true, "remainingCodes": 50, "expiresAt": 1751395200000 }
+{ "success": true, "remainingCodes": 150, "expiresAt": 1753219200000 }
 ```
 
-**管理端激活码规则：**
-- 有效期30天（从生成时算起）
-- 首次激活绑定设备，获得指定次数（默认50）
-- 换设备激活时，旧设备失效，新设备继承剩余次数
+**多码叠加语义：**
+- `remainingCodes` 为账号叠加后的总剩余次数（包含已绑定的所有码）
+- `expiresAt` 为所有绑定码中最晚的过期时间
+- 同码重复绑定：幂等返回当前订阅，不重复扣减
+- 订阅过期后绑新码：从新码 `totalTimes` 起步，不继承过期前余额
+- 其他 uid 尝试绑同一码：返回 `invalid_code`（含 `code_already_used` 内部错误码）
 
 ## 环境变量
 

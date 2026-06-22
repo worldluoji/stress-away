@@ -18,6 +18,7 @@ WORKDIR /app
 RUN corepack enable
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+
 COPY --from=deps /app/node_modules ./node_modules
 # .env.production is brought in by `COPY . .` below; it must exist at the
 # project root so Next.js can inline all NEXT_PUBLIC_* into the client bundle.

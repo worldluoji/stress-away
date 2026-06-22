@@ -8,7 +8,7 @@ import {
   resetFailedAttemptsAsync,
   getRemainingAttempts,
 } from '@/lib/activation-security';
-import { isValidActivationCode } from '@/lib/mbaodu';
+import { isValidActivationCode } from '@/lib/activation-codes';
 
 export async function POST(request: NextRequest) {
   try {

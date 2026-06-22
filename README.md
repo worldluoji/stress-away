@@ -14,6 +14,8 @@
 - **双渠道激活**：支持面包多订单激活和管理端激活码激活
 - **管理端激活码**：管理员可生成独立激活码，支持闲鱼等平台销售
 - **激活码继承次数**：激活码本身记录剩余次数，换设备激活时自动继承
+- **多码叠加**：每个 TCB 账号可绑定多个管理端激活码，**次数累加**、**到期时间取最晚**（`max(expires_at)`）
+- **过期即失效**：订阅到期后剩余次数不可用，需绑定新码才能恢复
 - **免费试用**：每天 1 次免费对话额度
 - **激活码订阅**：购买后获得 50 次对话额度，支持 2 个激活码
 - **48小时查询窗口**：购买后48小时内可查询激活码
@@ -88,10 +90,13 @@ PAID_LIMIT=50
 
 ### 4. 初始化数据库
 
-运行 sql/migrations/001_initial.sql 创建数据表：
+按顺序执行所有迁移脚本（从 001 到最新）：
 
 ```bash
-mysql -u root -p stress_away < sql/migrations/001_initial.sql
+for f in sql/migrations/0*.sql; do
+  echo "Applying $f"
+  mysql -u root -p stress_away < "$f"
+done
 ```
 
 ### 5. 启动
@@ -184,7 +189,11 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 │   └── subscription.ts             # 订阅逻辑（入口）
 ├── sql/
 │   └── migrations/
-│       └── 001_initial.sql         # MySQL 建表语句
+│       ├── 001_initial.sql         # MySQL 建表语句
+│       ├── 002_tcb_user.sql        # TCB 用户体系迁移
+│       ├── 003_reactions.sql       # 对话反馈
+│       ├── 004_cleanup_*.sql       # 清理废弃结构
+│       └── 005_multi_code_stacking.sql # 多码叠加语义
 └── spec.md                            # 详细规格文档
 ```
 

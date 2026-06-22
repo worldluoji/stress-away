@@ -29,8 +29,8 @@ interface ScenarioStatRow {
 // ==================== Usage Events ====================
 
 export interface UsageEvent {
-  uid?: string;
-  deviceId?: string;
+  uid?: string | null;
+  deviceId?: string | null;
   eventType: EventType;
   scenarioId?: string;
   meta?: Record<string, unknown>;
@@ -40,7 +40,7 @@ export interface UsageEvent {
  * Record a usage event (fire-and-forget, non-blocking)
  */
 export async function recordEvent(event: UsageEvent): Promise<void> {
-  if (!isMySQLAvailable) return;
+  if (!isMySQLAvailable()) return;
   try {
     await execute(
       `INSERT INTO usage_events (uid, device_id, event_type, scenario_id, meta)
@@ -68,7 +68,7 @@ export interface ScenarioStat {
 }
 
 async function ensureScenarioStats(scenarioId: string): Promise<void> {
-  if (!isMySQLAvailable) return;
+  if (!isMySQLAvailable()) return;
   try {
     await execute(
       `INSERT IGNORE INTO scenario_stats (scenario_id) VALUES (?)`,
@@ -80,7 +80,7 @@ async function ensureScenarioStats(scenarioId: string): Promise<void> {
 }
 
 export async function getScenarioStats(): Promise<ScenarioStat[]> {
-  if (!isMySQLAvailable) return [];
+  if (!isMySQLAvailable()) return [];
   try {
     const rows = await query<ScenarioStatRow>('SELECT * FROM scenario_stats');
     return rows.map((r) => ({
@@ -96,7 +96,7 @@ export async function getScenarioStats(): Promise<ScenarioStat[]> {
 }
 
 export async function incrementViewCount(scenarioId: string): Promise<void> {
-  if (!isMySQLAvailable) return;
+  if (!isMySQLAvailable()) return;
   try {
     await ensureScenarioStats(scenarioId);
     await execute(
@@ -110,29 +110,29 @@ export async function incrementViewCount(scenarioId: string): Promise<void> {
   }
 }
 
-export async function incrementChatCount(scenarioId: string, deviceId?: string): Promise<void> {
-  if (!isMySQLAvailable) return;
+export async function incrementChatCount(scenarioId: string, uid?: string | null, deviceId?: string | null): Promise<void> {
+  if (!isMySQLAvailable()) return;
   try {
     await ensureScenarioStats(scenarioId);
     await execute(
       'UPDATE scenario_stats SET chat_count = chat_count + 1 WHERE scenario_id = ?',
       [scenarioId]
     );
-    await recordEvent({ deviceId, eventType: 'chat', scenarioId });
+    await recordEvent({ uid: uid ?? null, deviceId: deviceId ?? null, eventType: 'chat', scenarioId });
   } catch (err) {
 
   }
 }
 
-export async function incrementCopyCount(scenarioId: string, deviceId?: string): Promise<void> {
-  if (!isMySQLAvailable) return;
+export async function incrementCopyCount(scenarioId: string, uid?: string | null, deviceId?: string | null): Promise<void> {
+  if (!isMySQLAvailable()) return;
   try {
     await ensureScenarioStats(scenarioId);
     await execute(
       'UPDATE scenario_stats SET copy_count = copy_count + 1 WHERE scenario_id = ?',
       [scenarioId]
     );
-    await recordEvent({ deviceId, eventType: 'copy', scenarioId });
+    await recordEvent({ uid: uid ?? null, deviceId: deviceId ?? null, eventType: 'copy', scenarioId });
   } catch (err) {
 
   }
@@ -151,7 +151,7 @@ export async function getTotalUsage(): Promise<{
   totalCopies: number;
   activeDevices: number;
 }> {
-  if (!isMySQLAvailable) return { totalChats: 0, totalViews: 0, totalCopies: 0, activeDevices: 0 };
+  if (!isMySQLAvailable()) return { totalChats: 0, totalViews: 0, totalCopies: 0, activeDevices: 0 };
   try {
     const [chatRows, viewRows, copyRows, deviceRows] = await Promise.all([
       query<{ cnt: number }>("SELECT COUNT(*) as cnt FROM usage_events WHERE event_type = 'chat'"),

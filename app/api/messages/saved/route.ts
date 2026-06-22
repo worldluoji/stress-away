@@ -14,7 +14,6 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10) || 0, 100);
     const offset = parseInt(searchParams.get('offset') || '0', 10) || 0;
 
-    console.log(111, uid, limit, offset);
     const messages = await getSavedMessages(uid, limit, offset);
     return NextResponse.json({ messages });
   } catch (error) {

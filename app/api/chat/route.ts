@@ -3,6 +3,7 @@ import { chatWithAI, type ChatMessage } from "@/lib/models";
 import { checkRateLimit, checkDeviceIdSpoofing, RATE_LIMITS, extractClientInfo } from "@/lib/ratelimit";
 import { getAuthContext } from "@/lib/api-auth";
 import { checkUsage, consumeOne } from "@/lib/subscription";
+import { incrementChatCount } from "@/lib/usage-events";
 import { sanitizeMarkdown } from "@/lib/sanitize";
 
 /**
@@ -133,6 +134,8 @@ export async function POST(request: NextRequest) {
     // Consume AFTER AI success. If consume fails, still return the AI reply to the user.
     try {
       await consumeOne(auth.uid, deviceId);
+      // Record chat event with uid for analytics
+      incrementChatCount(scenarioId ?? 'general', auth.uid, deviceId);
     } catch (err) {
       // Quota consume failed after AI succeeded — still return AI's reply
       // (the user got the response; quota will self-correct on next check)

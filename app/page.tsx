@@ -18,6 +18,7 @@ import { SavedMessagesPanel } from "./components/SavedMessagesPanel";
 import { ShareCard } from "./components/ShareCard";
 import { MyStatsPanel } from "./components/MyStatsPanel";
 import type { ScenarioTemplate } from "@/lib/scenarios";
+import { apiFetch } from '@/lib/request-api';
 
 interface UsageStatus {
   allowed: boolean;
@@ -85,6 +86,7 @@ export default function Home() {
   const [showSaved, setShowSaved] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [activateKey, setActivateKey] = useState(0);
   const [shareContent, setShareContent] = useState('');
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [likedAnimating, setLikedAnimating] = useState<string | null>(null);
@@ -115,7 +117,7 @@ export default function Home() {
     }
     try {
       const method = isLiked ? 'DELETE' : 'POST';
-      await fetch(`/api/messages/${messageId}/reaction`, {
+      await apiFetch(`/api/messages/${messageId}/reaction`, {
         method,
         headers: uid ? { 'X-User-Id': uid } : {},
       });
@@ -149,12 +151,12 @@ export default function Home() {
     });
     try {
       if (isSaved) {
-        await fetch(`/api/messages/${messageId}/save`, {
+        await apiFetch(`/api/messages/${messageId}/save`, {
           method: 'DELETE',
           headers: uid ? { 'X-User-Id': uid } : {},
         });
       } else {
-        await fetch(`/api/messages/${messageId}/save`, {
+        await apiFetch(`/api/messages/${messageId}/save`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-User-Id': uid || '' },
           body: JSON.stringify({
@@ -186,7 +188,7 @@ export default function Home() {
         setDeviceId(id);
 
         // Load scenarios (independent of auth)
-        const scenariosRes = await fetch("/api/scenarios");
+        const scenariosRes = await apiFetch("/api/scenarios");
         if (scenariosRes.ok) {
           const scenariosData = await scenariosRes.json();
           setScenarios(scenariosData.scenarios || []);
@@ -194,7 +196,7 @@ export default function Home() {
 
         // Load conversation history from MySQL (logged-in users only)
         if (uid) {
-          const res = await fetch('/api/conversations', {
+          const res = await apiFetch('/api/conversations', {
             headers: { 'X-User-Id': uid },
           });
           if (res.ok) {
@@ -218,7 +220,7 @@ export default function Home() {
       try {
         const headers: Record<string, string> = { "x-device-id": deviceId };
         if (uid) headers["x-user-id"] = uid;
-        const res = await fetch("/api/usage", { headers });
+        const res = await apiFetch("/api/usage", { headers });
         if (res.ok) {
           const data = await res.json();
           setUsage(data);
@@ -241,7 +243,7 @@ export default function Home() {
       if (!deviceId) return;
       const headers: Record<string, string> = { "x-device-id": deviceId };
       if (uid) headers["x-user-id"] = uid;
-      const res = await fetch("/api/usage", { headers });
+      const res = await apiFetch("/api/usage", { headers });
       if (res.ok) {
         const data = await res.json();
         setUsage(data);
@@ -368,7 +370,7 @@ export default function Home() {
     setError("");
 
     try {
-      const res = await fetch("/api/chat", {
+      const res = await apiFetch("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -398,7 +400,7 @@ export default function Home() {
       if (deviceId) {
         const usageHeaders: Record<string, string> = { "x-device-id": deviceId };
         if (uid) usageHeaders["x-user-id"] = uid;
-        const usageRes = await fetch("/api/usage/consume", {
+        const usageRes = await apiFetch("/api/usage/consume", {
           method: "POST",
           headers: usageHeaders,
         });
@@ -501,12 +503,12 @@ export default function Home() {
                     : `${usage.remaining}/${usage.total} 次`}
                 </span>
               )}
-              {usage && !isInitializing && user && !usage.isPaid && usage.total > 0 && (
+              {usage && !isInitializing && user && (
                 <button
-                  onClick={() => setShowActivate(true)}
+                  onClick={() => { setActivateKey((k) => k + 1); setShowActivate(true); }}
                   className="px-4 py-1.5 rounded-full text-xs font-medium bg-[#007AFF] text-white hover:bg-[#007AFF]/90 transition-all active:scale-95"
                 >
-                  升级
+                  {usage.isPaid ? '叠加' : '升级'}
                 </button>
               )}
             </div>
@@ -577,7 +579,7 @@ export default function Home() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
-              <SubscriptionActivate onActivated={handleActivated} />
+              <SubscriptionActivate key={activateKey} onActivated={handleActivated} />
             </div>
           </div>
         </div>
