@@ -100,7 +100,7 @@ export async function getSubscriptionByUid(uid: string): Promise<Subscription | 
   const cached = await cacheGet<Subscription>(SUB_CACHE_KEY(uid));
   if (cached) return cached;
 
-  if (!isMySQLAvailable) return null;
+  if (!isMySQLAvailable()) return null;
   try {
     const rows = await query<SubscriptionRow>(
       'SELECT * FROM subscriptions WHERE uid = ?',
@@ -120,7 +120,7 @@ export async function setSubscription(
   uid: string,
   subscription: Partial<Subscription>
 ): Promise<void> {
-  if (!isMySQLAvailable) return;
+  if (!isMySQLAvailable()) return;
   try {
     await execute(
       `INSERT INTO subscriptions (uid, device_id, status, source, total_usage, remaining_usage, activation_code, expires_at)
@@ -158,13 +158,16 @@ export async function getRemainingUsageByUid(uid: string): Promise<number> {
 
 export async function isPaidUserByUid(uid: string): Promise<boolean> {
   const sub = await getSubscriptionByUid(uid);
-  return sub !== null && sub.status === 'active' && sub.remainingUsage > 0;
+  if (!sub || sub.status !== 'active') return false;
+  if (sub.remainingUsage <= 0) return false;
+  if (sub.expiresAt !== undefined && Date.now() > sub.expiresAt) return false;
+  return true;
 }
 
 // ==================== Usage Consumption ====================
 
 export async function consumeUsageByUid(uid: string): Promise<number> {
-  if (!isMySQLAvailable) return 0;
+  if (!isMySQLAvailable()) return 0;
   try {
     return await withTransaction(async (conn) => {
       const rows = await txQuery<SubscriptionRow>(
@@ -175,6 +178,10 @@ export async function consumeUsageByUid(uid: string): Promise<number> {
       if (rows.length === 0 || rows[0].status !== 'active' || rows[0].remaining_usage <= 0) {
         return 0;
       }
+      const rowExpiresAt = rows[0].expires_at ? Number(rows[0].expires_at) : null;
+      if (rowExpiresAt !== null && Date.now() > rowExpiresAt) {
+        return 0;
+      }
 
       const newCount = rows[0].remaining_usage - 1;
       await txExecute(
@@ -183,9 +190,9 @@ export async function consumeUsageByUid(uid: string): Promise<number> {
         [newCount, uid]
       );
 
-      const sub = rowToSubscription(rows[0]);
-      sub.remainingUsage = newCount;
-      await cacheSet(SUB_CACHE_KEY(uid), sub, SUB_CACHE_TTL);
+      // 事务内 sub 是 stale 快照，写缓存会带入错误 totalUsage/expiresAt；
+      // 失效让下次读取重读 MySQL。
+      await cacheDel(SUB_CACHE_KEY(uid));
       return newCount;
     });
   } catch (err) {
@@ -195,7 +202,7 @@ export async function consumeUsageByUid(uid: string): Promise<number> {
 }
 
 export async function refundUsageByUid(uid: string): Promise<void> {
-  if (!isMySQLAvailable) return;
+  if (!isMySQLAvailable()) return;
   try {
     await execute(
       'UPDATE subscriptions SET remaining_usage = remaining_usage + 1 WHERE uid = ? AND status = ?',
@@ -215,7 +222,7 @@ export async function createAdminActivationCode(
 ): Promise<{ code: string; expiresAt: number; totalTimes: number }> {
   const now = Date.now();
   const expiresAt = now + 30 * 24 * 60 * 60 * 1000;
-  if (!isMySQLAvailable) {
+  if (!isMySQLAvailable()) {
     return { code, expiresAt, totalTimes };
   }
   try {
@@ -236,67 +243,104 @@ export async function consumeAdminActivationCode(
   uid: string,
   deviceId?: string
 ): Promise<{ success: boolean; error?: string; remainingCodes?: number; expiresAt?: number }> {
-  if (!isMySQLAvailable) return { success: false, error: 'mysql_not_configured' };
+  if (!isMySQLAvailable()) return { success: false, error: 'mysql_not_configured' };
   try {
     return await withTransaction(async (conn) => {
-      const rows = await txQuery<AdminActivationCodeRow>(
+      // ── 锁码行：先锁码再锁订阅，避免死锁保持固定顺序
+      const codeRows = await txQuery<AdminActivationCodeRow>(
         conn,
         'SELECT * FROM admin_activation_codes WHERE code = ? FOR UPDATE',
         [code]
       );
-      if (rows.length === 0) {
+      if (codeRows.length === 0) {
         return { success: false, error: 'invalid_code' };
       }
-      const data = rows[0];
-      const expiresAt = Number(data.expires_at);
-      if (Date.now() > expiresAt) {
+      const codeRow = codeRows[0];
+      const codeExpiresAt = Number(codeRow.expires_at);
+      if (Date.now() > codeExpiresAt) {
         return { success: false, error: 'expired_code' };
       }
 
-      // 单码单用户
-      if (data.uid && data.uid !== uid) {
+      // 单码单用户：码已绑给其他 uid
+      if (codeRow.uid && codeRow.uid !== uid) {
         return { success: false, error: 'code_already_used' };
       }
 
-      // 同 uid 重复激活
-      if (data.uid === uid) {
-        const subs = await txQuery<SubscriptionRow>(
-          conn,
-          'SELECT remaining_usage FROM subscriptions WHERE uid = ?',
-          [uid]
-        );
-        const remainingCodes = subs.length > 0 ? subs[0].remaining_usage : data.total_times;
-        return { success: true, remainingCodes, expiresAt };
-      }
-
-      const now = Date.now();
-      await txExecute(
+      // ── 锁订阅行
+      const subRows = await txQuery<SubscriptionRow>(
         conn,
-        `UPDATE admin_activation_codes SET used = TRUE, uid = ?, device_id = ?, activation_time = ? WHERE code = ?`,
-        [uid, deviceId ?? null, now, code]
-      );
-
-      await txExecute(
-        conn,
-        `INSERT INTO subscriptions (uid, device_id, status, source, total_usage, remaining_usage, activation_code, expires_at)
-         VALUES (?, ?, 'active', 'admin', ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE
-           device_id = VALUES(device_id),
-           status = 'active',
-           source = 'admin',
-           total_usage = VALUES(total_usage),
-           remaining_usage = VALUES(remaining_usage),
-           activation_code = VALUES(activation_code),
-           expires_at = VALUES(expires_at)`,
-        [uid, deviceId ?? null, data.total_times, data.total_times, code, expiresAt]
-      );
-
-      const subs = await txQuery<SubscriptionRow>(
-        conn,
-        'SELECT remaining_usage FROM subscriptions WHERE uid = ?',
+        'SELECT * FROM subscriptions WHERE uid = ? FOR UPDATE',
         [uid]
       );
-      return { success: true, remainingCodes: subs[0]?.remaining_usage ?? data.total_times, expiresAt };
+      const currentSub = subRows.length > 0 ? subRows[0] : null;
+
+      // ── 同码重复激活 → 幂等返回当前订阅状态
+      if (codeRow.uid === uid && currentSub && currentSub.activation_code === code) {
+        return {
+          success: true,
+          remainingCodes: currentSub.remaining_usage,
+          expiresAt: currentSub.expires_at ? Number(currentSub.expires_at) : undefined,
+        };
+      }
+
+      // ── 计算叠加后的新值
+      const isExpired =
+        currentSub && currentSub.expires_at && Date.now() > Number(currentSub.expires_at);
+
+      let newRemaining: number;
+      let newTotal: number;
+      let newExpiresAt: number;
+
+      if (!currentSub || isExpired) {
+        // 无订阅 / 已过期 → 全新起步（不继承过期前剩余次数）
+        newRemaining = codeRow.total_times;
+        newTotal = codeRow.total_times;
+        newExpiresAt = codeExpiresAt;
+      } else {
+        // 活跃订阅 → 次数叠加，到期时间取最大
+        newRemaining = currentSub.remaining_usage + codeRow.total_times;
+        newTotal = currentSub.total_usage + codeRow.total_times;
+        newExpiresAt = Math.max(Number(currentSub.expires_at), codeExpiresAt);
+      }
+
+      // ── 首次绑定时标记码行为已绑定
+      const now = Date.now();
+      if (!codeRow.uid) {
+        await txExecute(
+          conn,
+          `UPDATE admin_activation_codes SET used = TRUE, uid = ?, device_id = ?, activation_time = ? WHERE code = ?`,
+          [uid, deviceId ?? null, now, code]
+        );
+      }
+
+      // ── 写订阅行
+      if (!currentSub) {
+        await txExecute(
+          conn,
+          `INSERT INTO subscriptions (uid, device_id, status, source, total_usage, remaining_usage, activation_code, expires_at)
+           VALUES (?, ?, 'active', 'admin', ?, ?, ?, ?)`,
+          [uid, deviceId ?? null, newTotal, newRemaining, code, newExpiresAt]
+        );
+      } else {
+        await txExecute(
+          conn,
+          `UPDATE subscriptions SET
+             device_id = COALESCE(?, device_id),
+             status = 'active',
+             source = 'admin',
+             total_usage = ?,
+             remaining_usage = ?,
+             activation_code = ?,
+             expires_at = ?
+           WHERE uid = ?`,
+          [deviceId ?? null, newTotal, newRemaining, code, newExpiresAt, uid]
+        );
+      }
+
+      // ── 失效订阅缓存（避免脏读）
+      await cacheDel(SUB_CACHE_KEY(uid));
+
+      return { success: true, remainingCodes: newRemaining, expiresAt: newExpiresAt };
     });
   } catch (err) {
     console.error('[consumeAdminActivationCode] failed:', err);
@@ -305,10 +349,10 @@ export async function consumeAdminActivationCode(
 }
 
 export async function getAdminActivationCode(code: string): Promise<AdminActivationCode | null> {
-  if (!isMySQLAvailable) return null;
+  if (!isMySQLAvailable()) return null;
   try {
-    const rows = await query<AdminActivationCodeRow & { remaining_times: number | string }>(
-      `SELECT a.*, COALESCE(s.remaining_usage, a.total_times) AS remaining_times
+    const rows = await query<AdminActivationCodeRow & { user_sub_remaining: number | string | null }>(
+      `SELECT a.*, s.remaining_usage AS user_sub_remaining
        FROM admin_activation_codes a
        LEFT JOIN subscriptions s ON s.uid = a.uid
        WHERE a.code = ?`,
@@ -323,7 +367,7 @@ export async function getAdminActivationCode(code: string): Promise<AdminActivat
       createdAt: Number(r.created_at),
       expiresAt: Number(r.expires_at),
       totalTimes: r.total_times,
-      remainingTimes: Number(r.remaining_times),
+      userSubRemaining: r.user_sub_remaining !== null ? Number(r.user_sub_remaining) : undefined,
       used: r.used,
       activationTime: r.activation_time ? Number(r.activation_time) : undefined,
     };
@@ -337,13 +381,13 @@ export async function listAdminActivationCodes(
   page = 1,
   limit = 20
 ): Promise<{ codes: AdminActivationCode[]; total: number }> {
-  if (!isMySQLAvailable) return { codes: [], total: 0 };
+  if (!isMySQLAvailable()) return { codes: [], total: 0 };
   try {
     const countRows = await query<{ cnt: number }>('SELECT COUNT(*) as cnt FROM admin_activation_codes');
     const total = countRows[0]?.cnt ?? 0;
     const offset = (page - 1) * limit;
-    const rows = await queryWithLimit<AdminActivationCodeRow & { remaining_times: number | string }>(
-      `SELECT a.*, COALESCE(s.remaining_usage, a.total_times) AS remaining_times
+    const rows = await queryWithLimit<AdminActivationCodeRow & { user_sub_remaining: number | string | null }>(
+      `SELECT a.*, s.remaining_usage AS user_sub_remaining
        FROM admin_activation_codes a
        LEFT JOIN subscriptions s ON s.uid = a.uid
        ORDER BY a.created_at DESC`,
@@ -356,7 +400,7 @@ export async function listAdminActivationCodes(
       createdAt: Number(r.created_at),
       expiresAt: Number(r.expires_at),
       totalTimes: r.total_times,
-      remainingTimes: Number(r.remaining_times),
+      userSubRemaining: r.user_sub_remaining !== null ? Number(r.user_sub_remaining) : undefined,
       used: r.used,
       activationTime: r.activation_time ? Number(r.activation_time) : undefined,
     }));
@@ -378,7 +422,7 @@ export interface AdminActivationCode {
   createdAt: number;
   expiresAt: number;
   totalTimes: number;
-  remainingTimes: number;
+  userSubRemaining?: number;
   used: boolean;
   activationTime?: number;
 }

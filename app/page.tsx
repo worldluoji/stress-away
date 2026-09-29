@@ -86,6 +86,7 @@ export default function Home() {
   const [showSaved, setShowSaved] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [activateKey, setActivateKey] = useState(0);
   const [shareContent, setShareContent] = useState('');
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [likedAnimating, setLikedAnimating] = useState<string | null>(null);
@@ -502,12 +503,12 @@ export default function Home() {
                     : `${usage.remaining}/${usage.total} 次`}
                 </span>
               )}
-              {usage && !isInitializing && user && !usage.isPaid && usage.total > 0 && (
+              {usage && !isInitializing && user && (
                 <button
-                  onClick={() => setShowActivate(true)}
+                  onClick={() => { setActivateKey((k) => k + 1); setShowActivate(true); }}
                   className="px-4 py-1.5 rounded-full text-xs font-medium bg-[#007AFF] text-white hover:bg-[#007AFF]/90 transition-all active:scale-95"
                 >
-                  升级
+                  {usage.isPaid ? '叠加' : '升级'}
                 </button>
               )}
             </div>
@@ -578,7 +579,7 @@ export default function Home() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
-              <SubscriptionActivate onActivated={handleActivated} />
+              <SubscriptionActivate key={activateKey} onActivated={handleActivated} />
             </div>
           </div>
         </div>

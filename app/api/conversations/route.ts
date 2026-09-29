@@ -11,7 +11,8 @@ export async function GET(request: NextRequest) {
     }
     const conversations = await listConversationsByUid(uid);
     return NextResponse.json({ conversations });
-  } catch {
+  } catch (err) {
+    console.error('[conversations GET]', err);
     return NextResponse.json({ conversations: [] });
   }
 }
@@ -38,7 +39,8 @@ export async function POST(request: NextRequest) {
     } as { id: string; title: string; messages: ChatMessage[]; scenarioId?: string; scenarioAnswers?: Record<string, string>; createdAt: number; updatedAt: number; deviceId: string };
     await saveConversationByUid(conv, uid);
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error('[conversations POST]', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
