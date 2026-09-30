@@ -12,7 +12,7 @@
 - **语言**: TypeScript + React 19
 - **样式**: Tailwind CSS 4
 - **AI**: DeepSeek V4 Flash / MiniMax 2.7
-- **存储**: MySQL 8.0（订阅/对话/事件）+ Redis（限流/免费计数/管理Token）+ LocalStorage（客户端缓存）
+- **存储**: MySQL 8.0（订阅/对话/事件/kv_store）+ 进程内内存（限流/防爆破/订阅读缓存）+ LocalStorage（客户端缓存）
 - **支付**: 面包多
 - **测试**: Vitest（表格驱动单元测试，`pnpm test`）
 - **部署**: Docker (multi-stage, Next.js standalone, node:22-alpine)
@@ -88,22 +88,25 @@
 ### 数据层架构
 
 **MySQL 8.0（持久化）**
-- `subscriptions`：订阅状态、设备绑定、剩余次数
-- `activation_codes` / `admin_activation_codes`：激活码及使用记录
+- `subscriptions`：订阅状态（uid 主键）、设备绑定、剩余次数
+- `admin_activation_codes`：管理端激活码及绑定记录
 - `conversations`：对话历史（JSON 存储，最多50条）
+- `messages` / `message_reactions` / `saved_messages`：消息索引、点赞、收藏
 - `usage_events`：使用事件（场景浏览/聊天/复制）
 - `scenario_stats`：场景统计数据（视图数/聊天数/复制数）
-- `orders`：面包多订单记录
+- `kv_store`：短期持久状态 KV（每日免费次数、管理端 Token、deviceId 防伪，key + value + expires_at）
 
-**Redis（高频/缓存）**
-- 限流计数（TTL）
-- 免费用户每日计数（TTL）
-- 管理端 Token（短期）
-- 订阅状态读缓存（5分钟 TTL，MySQL 为 source of truth）
+**高频/短期状态（内存 + MySQL kv_store 混合）**
+- 限流计数 / 登录与激活码防爆破计数：进程内 TtlMap（秒~分钟级 TTL，重启丢失可接受）
+- 免费用户每日计数：kv_store（跨天 TTL，必须持久，防止重启清零被薅）
+- 管理端 Token：kv_store（2小时 TTL，存 SHA-256 哈希）
+- deviceId 防伪记录：kv_store（1小时 TTL）
+- 订阅状态读缓存：进程内内存（60秒 TTL，MySQL 为 source of truth）
+- MySQL 不可用时 kv 自动降级为进程内内存（本地开发零依赖可运行）
 
 **缓存策略（subscriptions）**
-- 读：Redis 优先 → 未命中则查 MySQL → 回填 Redis
-- 写：先写 MySQL → 再更新 Redis（失效或更新）
+- 读：内存缓存优先 → 未命中则查 MySQL → 回填内存
+- 写：先写 MySQL → 再更新/失效内存缓存
 - 如果 MySQL 不可用，写入静默跳过（fail-closed，不阻塞服务）
 
 **LocalStorage（客户端）**
@@ -143,7 +146,7 @@
   - 构建时变量（`NEXT_PUBLIC_*`）：在 `pnpm build` 阶段从项目根的 `.env.production` 读取并内联到客户端 JS bundle
   - 运行时变量（API keys、数据库密码等）：通过 `docker run --env-file .env.production` 注入；服务端代码 `process.env` 在请求时读取
   - **镜像安全**：Next.js 16 standalone 模式会自动将 `.env.production` 复制到 `.next/standalone/`，Dockerfile 在 runner 阶段显式 `rm` 掉它，避免敏感文件残留
-- **外部依赖**（不打包进镜像）：MySQL 8.0、Upstash Redis、Tencent CloudBase (TCB)
+- **外部依赖**（不打包进镜像）：MySQL 8.0、Tencent CloudBase (TCB)
 
 ## 文件结构
 
@@ -181,18 +184,21 @@
 │   ├── social-wage.ts                # 城市社平工资封顶表
 │   ├── db.ts                         # MySQL 连接池
 │   ├── conversations.ts             # 对话历史 MySQL 持久化
-│   ├── subscriptions.ts             # 订阅/激活码 MySQL + Redis 缓存
+│   ├── subscriptions.ts             # 订阅/激活码 MySQL + 内存缓存
 │   ├── usage-events.ts              # 使用事件追踪 + 场景统计
 │   ├── mbaodu.ts                    # 面包多 API
 │   ├── models.ts                    # 模型配置
-│   ├── ratelimit.ts                 # 限流
-│   ├── redis.ts                     # Redis（限流/免费计数/管理Token）
+│   ├── ratelimit.ts                 # 限流 + deviceId 防伪
+│   ├── ttl-map.ts                   # 进程内 TTL 存储（限流/防爆破/订阅读缓存）
+│   ├── kv.ts                        # MySQL kv_store（无 MySQL 时自动降级内存）
+│   ├── free-count.ts                # 每日免费次数（kv_store 持久化）
+│   ├── admin-security.ts            # 管理端 Token + 登录防爆破
 │   ├── scenarios.ts                # 场景数据
 │   ├── storage.ts                  # LocalStorage（客户端缓存）
 │   └── subscription.ts             # 订阅逻辑（入口）
 ├── sql/
 │   └── migrations/
-│       └── 001_initial.sql         # MySQL 建表语句
+│       └── 001_initial.sql         # MySQL 全量最终态建表语句
 ├── test/
 │   ├── compensation.test.ts         # 赔偿金计算表格驱动测试
 │   └── report-prompt.test.ts        # 报告 prompt 断言测试
@@ -417,14 +423,12 @@ Headers: `x-device-id` + 已登录 TCB 用户
 | MINIMAX_API_KEY | 是 | - | MiniMax Key |
 | MBAODU_APP_KEY | 是 | - | 面包多 Key |
 | ADMIN_PASSWORD | 是 | - | 管理后台密码 |
-| UPSTASH_REDIS_REST_URL | 缓存 | - | Redis URL（订阅缓存/限流/管理Token） |
-| UPSTASH_REDIS_REST_TOKEN | 缓存 | - | Redis Token |
 | MYSQL_HOST | 生产 | localhost | MySQL 主机 |
 | MYSQL_PORT | 生产 | 3306 | MySQL 端口 |
 | MYSQL_USER | 生产 | - | MySQL 用户名 |
 | MYSQL_PASSWORD | 生产 | - | MySQL 密码 |
 | MYSQL_DATABASE | 生产 | - | MySQL 数据库名 |
 | MYSQL_USE_SSL | 否 | false | MySQL SSL 连接 |
-| USE_LOCAL_STORAGE | 测试 | true | true=LocalStorage，false=MySQL+Redis |
+| USE_LOCAL_STORAGE | 测试 | true | true=LocalStorage，false=MySQL |
 | FREE_LIMIT_PER_DAY | 否 | 1 | 免费每日次数 |
 | PAID_LIMIT | 否 | 50 | 付费总次数 |

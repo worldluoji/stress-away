@@ -1,41 +1,48 @@
-import {
-  checkActivationBlockedRedis,
-  recordActivationFailedAttemptRedis,
-  resetActivationFailedAttemptsRedis,
-} from './redis';
+import { TtlMap } from './ttl-map';
 
 const MAX_FAIL_ATTEMPTS = 5;
+const BLOCK_MS = 15 * 60 * 1000; // 15 minutes
 
-// Sync version (no-op, rate limiting is async-only via checkActivationBlockedAsync)
-export function checkActivationBlocked(ip: string, deviceId: string): { blocked: boolean; remainingSeconds: number } {
-  return { blocked: false, remainingSeconds: 0 };
+interface ActFailData {
+  count: number;
+  blockedUntil?: number;
 }
 
-// Async version - delegates to Redis implementation
+const failStore = new TtlMap();
+const failKey = (ip: string, deviceId: string) => `act:fail:${ip}:${deviceId}`;
+
 export async function checkActivationBlockedAsync(
   ip: string,
   deviceId: string
 ): Promise<{ blocked: boolean; remainingSeconds: number }> {
-  return checkActivationBlockedRedis(ip, deviceId);
+  const key = failKey(ip, deviceId);
+  const data = failStore.get<ActFailData>(key);
+  if (!data) return { blocked: false, remainingSeconds: 0 };
+  if (data.blockedUntil) {
+    const now = Date.now();
+    if (now < data.blockedUntil) {
+      return { blocked: true, remainingSeconds: Math.ceil((data.blockedUntil - now) / 1000) };
+    }
+    failStore.del(key);
+  }
+  return { blocked: false, remainingSeconds: 0 };
 }
 
-// Sync stub (no-op)
-export function recordFailedAttempt(ip: string, deviceId: string): void {}
-
-// Async version
 export async function recordFailedAttemptAsync(ip: string, deviceId: string): Promise<void> {
-  await recordActivationFailedAttemptRedis(ip, deviceId);
+  const key = failKey(ip, deviceId);
+  const data = failStore.get<ActFailData>(key) || { count: 0 };
+  data.count++;
+  if (data.count >= MAX_FAIL_ATTEMPTS) {
+    data.blockedUntil = Date.now() + BLOCK_MS;
+  }
+  failStore.set(key, data, BLOCK_MS);
 }
 
-// Sync stub (no-op)
-export function resetFailedAttempts(ip: string, deviceId: string): void {}
-
-// Async version
 export async function resetFailedAttemptsAsync(ip: string, deviceId: string): Promise<void> {
-  await resetActivationFailedAttemptsRedis(ip, deviceId);
+  failStore.del(failKey(ip, deviceId));
 }
 
-// Returns max attempts (actual counting is in Redis)
 export function getRemainingAttempts(ip: string, deviceId: string): number {
-  return MAX_FAIL_ATTEMPTS;
+  const data = failStore.get<ActFailData>(failKey(ip, deviceId));
+  return Math.max(0, MAX_FAIL_ATTEMPTS - (data?.count ?? 0));
 }

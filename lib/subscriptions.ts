@@ -6,7 +6,7 @@
  */
 
 import { query, execute, withTransaction, txQuery, txExecute, isMySQLAvailable, queryWithLimit } from './db';
-import { getRedis, isRedisConfigured } from './redis';
+import { TtlMap } from './ttl-map';
 
 const FREE_LIMIT_PER_DAY = parseInt(process.env.FREE_LIMIT_PER_DAY || '1', 10);
 const TOTAL_USAGE = 100;
@@ -50,35 +50,20 @@ interface AdminActivationCodeRow {
 
 // ==================== Helpers ====================
 
-const SUB_CACHE_TTL = 60 * 5;
+const SUB_CACHE_TTL_MS = 60 * 1000;
 const SUB_CACHE_KEY = (uid: string) => `sub:${uid}`;
+const subCache = new TtlMap();
 
-async function cacheSet(key: string, value: unknown, ttl: number): Promise<void> {
-  if (!isRedisConfigured()) return;
-  try {
-    await getRedis().set(key, value, { ex: ttl });
-  } catch {
-    // ignore
-  }
+async function cacheSet(key: string, value: unknown): Promise<void> {
+  subCache.set(key, value, SUB_CACHE_TTL_MS);
 }
 
 async function cacheGet<T>(key: string): Promise<T | null> {
-  if (!isRedisConfigured()) return null;
-  try {
-    const val = await getRedis().get<T>(key);
-    return val ?? null;
-  } catch {
-    return null;
-  }
+  return subCache.get<T>(key) ?? null;
 }
 
 async function cacheDel(key: string): Promise<void> {
-  if (!isRedisConfigured()) return;
-  try {
-    await getRedis().del(key);
-  } catch {
-    // ignore
-  }
+  subCache.del(key);
 }
 
 function rowToSubscription(row: SubscriptionRow): Subscription {
@@ -108,7 +93,7 @@ export async function getSubscriptionByUid(uid: string): Promise<Subscription | 
     );
     if (rows.length === 0) return null;
     const sub = rowToSubscription(rows[0]);
-    await cacheSet(SUB_CACHE_KEY(uid), sub, SUB_CACHE_TTL);
+    await cacheSet(SUB_CACHE_KEY(uid), sub);
     return sub;
   } catch (err) {
     console.error('[getSubscriptionByUid] failed:', err);
@@ -144,7 +129,7 @@ export async function setSubscription(
       ]
     );
     const updated = await getSubscriptionByUid(uid);
-    if (updated) await cacheSet(SUB_CACHE_KEY(uid), updated, SUB_CACHE_TTL);
+    if (updated) await cacheSet(SUB_CACHE_KEY(uid), updated);
   } catch (err) {
     console.error('[setSubscription] failed:', err);
   }

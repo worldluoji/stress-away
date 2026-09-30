@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { setAdminToken, checkAdminBlocked, recordAdminFailedAttempt, resetAdminFailedAttempts } from '@/lib/redis';
+import { setAdminToken, checkAdminBlocked, recordAdminFailedAttempt, resetAdminFailedAttempts } from '@/lib/admin-security';
 import { getClientIP } from '@/lib/ratelimit';
 import { verifyTCBSession } from '@/lib/auth';
 
@@ -68,7 +68,8 @@ export async function POST(request: NextRequest) {
     });
 
     return response;
-  } catch {
+  } catch (error) {
+    console.error('[admin/login] Unexpected error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

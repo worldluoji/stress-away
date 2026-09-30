@@ -1,4 +1,7 @@
-import { getRedis } from '@/lib/redis';
+import { kvGet, kvSet } from '@/lib/kv';
+import { TtlMap } from '@/lib/ttl-map';
+
+const rateStore = new TtlMap();
 
 export interface RateLimitConfig {
   windowMs: number;
@@ -16,9 +19,7 @@ function getMinuteKey(key: string): string {
   return `rl:${key}:${minute}`;
 }
 
-function getTTL(): number {
-  return 120;
-}
+const RATE_BUCKET_TTL_MS = 120_000;
 
 export async function checkRateLimit(
   deviceId: string,
@@ -30,11 +31,7 @@ export async function checkRateLimit(
   const now = Date.now();
   const resetAt = Math.ceil(now / 60000) * 60000;
 
-  const redis = getRedis();
-  const count = await redis.incr(minuteKey);
-  if (count === 1) {
-    await redis.expire(minuteKey, getTTL());
-  }
+  const count = rateStore.incr(minuteKey, RATE_BUCKET_TTL_MS);
 
   if (count > config.maxRequests) {
     return { allowed: false, remaining: 0, resetAt };
@@ -67,7 +64,7 @@ export const RATE_LIMITS = {
 
 // Device ID anti-spoofing: track unique deviceIds per IP
 const DEVICE_ID_TRACK_PREFIX = 'ip:deviceids:';
-const DEVICE_ID_TRACK_TTL = 60 * 60; // 1 hour
+const DEVICE_ID_TRACK_TTL_MS = 60 * 60 * 1000; // 1 hour
 const DEVICE_ID_MAX_PER_IP = 5;
 
 export interface DeviceIdCheckResult {
@@ -76,26 +73,21 @@ export interface DeviceIdCheckResult {
 }
 
 export async function checkDeviceIdSpoofing(ip: string, deviceId: string): Promise<DeviceIdCheckResult> {
-  const redis = getRedis();
   const key = `${DEVICE_ID_TRACK_PREFIX}${ip}`;
+  const knownDeviceIds = await kvGet<string[]>(key) ?? [];
 
-  // Check if deviceId already exists in the set
-  const exists = await redis.sismember(key, deviceId);
-  if (exists) {
+  if (knownDeviceIds.includes(deviceId)) {
     return { allowed: true };
   }
 
-  // New deviceId - check total count
-  const count = await redis.scard(key);
-  if (count >= DEVICE_ID_MAX_PER_IP) {
+  if (knownDeviceIds.length >= DEVICE_ID_MAX_PER_IP) {
     return {
       allowed: false,
       reason: 'device_id_rejected',
     };
   }
 
-  // Allow and add to set
-  await redis.sadd(key, deviceId);
-  await redis.expire(key, DEVICE_ID_TRACK_TTL);
+  knownDeviceIds.push(deviceId);
+  await kvSet(key, knownDeviceIds, DEVICE_ID_TRACK_TTL_MS);
   return { allowed: true };
 }

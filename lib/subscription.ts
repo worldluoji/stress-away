@@ -3,7 +3,7 @@
  *
  * Priority:
  * 1. Logged-in user (uid) → check MySQL uid-based subscription
- * 2. Anonymous user → device-based free count (Redis)
+ * 2. Anonymous user → device-based free count (MySQL kv_store)
  */
 
 import {
@@ -17,7 +17,7 @@ import {
   getFreeCount,
   incrementFreeCount,
   decrementFreeCount,
-} from './redis';
+} from './free-count';
 
 export interface UsageStatus {
   allowed: boolean;

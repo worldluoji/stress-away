@@ -46,7 +46,7 @@
 - **样式**: Tailwind CSS 4
 - **AI**: DeepSeek / MiniMax API
 - **存储**: MySQL 8.0（生产）/ LocalStorage（测试）
-- **缓存**: Upstash Redis（订阅状态读缓存，5分钟TTL）
+- **缓存/计数**: 进程内内存（限流、防爆破、订阅读缓存 60s TTL）+ MySQL kv_store（每日免费次数、管理端 Token、deviceId 防伪）
 - **支付**: 面包多
 - **部署**: Docker (multi-stage, Next.js standalone)
 
@@ -78,10 +78,6 @@ MBAODU_APP_KEY=your_mbaodu_key
 # 管理后台密码
 ADMIN_PASSWORD=your_admin_password
 
-# Redis（订阅状态缓存，可选）
-UPSTASH_REDIS_REST_URL=your_redis_url
-UPSTASH_REDIS_REST_TOKEN=your_redis_token
-
 # MySQL（生产）
 MYSQL_HOST=localhost
 MYSQL_PORT=3306
@@ -90,7 +86,7 @@ MYSQL_PASSWORD=your_password
 MYSQL_DATABASE=stress_away
 MYSQL_USE_SSL=false
 
-# 开发模式（true = 用 LocalStorage，false = 用 MySQL + Redis）
+# 开发模式（true = 用 LocalStorage，false = 用 MySQL）
 USE_LOCAL_STORAGE=false
 FREE_LIMIT_PER_DAY=1
 PAID_LIMIT=50
@@ -98,13 +94,10 @@ PAID_LIMIT=50
 
 ### 4. 初始化数据库
 
-按顺序执行所有迁移脚本（从 001 到最新）：
+执行全量建表脚本（历史迁移已合并至单一文件，可重复执行）：
 
 ```bash
-for f in sql/migrations/0*.sql; do
-  echo "Applying $f"
-  mysql -u root -p stress_away < "$f"
-done
+mysql -u root -p < sql/migrations/001_initial.sql
 ```
 
 ### 5. 启动
@@ -198,25 +191,26 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 │   ├── social-wage.ts                # 城市社平工资封顶表（带时效标注）
 │   ├── db.ts                         # MySQL 连接池
 │   ├── conversations.ts               # 对话历史 MySQL 持久化
-│   ├── subscriptions.ts              # 订阅/激活码 MySQL + Redis 缓存
+│   ├── subscriptions.ts              # 订阅/激活码 MySQL + 内存缓存
 │   ├── usage-events.ts               # 使用事件追踪 + 场景统计
 │   ├── mbaodu.ts                    # 面包多 API
 │   ├── models.ts                    # 模型配置
-│   ├── ratelimit.ts                 # 限流
-│   ├── redis.ts                     # Redis（限流/免费计数/管理Token）
+│   ├── ratelimit.ts                 # 限流 + deviceId 防伪
+│   ├── ttl-map.ts                   # 进程内 TTL 存储（限流/防爆破/订阅读缓存）
+│   ├── kv.ts                        # MySQL kv_store（无 MySQL 时自动降级内存）
+│   ├── free-count.ts                # 每日免费次数（kv_store 持久化）
+│   ├── admin-security.ts            # 管理端 Token + 登录防爆破
 │   ├── scenarios.ts                 # 场景数据
 │   ├── storage.ts                 # LocalStorage（客户端缓存）
 │   └── subscription.ts             # 订阅逻辑（入口）
 ├── test/
 │   ├── compensation.test.ts           # 赔偿金计算表格驱动测试
-│   └── report-prompt.test.ts          # 报告 prompt 断言测试
+│   ├── report-prompt.test.ts          # 报告 prompt 断言测试
+│   ├── ttl-map.test.ts                # 进程内 TTL 存储表格驱动测试
+│   └── kv-fallback.test.ts            # kv 无 MySQL 降级测试
 ├── sql/
 │   └── migrations/
-│       ├── 001_initial.sql         # MySQL 建表语句
-│       ├── 002_tcb_user.sql        # TCB 用户体系迁移
-│       ├── 003_reactions.sql       # 对话反馈
-│       ├── 004_cleanup_*.sql       # 清理废弃结构
-│       └── 005_multi_code_stacking.sql # 多码叠加语义
+│       └── 001_initial.sql         # MySQL 全量最终态建表语句
 └── spec.md                            # 详细规格文档
 ```
 
@@ -235,7 +229,5 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 | MYSQL_PASSWORD | 生产 | - | MySQL 密码 |
 | MYSQL_DATABASE | 生产 | - | MySQL 数据库名 |
 | MYSQL_USE_SSL | 否 | false | MySQL SSL 连接 |
-| UPSTASH_REDIS_REST_URL | 缓存 | - | Redis URL（可选） |
-| UPSTASH_REDIS_REST_TOKEN | 缓存 | - | Redis Token（可选） |
 | FREE_LIMIT_PER_DAY | 否 | 1 | 免费每日次数 |
 | PAID_LIMIT | 否 | 50 | 付费总次数 |
