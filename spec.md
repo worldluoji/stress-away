@@ -2,7 +2,9 @@
 
 ## 概念与愿景
 
-反PUA手册 是高压青年的职场反PUA助手。当用户在职场中遭遇困境——被领导否定、被同事抢功、被PUA话术困扰——反PUA手册 能够即时分析情况，生成包含话术反击、心态调整和行动建议的完整方案。
+反PUA手册 是高压青年的职场维权与应对助手。核心付费能力：当用户遭遇裁员/欠薪/违法解除时，免费估算法定赔偿（N+1/2N/代通知金/加班费/年假折算），付费生成完整维权方案报告（赔偿明细核对、证据清单、仲裁流程时间线、仲裁申请书草稿、谈判策略）。辅以免费的职场反PUA应对话术作为获客漏斗。
+
+**变现逻辑**：情绪宣泄不付费，"帮用户拿回钱"付费——预期回款数千至数万元 vs 单份报告 ¥9.9–29.9。
 
 ## 技术栈
 
@@ -12,9 +14,16 @@
 - **AI**: DeepSeek V4 Flash / MiniMax 2.7
 - **存储**: MySQL 8.0（订阅/对话/事件）+ Redis（限流/免费计数/管理Token）+ LocalStorage（客户端缓存）
 - **支付**: 面包多
+- **测试**: Vitest（表格驱动单元测试，`pnpm test`）
 - **部署**: Docker (multi-stage, Next.js standalone, node:22-alpine)
 
 ## 功能
+
+### 劳动维权（核心，`/labor`）
+- [x] 赔偿金计算器：免费无门槛，纯客户端实时估算；规则依据《劳动合同法》第40/47/87条——取整（≥6个月按1年、<6个月半月）、高薪双封顶（基数3×社平、年限≤12）、2N替代N、代通知金按上月工资（仅第40条未提前30日书面通知）、加班费150%/200%/300%（时薪=月薪÷21.75÷8）、未休年假补发200%；`lib/compensation.ts` 纯函数 + 表格驱动测试
+- [x] 社平工资封顶表：`lib/social-wage.ts` 内置15个高频城市，`SOCIAL_WAGE_DATA_AS_OF` 时效标注；未收录城市不封顶并在 warnings 提示自行核实；年度人工更新，不做自动 pipeline
+- [x] 维权方案报告：付费功能（仅 `isPaid` 用户，否则 403 `paid_only`），消耗 1 次额度零 schema 改动；金额由服务端 `computeCompensation` 重算后注入 prompt，防篡改；AI 五段式输出；`labor-report` 计入 scenario_stats 统计
+- [x] 免责声明：计算器旁 / 报告页脚（route 层固定拼接）/ 首页页脚三处，标注"AI生成、不构成律师意见、以仲裁认定为准"
 
 ### 核心功能
 - [x] 聊天界面：用户输入职场困境 → AI 输出反PUA建议（结构化四段式输出：话术反击、心态调整、行动建议、法律参考）
@@ -66,6 +75,7 @@
 | API | 限制 |
 |-----|------|
 | /api/chat | 20 次/分钟 |
+| /api/report | 5 次/分钟 |
 | /api/subscription/activate | 10 次/分钟 |
 | /api/subscription/query-codes | 10 次/分钟 |
 | /api/usage | 30 次/分钟 |
@@ -147,6 +157,7 @@
 │   │   │   └── orders/[orderId]/route.ts # 订单激活码管理
 │   │   ├── chat/route.ts              # AI 对话
 │   │   ├── docs/route.ts              # API 文档
+│   │   ├── report/route.ts            # 维权方案报告（付费，服务端重算）
 │   │   ├── scenarios/                # 场景模板 API
 │   │   ├── subscription/
 │   │   │   ├── admin/activate/       # 管理端激活码激活
@@ -155,14 +166,19 @@
 │   │   │   └── query-codes/          # 查询激活码
 │   │   └── usage/                    # 额度管理
 │   ├── components/
+│   │   ├── CompensationForm.tsx       # 赔偿金计算器表单
 │   │   ├── HistoryPanel.tsx           # 历史记录面板
+│   │   ├── ReportPanel.tsx            # 维权报告生成面板
 │   │   ├── ScenarioCard.tsx          # 场景卡片
 │   │   ├── ScenarioModal.tsx          # 场景详情弹窗
 │   │   └── SubscriptionActivate.tsx  # 激活组件
 │   ├── docs/page.tsx                 # API 文档页
+│   ├── labor/page.tsx                # 劳动维权主页
 │   └── page.tsx                      # 主页
 ├── lib/
 │   ├── activation-security.ts         # 激活码防暴力破解
+│   ├── compensation.ts               # 赔偿金计算纯函数（第40/47/87条）
+│   ├── social-wage.ts                # 城市社平工资封顶表
 │   ├── db.ts                         # MySQL 连接池
 │   ├── conversations.ts             # 对话历史 MySQL 持久化
 │   ├── subscriptions.ts             # 订阅/激活码 MySQL + Redis 缓存
@@ -177,6 +193,9 @@
 ├── sql/
 │   └── migrations/
 │       └── 001_initial.sql         # MySQL 建表语句
+├── test/
+│   ├── compensation.test.ts         # 赔偿金计算表格驱动测试
+│   └── report-prompt.test.ts        # 报告 prompt 断言测试
 ├── .env.local.example
 └── package.json
 ```
@@ -204,6 +223,42 @@ Headers: `x-device-id`
 ```json
 { "remaining": 2, "isPaid": false }
 ```
+
+### POST /api/report
+
+生成劳动维权方案报告。仅付费用户；服务端重算赔偿金额后注入 prompt。
+
+Headers: `x-device-id`、`X-User-Id`
+
+请求：
+```json
+{
+  "comp": {
+    "monthlyAvgWage": 20000,
+    "hiredAt": "2020-01-01",
+    "firedAt": "2023-01-01",
+    "city": "北京",
+    "dismissalType": "illegal",
+    "noAdvanceNotice": true,
+    "overtimeHours": { "weekday": 10, "weekend": 8, "holiday": 4 },
+    "unusedAnnualLeaveDays": 5
+  },
+  "intakeAnswers": { "目前的情况": "公司通知裁员" },
+  "narrative": "公司以架构调整为由口头通知离职…"
+}
+```
+
+`dismissalType` 枚举：`mutual | no-fault-40 | illegal | expired | forced-resign`。
+
+响应：
+```json
+{
+  "reply": "## 一、赔偿明细核对 …（五段式报告，页脚含免责声明）",
+  "computation": { "severanceN": 120000, "total": 128500, "lines": [], "warnings": [] }
+}
+```
+
+错误：403 `paid_only`（非付费用户）、403 `no_quota`（次数用完）、400 `invalid_input`、429 限流、500 AI 失败（不扣额度）。
 
 ### POST /api/subscription/query-codes
 

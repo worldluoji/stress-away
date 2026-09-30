@@ -26,6 +26,7 @@ export function generateMessageId(): string {
 }
 
 import { getScenarioById } from './scenarios';
+import type { CompBreakdown } from './compensation';
 
 const SYSTEM_PROMPT_BASE = `你是"职场反PUA顾问"，专为高压青年提供职场困境的应对建议。
 
@@ -91,9 +92,9 @@ function getModelConfig() {
   return config;
 }
 
-export async function chatWithAI(
-  messages: ChatMessage[],
-  scenarioId?: string | null
+async function callModel(
+  systemPrompt: string,
+  messages: ChatMessage[]
 ): Promise<string> {
   const config = getModelConfig();
   const apiKey = process.env[config.apiKeyEnv];
@@ -101,12 +102,6 @@ export async function chatWithAI(
   if (!apiKey) {
     throw new Error(`${config.apiKeyEnv} is not configured`);
   }
-
-  // 获取场景上下文
-  const scenarioContext = scenarioId ? getScenarioContext(scenarioId) : '';
-  const systemPrompt = scenarioContext
-    ? SYSTEM_PROMPT_BASE + scenarioContext
-    : SYSTEM_PROMPT_BASE;
 
   const response = await fetch(config.endpoint, {
     method: "POST",
@@ -130,6 +125,83 @@ export async function chatWithAI(
     throw new Error('Invalid API response: missing choices or content');
   }
   return data.choices[0].message.content;
+}
+
+export async function chatWithAI(
+  messages: ChatMessage[],
+  scenarioId?: string | null
+): Promise<string> {
+  const scenarioContext = scenarioId ? getScenarioContext(scenarioId) : '';
+  const systemPrompt = scenarioContext
+    ? SYSTEM_PROMPT_BASE + scenarioContext
+    : SYSTEM_PROMPT_BASE;
+  return callModel(systemPrompt, messages);
+}
+
+const REPORT_SYSTEM_PROMPT = `你是"劳动维权顾问"，为被裁员/欠薪/强制加班的劳动者生成一份完整的维权方案报告。
+
+请严格按照以下五个部分输出，**每个部分用标题分隔**：
+
+## 一、赔偿明细核对
+逐项核对【计算结果】中的金额，解释每一项的法律依据（精确到条款编号）。金额必须与【计算结果】完全一致，禁止自行重新计算或修改数字。
+
+## 二、证据清单
+结合用户描述的情况，列出仲裁需要提交的具体证据及收集方式（什么材料、去哪拿、注意什么）。
+
+## 三、仲裁流程与时间线
+给出从立案到裁决的完整流程，关键时限必须准确：仲裁时效1年、受理决定5日、审期45日（可延长15日）、管辖的劳动仲裁委员会。
+
+## 四、仲裁申请书草稿
+按规范格式生成：标题、申请人信息、被申请人信息、请求事项（金额与【计算结果】一致）、事实与理由、落款。用户未提供的个人信息用【】占位。
+
+## 五、风险与谈判策略
+指出主张中可能被驳回的弱项、公司常见抗辩及应对，给出谈判底线建议（何时值得调解、调解金额怎么谈）。
+
+**格式要求**：
+- 每个部分用 ## 标题分隔
+- 法律条文引用具体条款编号
+- 金额用阿拉伯数字并带"元"
+- 语气专业、克制，不夸大胜诉概率`;
+
+export function buildReportSystemPrompt(): string {
+  const scenario = getScenarioById('resignation-negotiation');
+  if (!scenario) return REPORT_SYSTEM_PROMPT;
+  return `${REPORT_SYSTEM_PROMPT}
+
+【参考素材】
+法律参考：${scenario.lawRef}
+证据收集要点：${scenario.evidence.join('；')}`;
+}
+
+export function buildReportUserPrompt(
+  breakdown: CompBreakdown,
+  intakeAnswers: Record<string, string>,
+  narrative: string
+): string {
+  const lines = [
+    '【计算结果】',
+    ...breakdown.lines.map((l) => `- ${l}`),
+    ...breakdown.warnings.map((w) => `- ⚠️ ${w}`),
+    `- 合计可主张：${breakdown.total} 元`,
+    '',
+    '【基本情况】',
+    ...Object.entries(intakeAnswers).map(([k, v]) => `- ${k}：${v}`),
+    '',
+    '【事件经过】',
+    narrative,
+    '',
+    '请据此生成完整维权方案报告。',
+  ];
+  return lines.join('\n');
+}
+
+export async function generateReport(
+  breakdown: CompBreakdown,
+  intakeAnswers: Record<string, string>,
+  narrative: string
+): Promise<string> {
+  const userPrompt = buildReportUserPrompt(breakdown, intakeAnswers, narrative);
+  return callModel(buildReportSystemPrompt(), [{ role: 'user', content: userPrompt }]);
 }
 
 // 导出基础 system prompt 供其他地方使用

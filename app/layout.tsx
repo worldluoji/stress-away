@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "反PUA手册 - 职场困境应对指南",
-  description: "AI智能体，根据你的职场困境，生成定制化的反PUA建议及减压行动指南",
+  title: "反PUA手册 - 裁员赔偿估算 · 职场维权助手",
+  description: "免费估算被裁/欠薪的法定赔偿（N+1、2N、加班费），一键生成维权方案报告与仲裁申请书草稿；附职场反PUA应对话术",
 };
 
 export default function RootLayout({

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, startTransition } from "react";
+import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import type { ChatMessage } from "@/lib/models";
 import { generateMessageId } from "@/lib/models";
@@ -480,7 +481,7 @@ export default function Home() {
                   反PUA手册
                 </h1>
                 <p className="text-xs text-[--foreground-tertiary]">
-                  职场困境应对指南
+                  裁员赔偿估算 · 职场维权助手
                 </p>
               </div>
             </div>
@@ -599,17 +600,26 @@ export default function Home() {
                   </svg>
                 </div>
                 <h2 className="text-lg font-semibold text-[--foreground] mb-2">
-                  有什么职场困扰吗？
+                  被裁员？先算算你该拿多少钱
                 </h2>
-                <p className="text-sm text-[--foreground-tertiary] max-w-xs mx-auto">
-                  选择常见场景获取话术模板，或输入具体情况定制生成
+                <p className="text-sm text-[--foreground-tertiary] max-w-xs mx-auto mb-4">
+                  免费估算 N+1 / 2N 法定赔偿，一键生成维权方案与仲裁申请书
                 </p>
+                <Link
+                  href="/labor"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-[#007AFF] to-[#5856D6] text-white font-medium text-sm shadow-md hover:shadow-lg transition-all active:scale-95"
+                >
+                  算我的赔偿
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
               </div>
 
               {/* Example prompts for new users */}
               <div className="mb-8">
                 <h3 className="text-sm font-medium text-[--foreground-secondary] mb-3">
-                  💬 试试这些
+                  💬 免费应对话术
                 </h3>
                 <div className="space-y-2">
                   {[
@@ -634,7 +644,7 @@ export default function Home() {
               {/* Scenarios Grid */}
               <div className="mb-6">
                 <h3 className="text-sm font-medium text-[--foreground-secondary] mb-3">
-                  📂 常见职场困境
+                  📂 进阶：常见职场困境应对话术
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {scenarios.map((scenario) => (
