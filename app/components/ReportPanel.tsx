@@ -164,7 +164,7 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin }: Pr
         disabled={loading}
         className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#007AFF] to-[#5856D6] text-white font-medium text-[15px] shadow-sm hover:shadow-md transition-all active:scale-[0.98] disabled:opacity-50"
       >
-        {loading ? "AI 正在生成维权方案，请稍候…" : "生成维权方案报告"}
+        {loading ? "AI 正在生成维权方案（约需 1~2 分钟），请稍候…" : "生成维权方案报告"}
       </button>
 
       {report && (

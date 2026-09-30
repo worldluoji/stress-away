@@ -92,9 +92,13 @@ function getModelConfig() {
   return config;
 }
 
+const CHAT_TIMEOUT_MS = 60_000;
+const REPORT_TIMEOUT_MS = 180_000; // 报告为长文档生成，非流式需要更宽裕的时限
+
 async function callModel(
   systemPrompt: string,
-  messages: ChatMessage[]
+  messages: ChatMessage[],
+  timeoutMs: number
 ): Promise<string> {
   const config = getModelConfig();
   const apiKey = process.env[config.apiKeyEnv];
@@ -103,21 +107,30 @@ async function callModel(
     throw new Error(`${config.apiKeyEnv} is not configured`);
   }
 
-  const response = await fetch(config.endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: config.model,
-      messages: [{ role: "system", content: systemPrompt }, ...messages],
-      stream: false,
-    }),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let response: Response;
+  try {
+    response = await fetch(config.endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: config.model,
+        messages: [{ role: "system", content: systemPrompt }, ...messages],
+        stream: false,
+      }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (!response.ok) {
-    throw new Error(`API request failed: ${response.status}`);
+    const body = await response.text().catch(() => "");
+    throw new Error(`API request failed: ${response.status} ${body.slice(0, 200)}`);
   }
 
   const data = await response.json();
@@ -135,7 +148,7 @@ export async function chatWithAI(
   const systemPrompt = scenarioContext
     ? SYSTEM_PROMPT_BASE + scenarioContext
     : SYSTEM_PROMPT_BASE;
-  return callModel(systemPrompt, messages);
+  return callModel(systemPrompt, messages, CHAT_TIMEOUT_MS);
 }
 
 const REPORT_SYSTEM_PROMPT = `你是"劳动维权顾问"，为被裁员/欠薪/强制加班的劳动者生成一份完整的维权方案报告。
@@ -201,7 +214,7 @@ export async function generateReport(
   narrative: string
 ): Promise<string> {
   const userPrompt = buildReportUserPrompt(breakdown, intakeAnswers, narrative);
-  return callModel(buildReportSystemPrompt(), [{ role: 'user', content: userPrompt }]);
+  return callModel(buildReportSystemPrompt(), [{ role: 'user', content: userPrompt }], REPORT_TIMEOUT_MS);
 }
 
 // 导出基础 system prompt 供其他地方使用

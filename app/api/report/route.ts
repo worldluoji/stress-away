@@ -186,8 +186,13 @@ export async function POST(request: NextRequest) {
     let rawReply: string;
     try {
       rawReply = await generateReport(breakdown, intakeAnswers, narrative);
-    } catch {
-      return NextResponse.json({ error: "AI error" }, { status: 500 });
+    } catch (error) {
+      console.error("[report] AI generation failed:", error);
+      const message =
+        error instanceof Error && error.name === "AbortError"
+          ? "AI 生成超时，请稍后再试"
+          : "AI 生成失败，请稍后再试";
+      return NextResponse.json({ error: "AI error", message }, { status: 500 });
     }
 
     try {
@@ -213,7 +218,8 @@ export async function POST(request: NextRequest) {
         },
       }
     );
-  } catch {
+  } catch (error) {
+    console.error("[report] Unexpected error:", error);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }

@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
       }
     );
   } catch (error) {
-
+    console.error("[chat] Unexpected error:", error);
     return NextResponse.json(
       { error: "Internal error" },
       { status: 500 }
