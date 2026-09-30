@@ -17,7 +17,7 @@ export function Section({ step, title, description, icon, action, children, clas
       <header className="mb-4 flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           {step !== undefined && (
-            <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[--color-brand]/10 text-[--color-brand] text-sm font-semibold shrink-0">
+            <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-[--color-brand] to-[--color-brand-alt] text-white text-sm font-semibold shrink-0 shadow-sm ring-1 ring-inset ring-white/20">
               {step}
             </span>
           )}

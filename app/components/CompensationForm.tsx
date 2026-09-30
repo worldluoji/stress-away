@@ -225,30 +225,36 @@ export function CompensationForm({
       </details>
 
       {breakdown ? (
-        <div className="relative rounded-2xl bg-gradient-to-br from-[--color-brand] to-[--color-brand-alt] text-white p-5 shadow-[var(--shadow-prominent)] animate-fade-in overflow-hidden">
+        <div className="relative rounded-2xl bg-gradient-to-br from-[--color-brand] to-[--color-brand-alt] text-white p-5 shadow-[var(--shadow-prominent)] animate-fade-in overflow-hidden ring-1 ring-inset ring-white/10">
           <span
             aria-hidden="true"
-            className="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-white/10 blur-2xl"
+            className="absolute -top-16 -right-16 w-56 h-56 rounded-full bg-white/[0.08] blur-3xl"
           />
-          <p className="text-xs opacity-80 mb-1">你大概率可以主张</p>
-          <p className="text-[--text-display] font-bold tracking-tight">
-            ¥ {breakdown.total.toLocaleString("zh-CN")}
-          </p>
-          <ul className="mt-3 space-y-1.5 text-sm opacity-95">
-            {breakdown.lines.map((l, i) => (
-              <li key={i}>· {l}</li>
-            ))}
-          </ul>
-          {breakdown.warnings.length > 0 && (
-            <ul className="mt-3 pt-3 border-t border-white/20 space-y-1 text-xs opacity-80">
-              {breakdown.warnings.map((w, i) => (
-                <li key={i}>⚠️ {w}</li>
+          <span
+            aria-hidden="true"
+            className="absolute -bottom-16 -left-16 w-40 h-40 rounded-full bg-black/10 blur-2xl"
+          />
+          <div className="relative">
+            <p className="text-xs opacity-80 mb-1">你大概率可以主张</p>
+            <p className="text-[--text-display] font-bold tracking-tight">
+              ¥ {breakdown.total.toLocaleString("zh-CN")}
+            </p>
+            <ul className="mt-3 space-y-1.5 text-sm opacity-95">
+              {breakdown.lines.map((l, i) => (
+                <li key={i}>· {l}</li>
               ))}
             </ul>
-          )}
-          <p className="mt-3 text-xs opacity-70">
-            估算依据 {SOCIAL_WAGE_DATA_AS_OF} 社平标准与《劳动合同法》第40/47/87条，最终以劳动仲裁认定为准。
-          </p>
+            {breakdown.warnings.length > 0 && (
+              <ul className="mt-3 pt-3 border-t border-white/20 space-y-1 text-xs opacity-80">
+                {breakdown.warnings.map((w, i) => (
+                  <li key={i}>⚠️ {w}</li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-3 text-xs opacity-70">
+              估算依据 {SOCIAL_WAGE_DATA_AS_OF} 社平标准与《劳动合同法》第40/47/87条，最终以劳动仲裁认定为准。
+            </p>
+          </div>
         </div>
       ) : (
         <p className="text-sm text-[--foreground-tertiary] text-center py-4">

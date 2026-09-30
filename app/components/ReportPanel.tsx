@@ -146,15 +146,15 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin }: Pr
       )}
 
       {loading ? (
-        <div className="relative w-full py-3.5 rounded-2xl bg-gradient-to-r from-[--color-brand] to-[--color-brand-alt] text-white text-center overflow-hidden opacity-90">
-          <div className="absolute inset-0 overflow-hidden">
-            <div className="absolute top-0 left-0 h-0.5 w-1/3 bg-white/40 animate-progress" />
+        <div className="relative w-full py-4 rounded-2xl bg-[--card-bg] border border-[--color-brand]/30 text-center overflow-hidden shadow-[var(--shadow-subtle)]">
+          <div className="absolute top-0 left-0 right-0 h-0.5 overflow-hidden">
+            <div className="absolute top-0 left-0 h-full w-1/3 bg-gradient-to-r from-transparent via-[--color-brand] to-[--color-brand-alt] animate-progress" />
           </div>
-          <span className="inline-flex items-center justify-center gap-2 text-[15px] font-medium">
+          <span className="inline-flex items-center justify-center gap-2 text-[15px] font-medium text-[--foreground]">
             <Spinner size={16} />
             AI 正在生成维权策略…
           </span>
-          <p className="text-xs opacity-80 mt-1">约需 1~2 分钟，请勿关闭页面</p>
+          <p className="text-xs text-[--foreground-tertiary] mt-1">约需 1~2 分钟，请勿关闭页面</p>
         </div>
       ) : (
         <Button
