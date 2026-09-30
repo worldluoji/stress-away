@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   computeCompensation,
+  localTodayISO,
   type CompInput,
   type DismissalType,
 } from "@/lib/compensation";
@@ -39,8 +40,8 @@ export function CompensationForm({
 
   const wageNum = parseFloat(wage);
   const valid =
-    Number.isFinite(wageNum) && wageNum > 0 && hiredAt !== "" && firedAt !== "" &&
-    new Date(firedAt) >= new Date(hiredAt);
+    Number.isFinite(wageNum) && wageNum > 0 && hiredAt !== "" &&
+    (firedAt === "" || new Date(firedAt) >= new Date(hiredAt));
 
   const comp: CompInput | null = useMemo(() => {
     if (!valid) return null;
@@ -48,7 +49,7 @@ export function CompensationForm({
       monthlyAvgWage: wageNum,
       lastMonthWage: lastMonthWage ? parseFloat(lastMonthWage) : undefined,
       hiredAt,
-      firedAt,
+      firedAt: firedAt || localTodayISO(),
       city: city.trim(),
       dismissalType,
       noAdvanceNotice: dismissalType === "no-fault-40" ? noAdvanceNotice : undefined,
@@ -89,11 +90,23 @@ export function CompensationForm({
         </div>
         <div>
           <label className={labelClass}>入职日期</label>
-          <input type="date" value={hiredAt} onChange={(e) => setHiredAt(e.target.value)} className={inputClass} />
+          <input
+            type="date"
+            value={hiredAt}
+            onChange={(e) => setHiredAt(e.target.value)}
+            onClick={(e) => { try { e.currentTarget.showPicker(); } catch { /* 浏览器不支持 */ } }}
+            className={`${inputClass} cursor-pointer`}
+          />
         </div>
         <div>
-          <label className={labelClass}>离职日期（或拟解除日）</label>
-          <input type="date" value={firedAt} onChange={(e) => setFiredAt(e.target.value)} className={inputClass} />
+          <label className={labelClass}>离职日期（尚未离职可留空，按今天估算）</label>
+          <input
+            type="date"
+            value={firedAt}
+            onChange={(e) => setFiredAt(e.target.value)}
+            onClick={(e) => { try { e.currentTarget.showPicker(); } catch { /* 浏览器不支持 */ } }}
+            className={`${inputClass} cursor-pointer`}
+          />
         </div>
       </div>
 
@@ -176,7 +189,7 @@ export function CompensationForm({
         </div>
       ) : (
         <p className="text-sm text-[--foreground-tertiary] text-center py-4">
-          填写工资与入离职日期，实时估算你可主张的法定赔偿
+          填写工资与入职日期，实时估算你可主张的法定赔偿
         </p>
       )}
     </div>

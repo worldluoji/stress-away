@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   computeSeveranceMonths,
   computeCompensation,
+  localTodayISO,
   type CompInput,
 } from "../lib/compensation";
 import { getSocialWageCap, SOCIAL_WAGE_MONTHLY_CAP } from "../lib/social-wage";
@@ -149,5 +150,18 @@ describe("computeCompensation — 警示与兜底", () => {
       baseInput({ dismissalType: "no-fault-40", noAdvanceNotice: true, unusedAnnualLeaveDays: 3 })
     );
     expect(r.lines.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("localTodayISO — 本地 yyyy-mm-dd", () => {
+  const cases: { date: Date; want: string; desc: string }[] = [
+    { date: new Date(2026, 0, 5), want: "2026-01-05", desc: "月/日补零" },
+    { date: new Date(2026, 8, 30), want: "2026-09-30", desc: "单位数月+双位日" },
+    { date: new Date(2025, 11, 31), want: "2025-12-31", desc: "年末" },
+  ];
+  cases.forEach((c) => {
+    it(c.desc, () => {
+      expect(localTodayISO(c.date)).toBe(c.want);
+    });
   });
 });

@@ -36,6 +36,12 @@ export interface CompBreakdown {
   warnings: string[];
 }
 
+// 本地时区的 yyyy-mm-dd（不能用 toISOString，UTC 会在东八区早8点前偏移一天）
+export function localTodayISO(now: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
 const MONTHLY_WORK_DAYS = 21.75;
 const HOURS_PER_WORKDAY = 8;
 const OVERTIME_RATE_WEEKDAY = 1.5;

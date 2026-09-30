@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
 :root {
+  color-scheme: light dark;
+
   /* iOS/macOS Color Palette */
   --apple-blue: #007AFF;
   --apple-blue-light: #5AC8FA;
