@@ -1,6 +1,8 @@
 'use client';
 
 import type { Conversation } from '@/lib/storage';
+import { Icon } from './ui/Icon';
+import { EmptyState } from './ui/EmptyState';
 
 interface Props {
   conversations: Conversation[];
@@ -26,37 +28,32 @@ export function HistoryPanel({ conversations, currentConversationId, onSelect, o
     <div className="fixed inset-0 z-50 flex">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/40"
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade-in"
         onClick={onClose}
       />
 
       {/* Panel */}
-      <div className="absolute inset-y-0 left-0 w-full max-w-xs bg-[--card-bg] shadow-2xl flex flex-col bg-white dark:bg-neutral-900">
+      <div className="absolute inset-y-0 left-0 w-full max-w-xs bg-[--card-bg] shadow-2xl flex flex-col animate-slide-up border-r border-[var(--card-border)]">
         {/* Header */}
         <div className="px-4 py-4 border-b border-[var(--card-border)] flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-[--foreground]">历史记录</h2>
+          <h2 className="text-[--text-h3] font-semibold text-[--foreground]">历史记录</h2>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] transition-colors"
+            aria-label="关闭"
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] hover:text-[--foreground] transition-all active:scale-95"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
+            <Icon name="x" size={16} />
           </button>
         </div>
 
         {/* List */}
         <div className="flex-1 overflow-y-auto">
           {conversations.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-[--foreground-tertiary]">
-              <svg className="w-12 h-12 mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="text-sm">暂无历史记录</p>
-              <p className="text-xs text-[--foreground-tertiary] mt-2 px-4 text-center">
-                最多保存50条。更换设备、更换浏览器或清理缓存将导致记录丢失。
-              </p>
-            </div>
+            <EmptyState
+              icon="clock"
+              title="暂无历史记录"
+              description="最多保存50条。更换设备、更换浏览器或清理缓存将导致记录丢失。"
+            />
           ) : (
             <div className="py-2">
               {conversations.map((conv) => (
@@ -76,11 +73,10 @@ export function HistoryPanel({ conversations, currentConversationId, onSelect, o
                       e.stopPropagation();
                       onDelete(conv.id);
                     }}
-                    className="opacity-0 group-hover:opacity-100 w-8 h-8 flex items-center justify-center rounded-full hover:bg-[--apple-gray-light] text-[--foreground-tertiary] transition-all"
+                    aria-label="删除对话"
+                    className="opacity-0 group-hover:opacity-100 w-8 h-8 flex items-center justify-center rounded-full hover:bg-[--apple-gray-light] text-[--foreground-tertiary] hover:text-[--color-danger] transition-all"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
+                    <Icon name="x" size={14} />
                   </button>
                 </div>
               ))}

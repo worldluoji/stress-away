@@ -1,8 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from './LoginModal';
 import { apiFetch } from '@/lib/request-api';
+import { Icon } from './ui/Icon';
+import { Spinner } from './ui/Spinner';
+import { EmptyState } from './ui/EmptyState';
 
 interface ScenarioStat {
   scenarioId: string;
@@ -32,7 +35,6 @@ interface MyStatsPanelProps {
   onClose: () => void;
 }
 
-// Map scenario IDs to friendly names
 const SCENARIO_NAMES: Record<string, string> = {
   'leader-dismiss': '领导打压/否定',
   'leader-assign': '领导派活太多',
@@ -71,12 +73,10 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
         setError('请先登录');
         return;
       }
-      // 即使返回非200也显示空状态，不显示报错
       const data = await res.json();
       setStats(data);
       setError(null);
     } catch {
-      // 网络错误也显示空状态
       setStats({ totalChats: 0, activeDays: 0, scenarios: [], keywords: [], weeklyActivity: [] });
       setError(null);
     } finally {
@@ -90,25 +90,25 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
     Math.max(...(items || []).map(i => i.count), 1);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-sm" onClick={onClose} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative w-full max-w-md mx-4 max-h-[85vh] bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-neutral-700">
-          <h2 className="text-lg font-semibold text-[--foreground]">我的数据</h2>
-          <button onClick={onClose} className="p-1 text-[--foreground-tertiary] hover:text-[--foreground]">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+      <div className="relative w-full max-w-md mx-4 max-h-[85vh] bg-[--card-bg] rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-scale-in border border-[var(--card-border)]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--card-border)]">
+          <h2 className="text-[--text-h3] font-semibold text-[--foreground]">我的数据</h2>
+          <button
+            onClick={onClose}
+            aria-label="关闭"
+            className="w-8 h-8 flex items-center justify-center rounded-full text-[--foreground-tertiary] hover:bg-[--background-secondary] hover:text-[--foreground] transition-all active:scale-95"
+          >
+            <Icon name="x" size={16} />
           </button>
         </div>
 
-        {/* Content */}
         <div className="flex-1 overflow-y-auto p-5">
           {loading && (
             <div className="flex items-center justify-center py-12">
-              <span className="text-[--foreground-tertiary]">加载中...</span>
+              <Spinner label="加载中…" />
             </div>
           )}
 
@@ -120,7 +120,6 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
 
           {!loading && !error && stats && (
             <div className="space-y-6">
-              {/* Summary stats */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-[--background-secondary] rounded-xl p-4 text-center">
                   <div className="text-2xl font-bold text-[--foreground]">{stats.totalChats}</div>
@@ -132,7 +131,6 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
                 </div>
               </div>
 
-              {/* Weekly activity */}
               {(stats.weeklyActivity || []).length > 0 && (
                 <div>
                   <h3 className="text-sm font-medium text-[--foreground-secondary] mb-3">本周活跃</h3>
@@ -140,7 +138,7 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
                     {(stats.weeklyActivity || []).map((day) => (
                       <div key={day.date} className="flex-1 flex flex-col items-center gap-1">
                         <div
-                          className="w-full rounded-sm bg-[#007AFF]/80 transition-all"
+                          className="w-full rounded-sm bg-gradient-to-t from-[--color-brand] to-[--color-brand-alt] transition-all"
                           style={{ height: `${Math.max((day.count / 5) * 48, day.count > 0 ? 8 : 4)}px` }}
                         />
                         <span className="text-[10px] text-[--foreground-tertiary]">{day.label}</span>
@@ -150,7 +148,6 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
                 </div>
               )}
 
-              {/* Scenario distribution */}
               {(stats.scenarios || []).length > 0 && (
                 <div>
                   <h3 className="text-sm font-medium text-[--foreground-secondary] mb-3">话题分布</h3>
@@ -164,7 +161,7 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
                           </span>
                           <div className="flex-1 h-2 bg-[--background-secondary] rounded-full overflow-hidden">
                             <div
-                              className="h-full bg-[#007AFF] rounded-full transition-all"
+                              className="h-full bg-gradient-to-r from-[--color-brand] to-[--color-brand-alt] rounded-full transition-all"
                               style={{ width: `${pct}%` }}
                             />
                           </div>
@@ -176,7 +173,6 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
                 </div>
               )}
 
-              {/* Keywords */}
               {(stats.keywords || []).length > 0 && (
                 <div>
                   <h3 className="text-sm font-medium text-[--foreground-secondary] mb-3">高频关键词</h3>
@@ -193,23 +189,19 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
                 </div>
               )}
 
-              {/* Empty state */}
               {stats.totalChats === 0 && (
-                <div className="text-center py-8">
-                  <svg className="w-12 h-12 mx-auto mb-3 text-[--foreground-tertiary]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                  <p className="text-[--foreground-tertiary]">开始对话后，这里会显示你的数据</p>
-                  <p className="text-xs text-[--foreground-tertiary] mt-1">记录越多，分析越准</p>
-                </div>
+                <EmptyState
+                  icon="trending-up"
+                  title="开始对话后，这里会显示你的数据"
+                  description="记录越多，分析越准"
+                />
               )}
             </div>
           )}
 
-          {/* Support contact */}
-          <div className="text-center pt-3 border-t border-[--card-border]">
+          <div className="text-center pt-4 mt-4 border-t border-[var(--card-border)]">
             <p className="text-xs text-[--foreground-tertiary]">
-              遇到问题？联系客服微信 <span className="text-[#007AFF]">jmst_cute</span>
+              遇到问题？联系客服微信 <span className="text-[--color-brand]">jmst_cute</span>
             </p>
           </div>
         </div>

@@ -20,6 +20,13 @@ import { ShareCard } from "./components/ShareCard";
 import { MyStatsPanel } from "./components/MyStatsPanel";
 import type { ScenarioTemplate } from "@/lib/scenarios";
 import { apiFetch } from '@/lib/request-api';
+import { Avatar } from "./components/ui/Avatar";
+import { Icon } from "./components/ui/Icon";
+import { Button } from "./components/ui/Button";
+import { Badge } from "./components/ui/Badge";
+import { Modal } from "./components/ui/Modal";
+import { Spinner } from "./components/ui/Spinner";
+import { ErrorBanner } from "./components/ui/ErrorBanner";
 
 interface UsageStatus {
   allowed: boolean;
@@ -30,35 +37,13 @@ interface UsageStatus {
   chatFreeTotal: number;
 }
 
-// AI Assistant Avatar
-function AssistantAvatar() {
-  return (
-    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#007AFF] to-[#5856D6] flex items-center justify-center shadow-sm shrink-0">
-      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-      </svg>
-    </div>
-  );
-}
-
-// User Avatar
-function UserAvatar() {
-  return (
-    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#34C759] to-[#30D158] flex items-center justify-center shadow-sm shrink-0">
-      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-      </svg>
-    </div>
-  );
-}
-
 // Typing Indicator
 function TypingIndicator() {
   return (
     <div className="flex items-center gap-1.5 px-3 py-2">
-      <span className="w-2 h-2 bg-[#8E8E93] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-      <span className="w-2 h-2 bg-[#8E8E93] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-      <span className="w-2 h-2 bg-[#8E8E93] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+      <span className="w-2 h-2 bg-[--foreground-tertiary] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+      <span className="w-2 h-2 bg-[--foreground-tertiary] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+      <span className="w-2 h-2 bg-[--foreground-tertiary] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
     </div>
   );
 }
@@ -439,33 +424,30 @@ export default function Home() {
       <header className="sticky top-0 z-20 bg-[--glass-bg] backdrop-blur-xl border-b border-[var(--card-border)]">
         <div className="mx-auto max-w-2xl px-4 py-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowHistory(true)}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] transition-colors"
+                aria-label="历史对话"
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] hover:text-[--foreground] transition-all active:scale-95"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+                <Icon name="clock" size={18} />
               </button>
               {user && (
                 <button
                   onClick={() => setShowStats(true)}
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] transition-colors"
+                  aria-label="我的统计"
+                  className="w-9 h-9 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] hover:text-[--foreground] transition-all active:scale-95"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
+                  <Icon name="trending-up" size={18} />
                 </button>
               )}
               {user && (
                 <button
                   onClick={() => setShowSaved(true)}
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] transition-colors"
+                  aria-label="收藏的话术"
+                  className="w-9 h-9 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] hover:text-[--foreground] transition-all active:scale-95"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-                  </svg>
+                  <Icon name="bookmark" size={18} />
                 </button>
               )}
               {messages.length > 0 && (
@@ -477,15 +459,14 @@ export default function Home() {
                     setScenarioPrefix("");
                     setSelectedScenario(null);
                   }}
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] transition-colors"
+                  aria-label="新建对话"
+                  className="w-9 h-9 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] hover:text-[--foreground] transition-all active:scale-95"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
+                  <Icon name="arrow-left" size={18} />
                 </button>
               )}
-              <div className="flex flex-col">
-                <h1 className="text-xl font-semibold text-[--foreground] tracking-tight">
+              <div className="flex flex-col ml-2">
+                <h1 className="text-[--text-h2] font-semibold text-[--foreground] tracking-tight leading-tight">
                   反PUA手册
                 </h1>
                 <p className="text-xs text-[--foreground-tertiary]">
@@ -500,25 +481,25 @@ export default function Home() {
                 onLoginClick={() => setShowLogin(true)}
               />
               {usage && !isInitializing && (
-                <span
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium ${
-                    usage.isPaid
-                      ? "bg-[#34C759]/10 text-[#34C759]"
-                      : "bg-[--background-secondary] text-[--foreground-tertiary]"
-                  }`}
-                >
-                  {usage.isPaid
-                    ? `${usage.remaining} 份报告额度 · 今日对话 ${usage.chatFreeRemaining}/${usage.chatFreeTotal}`
-                    : `今日对话 ${usage.chatFreeRemaining}/${usage.chatFreeTotal}`}
-                </span>
+                <Badge tone={usage.isPaid ? "success" : "neutral"}>
+                  {usage.isPaid ? (
+                    <>
+                      <Icon name="check" size={11} strokeWidth={2.4} />
+                      {usage.remaining} 份报告 · 今日对话 {usage.chatFreeRemaining}/{usage.chatFreeTotal}
+                    </>
+                  ) : (
+                    <>今日对话 {usage.chatFreeRemaining}/{usage.chatFreeTotal}</>
+                  )}
+                </Badge>
               )}
               {usage && !isInitializing && user && (
-                <button
+                <Button
+                  size="sm"
+                  variant="primary"
                   onClick={() => { setActivateKey((k) => k + 1); setShowActivate(true); }}
-                  className="px-4 py-1.5 rounded-full text-xs font-medium bg-[#007AFF] text-white hover:bg-[#007AFF]/90 transition-all active:scale-95"
                 >
                   {usage.isPaid ? '叠加' : '升级'}
-                </button>
+                </Button>
               )}
             </div>
           </div>
@@ -570,29 +551,17 @@ export default function Home() {
       )}
 
       {/* Activation Modal */}
-      {showActivate && (
-        <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"
-          onClick={(e) => e.target === e.currentTarget && setShowActivate(false)}
-        >
-          <div className="w-full sm:max-w-md bg-[--card-bg] rounded-t-2xl sm:rounded-2xl shadow-2xl animate-slide-up sm:animate-scale-in overflow-hidden border border-[var(--card-border)] bg-white dark:bg-neutral-900">
-            <div className="hidden sm:block relative">
-              <div className="absolute top-3 left-1/2 -translate-x-1/2 w-10 h-1 bg-[--apple-gray-light] rounded-full" />
-            </div>
-            <div className="pt-4 sm:pt-5">
-              <button
-                onClick={() => setShowActivate(false)}
-                className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-              <SubscriptionActivate key={activateKey} onActivated={handleActivated} />
-            </div>
-          </div>
+      <Modal
+        open={showActivate}
+        onClose={() => setShowActivate(false)}
+        title="激活订阅"
+        size="md"
+        hideCloseButton
+      >
+        <div className="relative">
+          <SubscriptionActivate key={activateKey} onActivated={handleActivated} />
         </div>
-      )}
+      </Modal>
 
       {/* Chat Area */}
       <main className="flex-1 overflow-y-auto">
@@ -601,33 +570,30 @@ export default function Home() {
           {showEmptyState && !isInitializing && (
             <div className="animate-fade-in">
               {/* Hero */}
-              <div className="text-center py-8 mb-6">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#007AFF] to-[#5856D6] flex items-center justify-center shadow-lg">
-                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                  </svg>
+              <div className="hero-glow text-center py-10 mb-8">
+                <div className="relative w-20 h-20 mx-auto mb-5 rounded-3xl bg-gradient-to-br from-[--color-brand] to-[--color-brand-alt] flex items-center justify-center shadow-[var(--shadow-prominent)] ring-1 ring-white/20">
+                  <Icon name="lightbulb" size={36} strokeWidth={1.5} className="text-white" />
                 </div>
-                <h2 className="text-lg font-semibold text-[--foreground] mb-2">
+                <h2 className="text-[--text-h1] font-bold text-[--foreground] mb-2 tracking-tight">
                   被裁员？先算算你该拿多少钱
                 </h2>
-                <p className="text-sm text-[--foreground-tertiary] max-w-xs mx-auto mb-4">
+                <p className="text-sm text-[--foreground-tertiary] max-w-xs mx-auto mb-6 leading-relaxed">
                   免费估算 N+1 / 2N 法定赔偿，一键生成维权方案与仲裁申请书
                 </p>
                 <Link
                   href="/labor"
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-[#007AFF] to-[#5856D6] text-white font-medium text-sm shadow-md hover:shadow-lg transition-all active:scale-95"
+                  className="inline-flex items-center justify-center gap-2 h-12 px-6 rounded-2xl text-[15px] font-medium text-white bg-gradient-to-r from-[--color-brand] to-[--color-brand-alt] shadow-sm hover:shadow-[var(--shadow-moderate)] hover:-translate-y-px transition-all duration-[--dur-base] ease-[--ease-out] active:scale-[0.97]"
                 >
                   算我的赔偿
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
+                  <Icon name="arrow-right" size={16} strokeWidth={2.2} />
                 </Link>
               </div>
 
               {/* Example prompts for new users */}
               <div className="mb-8">
-                <h3 className="text-sm font-medium text-[--foreground-secondary] mb-3">
-                  💬 免费应对话术
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-[--foreground-secondary] mb-3">
+                  <Icon name="message-circle" size={16} className="text-[--color-brand]" />
+                  免费应对话术
                 </h3>
                 <div className="space-y-2">
                   {[
@@ -641,9 +607,16 @@ export default function Home() {
                         setInput(example);
                         inputRef.current?.focus();
                       }}
-                      className="w-full text-left px-4 py-3 bg-[--background-secondary] hover:bg-[--background-tertiary] rounded-xl text-sm text-[--foreground-secondary] transition-colors border border-[var(--card-border)] hover:border-[#007AFF]/30"
+                      className="group/example w-full text-left px-4 py-3.5 bg-[--background-secondary] hover:bg-[--background-secondary]/70 rounded-xl text-sm text-[--foreground-secondary] transition-all border border-[var(--card-border)] hover:border-[--color-brand]/30 hover:shadow-[var(--shadow-subtle)]"
                     >
-                      {example}
+                      <span className="inline-flex items-center gap-2">
+                        <Icon
+                          name="chevron-right"
+                          size={14}
+                          className="text-[--foreground-tertiary] group-hover/example:text-[--color-brand] transition-colors"
+                        />
+                        {example}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -651,8 +624,9 @@ export default function Home() {
 
               {/* Scenarios Grid */}
               <div className="mb-6">
-                <h3 className="text-sm font-medium text-[--foreground-secondary] mb-3">
-                  📂 进阶：常见职场困境应对话术
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-[--foreground-secondary] mb-3">
+                  <Icon name="folder-open" size={16} className="text-[--color-brand]" />
+                  进阶：常见职场困境应对话术
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {scenarios.map((scenario) => (
@@ -675,8 +649,9 @@ export default function Home() {
           )}
 
           {isInitializing && (
-            <div className="flex flex-col items-center justify-center py-16">
-              <div className="w-10 h-10 rounded-full border-2 border-[--apple-blue] border-t-transparent animate-spin" />
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <Spinner size={28} />
+              <span className="text-xs text-[--foreground-tertiary]">加载历史与额度…</span>
             </div>
           )}
 
@@ -688,16 +663,16 @@ export default function Home() {
                   msg.role === "user" ? "flex-row-reverse" : "flex-row"
                 }`}
               >
-                {msg.role === "assistant" ? <AssistantAvatar /> : <UserAvatar />}
+                <Avatar role={msg.role} size="md" />
                 <div
                   className={`flex-1 max-w-[80%] sm:max-w-[75%] ${
                     msg.role === "user" ? "items-end" : "items-start"
                   }`}
                 >
                   <div
-                    className={`rounded-2xl px-4 py-3 text-[15px] leading-relaxed ${
+                    className={`rounded-2xl px-4 py-3 text-[15px] leading-relaxed shadow-[var(--shadow-subtle)] ${
                       msg.role === "user"
-                        ? "bg-gradient-to-r from-[#007AFF] to-[#5856D6] text-white rounded-br-md"
+                        ? "bg-gradient-to-r from-[--color-brand] to-[--color-brand-alt] text-white rounded-br-md"
                         : "bg-[--background-secondary] text-[--foreground] rounded-bl-md border border-[var(--card-border)]"
                     }`}
                   >
@@ -713,7 +688,7 @@ export default function Home() {
                                 <p className="mb-2 last:mb-0">{children}</p>
                               ),
                               strong: ({ children }) => (
-                                <strong className="font-semibold text-[#007AFF]">{children}</strong>
+                                <strong className="font-semibold text-[--color-brand]">{children}</strong>
                               ),
                               ul: ({ children }) => (
                                 <ul className="mb-2 list-disc pl-4 space-y-1">{children}</ul>
@@ -728,11 +703,10 @@ export default function Home() {
                                 <h3 className="font-semibold text-[--foreground] mt-3 mb-1">{children}</h3>
                               ),
                               blockquote: ({ children }) => (
-                                <blockquote className="border-l-3 border-[#007AFF] pl-3 my-2 text-[--foreground-secondary]">
+                                <blockquote className="border-l-[3px] border-[--color-brand] pl-3 my-2 text-[--foreground-secondary]">
                                   {children}
                                 </blockquote>
                               ),
-                              // Render any unknown HTML-like tags as plain text (not executed)
                               pre: ({ children }) => (
                                 <pre className="whitespace-pre-wrap break-words">{children}</pre>
                               ),
@@ -746,52 +720,52 @@ export default function Home() {
                   </div>
                   {msg.role === "assistant" && (
                     <div className="flex items-center gap-1 mt-1.5 ml-1">
-<button
-                            onClick={() => handleCopy(msg.content, i)}
-                            className="p-1.5 rounded-lg hover:bg-[--background-secondary] text-[--foreground-tertiary] transition-colors"
-                          >
-                            {copiedIndex === i ? (
-                              <svg className="w-3.5 h-3.5 text-[#34C759]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                            ) : (
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                              </svg>
-                            )}
-                          </button>
-                          <button
-                            onClick={() => { setShareContent(msg.content); setShowShare(true); }}
-                            className="p-1.5 rounded-lg hover:bg-[--background-secondary] text-[--foreground-tertiary] transition-colors"
-                            title="分享卡片"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                            </svg>
-                          </button>
+                      <button
+                        onClick={() => handleCopy(msg.content, i)}
+                        aria-label="复制"
+                        className="p-1.5 rounded-lg hover:bg-[--background-secondary] text-[--foreground-tertiary] hover:text-[--color-success] transition-colors"
+                      >
+                        {copiedIndex === i ? (
+                          <Icon name="check" size={14} strokeWidth={2.4} className="text-[--color-success]" />
+                        ) : (
+                          <Icon name="copy" size={14} />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => { setShareContent(msg.content); setShowShare(true); }}
+                        aria-label="分享"
+                        title="分享卡片"
+                        className="p-1.5 rounded-lg hover:bg-[--background-secondary] text-[--foreground-tertiary] hover:text-[--color-brand] transition-colors"
+                      >
+                        <Icon name="share" size={14} />
+                      </button>
                       {msg.id && (
                         <>
                           <button
                             onClick={() => handleToggleLike(msg.id!)}
-                            className={`p-1.5 rounded-lg hover:bg-[--background-secondary] transition-colors ${likedIds.has(msg.id!) || likedAnimating === msg.id ? 'text-[#FF9500]' : 'text-[--foreground-tertiary]'}`}
-                            title={likedIds.has(msg.id!) ? '取消点赞' : '点赞'}
+                            aria-label={likedIds.has(msg.id!) ? '取消点赞' : '点赞'}
+                            className={`p-1.5 rounded-lg hover:bg-[--background-secondary] transition-colors ${likedIds.has(msg.id!) || likedAnimating === msg.id ? 'text-[--color-warning]' : 'text-[--foreground-tertiary]'}`}
                           >
-                            <svg
-                              className={`w-3.5 h-3.5 transition-all ${likedAnimating === msg.id ? 'scale-150' : 'scale-100'}`}
-                              fill={likedIds.has(msg.id!) ? 'currentColor' : 'none'}
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
+                            <span
+                              className={`inline-block transition-transform duration-[--dur-base] ${likedAnimating === msg.id ? 'animate-spring' : ''}`}
                             >
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                            </svg>
+                              <Icon
+                                name="heart"
+                                size={14}
+                                filled={likedIds.has(msg.id!)}
+                              />
+                            </span>
                           </button>
                           <button
                             onClick={() => handleToggleSave(msg.id!)}
-                            className={`p-1.5 rounded-lg hover:bg-[--background-secondary] transition-colors ${savedIds.has(msg.id!) ? 'text-[#007AFF]' : 'text-[--foreground-tertiary]'}`}
+                            aria-label={savedIds.has(msg.id!) ? '取消收藏' : '收藏'}
+                            className={`p-1.5 rounded-lg hover:bg-[--background-secondary] transition-colors ${savedIds.has(msg.id!) ? 'text-[--color-brand]' : 'text-[--foreground-tertiary]'}`}
                           >
-                            <svg className="w-3.5 h-3.5" fill={savedIds.has(msg.id!) ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-                            </svg>
+                            <Icon
+                              name={savedIds.has(msg.id!) ? "bookmark-check" : "bookmark"}
+                              size={14}
+                              filled={savedIds.has(msg.id!)}
+                            />
                           </button>
                         </>
                       )}
@@ -803,8 +777,8 @@ export default function Home() {
 
             {loading && (
               <div className="flex gap-3 animate-fade-in">
-                <AssistantAvatar />
-                <div className="bg-[--background-secondary] border border-[var(--card-border)] rounded-2xl rounded-bl-md">
+                <Avatar role="assistant" size="md" />
+                <div className="bg-[--background-secondary] border border-[var(--card-border)] rounded-2xl rounded-bl-md shadow-[var(--shadow-subtle)]">
                   <TypingIndicator />
                 </div>
               </div>
@@ -812,9 +786,13 @@ export default function Home() {
 
             {error && (
               <div className="flex justify-center animate-fade-in">
-                <div className="bg-[#FF3B30]/10 text-[#FF3B30] px-4 py-2 rounded-full text-sm">
-                  {error}
-                </div>
+                <ErrorBanner
+                  message={error}
+                  onRetry={() => {
+                    setError("");
+                    if (input.trim()) handleSubmit({ preventDefault: () => {} } as React.FormEvent);
+                  }}
+                />
               </div>
             )}
           </div>
@@ -853,7 +831,7 @@ export default function Home() {
                 autoCapitalize="off"
                 spellCheck="false"
                 rows={1}
-                className="w-full rounded-2xl bg-[--background-secondary] px-5 py-4 text-[--foreground] placeholder:text-[--foreground-tertiary] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 disabled:opacity-50 transition-all resize-none"
+                className="w-full rounded-2xl bg-[--background-secondary] px-5 py-4 text-[--foreground] placeholder:text-[--foreground-tertiary] text-[15px] focus:outline-none focus:ring-2 focus:ring-[--color-brand]/30 border border-transparent focus:border-[--color-brand]/20 disabled:opacity-50 transition-all duration-[--dur-base] ease-[--ease-out] resize-none"
                 style={{ minHeight: '80px', maxHeight: '200px' }}
               />
               <span className="absolute bottom-2 right-3 text-xs text-[--foreground-tertiary]">
@@ -863,11 +841,10 @@ export default function Home() {
             <button
               type="submit"
               disabled={loading || !input.trim() || (!usage?.allowed && !isInitializing)}
-              className="shrink-0 h-12 px-5 rounded-2xl bg-[#007AFF] text-white flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 disabled:active:scale-100 shadow-sm hover:shadow-md"
+              aria-label="发送"
+              className="shrink-0 h-12 w-12 rounded-2xl bg-gradient-to-br from-[--color-brand] to-[--color-brand-alt] text-white flex items-center justify-center transition-all duration-[--dur-base] ease-[--ease-out] active:scale-95 disabled:opacity-40 disabled:active:scale-100 shadow-sm hover:shadow-[var(--shadow-moderate)] hover:-translate-y-px"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-              </svg>
+              {loading ? <Spinner size={18} /> : <Icon name="send" size={18} strokeWidth={2.2} />}
             </button>
           </form>
           <style jsx global>{`

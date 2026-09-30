@@ -10,6 +10,9 @@ import { SubscriptionActivate } from "@/app/components/SubscriptionActivate";
 import dynamic from "next/dynamic";
 const LoginModal = dynamic(() => import("@/app/components/LoginModal").then(m => ({ default: m.LoginModal })), { ssr: false });
 import { useAuth } from "@/app/components/LoginModal";
+import { Icon } from "@/app/components/ui/Icon";
+import { Modal } from "@/app/components/ui/Modal";
+import { Section } from "@/app/components/ui/Section";
 
 export default function LaborPage() {
   const [comp, setComp] = useState<CompInput | null>(null);
@@ -24,14 +27,15 @@ export default function LaborPage() {
     <div className="flex flex-col min-h-screen bg-[--background]">
       <header className="sticky top-0 z-20 bg-[--glass-bg] backdrop-blur-xl border-b border-[var(--card-border)]">
         <div className="mx-auto max-w-2xl px-4 py-3 flex items-center gap-3">
-          <Link href="/"
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
+          <Link
+            href="/"
+            aria-label="返回"
+            className="w-9 h-9 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] hover:text-[--foreground] transition-all active:scale-95"
+          >
+            <Icon name="arrow-left" size={18} />
           </Link>
           <div className="flex flex-col">
-            <h1 className="text-lg font-semibold text-[--foreground] tracking-tight">劳动维权助手</h1>
+            <h1 className="text-[--text-h2] font-semibold text-[--foreground] tracking-tight leading-tight">劳动维权助手</h1>
             <p className="text-xs text-[--foreground-tertiary]">裁员赔偿 · 欠薪仲裁 · 免费估算</p>
           </div>
         </div>
@@ -39,8 +43,8 @@ export default function LaborPage() {
 
       <main className="flex-1">
         <div className="mx-auto max-w-2xl px-4 py-6 space-y-8">
-          <div className="text-center">
-            <h2 className="text-xl font-bold text-[--foreground] mb-2">
+          <div className="hero-glow text-center pt-2 pb-4">
+            <h2 className="text-[--text-h1] font-bold text-[--foreground] mb-2 tracking-tight">
               被裁员？先算算你该拿多少钱
             </h2>
             <p className="text-sm text-[--foreground-tertiary]">
@@ -48,24 +52,33 @@ export default function LaborPage() {
             </p>
           </div>
 
-          <section>
+          <Section
+            step={1}
+            title="估算你的法定赔偿"
+            description="填写工资与日期，实时看到可主张金额"
+          >
             <CompensationForm onChangeComp={handleCompChange} />
-          </section>
+          </Section>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 py-2">
             <div className="flex-1 h-px bg-[var(--card-border)]" />
             <span className="text-xs text-[--foreground-tertiary]">下一步</span>
             <div className="flex-1 h-px bg-[var(--card-border)]" />
           </div>
 
-          <section className="rounded-2xl border border-[var(--card-border)] p-5">
+          <Section
+            step={2}
+            title="生成维权方案报告"
+            description="赔偿核对 + 证据清单 + 仲裁申请书草稿（消耗 1 次报告额度）"
+            icon="file-text"
+          >
             <ReportPanel
               comp={comp}
               uid={uid}
               onRequireActivate={() => { setActivateKey(k => k + 1); setShowActivate(true); }}
               onRequireLogin={() => setShowLogin(true)}
             />
-          </section>
+          </Section>
 
           <footer className="text-center text-xs text-[--foreground-tertiary] pb-4">
             赔偿封顶参照 {SOCIAL_WAGE_DATA_AS_OF} 前后公布的各地社平工资，金额与实际权益以劳动仲裁委员会/法院认定为准。
@@ -74,26 +87,15 @@ export default function LaborPage() {
         </div>
       </main>
 
-      {showActivate && (
-        <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"
-          onClick={(e) => e.target === e.currentTarget && setShowActivate(false)}
-        >
-          <div className="w-full sm:max-w-md bg-[--card-bg] rounded-t-2xl sm:rounded-2xl shadow-2xl animate-slide-up sm:animate-scale-in overflow-hidden border border-[var(--card-border)] bg-white dark:bg-neutral-900">
-            <div className="pt-4 sm:pt-5 relative">
-              <button
-                onClick={() => setShowActivate(false)}
-                className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-              <SubscriptionActivate key={activateKey} onActivated={() => setShowActivate(false)} />
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal
+        open={showActivate}
+        onClose={() => setShowActivate(false)}
+        title="激活订阅"
+        size="md"
+        hideCloseButton
+      >
+        <SubscriptionActivate key={activateKey} onActivated={() => setShowActivate(false)} />
+      </Modal>
 
       <LoginModal isOpen={showLogin} onClose={() => setShowLogin(false)} onSuccess={() => setShowLogin(false)} />
     </div>

@@ -5,6 +5,13 @@ import ReactMarkdown from "react-markdown";
 import type { CompInput } from "@/lib/compensation";
 import { getDeviceId } from "@/lib/utils";
 import { apiFetch } from "@/lib/request-api";
+import { Select } from "./ui/Select";
+import { Textarea } from "./ui/Textarea";
+import { Button } from "./ui/Button";
+import { Spinner } from "./ui/Spinner";
+import { ErrorBanner } from "./ui/ErrorBanner";
+import { EmptyState } from "./ui/EmptyState";
+import { Card } from "./ui/Card";
 
 const MAX_NARRATIVE_LENGTH = 600;
 
@@ -36,7 +43,7 @@ const markdownComponents = {
     <ol className="mb-2 list-decimal pl-4 space-y-1">{children}</ol>
   ),
   strong: ({ children }: { children?: React.ReactNode }) => (
-    <strong className="font-semibold text-[#007AFF]">{children}</strong>
+    <strong className="font-semibold text-[--color-brand]">{children}</strong>
   ),
 };
 
@@ -109,72 +116,74 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin }: Pr
 
       <div className="space-y-3">
         {INTAKE_QUESTIONS.map((q) => (
-          <div key={q.id}>
-            <label className="block text-xs font-medium text-[--foreground-secondary] mb-1.5">
-              {q.question}
-            </label>
-            <select
-              value={answers[q.id] || ""}
-              onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
-              className="w-full rounded-xl bg-[--background-secondary] border border-[var(--card-border)] px-4 py-3 text-[15px] text-[--foreground] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
-            >
-              <option value="" disabled>请选择</option>
-              {q.options.map((o) => (
-                <option key={o} value={o}>{o}</option>
-              ))}
-            </select>
-          </div>
-        ))}
-        <div>
-          <label className="block text-xs font-medium text-[--foreground-secondary] mb-1.5">
-            事件经过
-          </label>
-          <textarea
-            value={narrative}
-            onChange={(e) => setNarrative(e.target.value.slice(0, MAX_NARRATIVE_LENGTH))}
-            rows={4}
-            placeholder="例如：公司以架构调整为由口头通知我月底走人，只给N不给+1，没给书面文件，周末还让我无偿oncall…"
-            className="w-full rounded-xl bg-[--background-secondary] border border-[var(--card-border)] px-4 py-3 text-[15px] text-[--foreground] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 resize-none"
+          <Select
+            key={q.id}
+            name={q.id}
+            label={q.question}
+            value={answers[q.id] || ""}
+            onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
+            options={q.options.map((o) => ({ value: o, label: o }))}
+            placeholder="请选择"
           />
-          <span className="text-xs text-[--foreground-tertiary] float-right">
-            {narrative.length}/{MAX_NARRATIVE_LENGTH}
-          </span>
-        </div>
+        ))}
+        <Textarea
+          name="narrative"
+          label="事件经过"
+          value={narrative}
+          onChange={(e) => setNarrative(e.target.value.slice(0, MAX_NARRATIVE_LENGTH))}
+          rows={4}
+          maxLengthIndicator={MAX_NARRATIVE_LENGTH}
+          placeholder="例如：公司以架构调整为由口头通知我月底走人，只给N不给+1，没给书面文件，周末还让我无偿oncall…"
+        />
       </div>
 
       {error && (
-        <div className="bg-[#FF3B30]/10 text-[#FF3B30] px-4 py-2.5 rounded-xl text-sm flex items-center justify-between gap-2">
-          <span>{error}</span>
-          {gate === "activate" && (
-            <button onClick={onRequireActivate}
-              className="shrink-0 px-3 py-1 rounded-full bg-[#007AFF] text-white text-xs">
-              去激活
-            </button>
-          )}
-          {gate === "login" && (
-            <button onClick={onRequireLogin}
-              className="shrink-0 px-3 py-1 rounded-full bg-[#007AFF] text-white text-xs">
-              去登录
-            </button>
-          )}
-        </div>
+        <ErrorBanner
+          message={error}
+          onAction={gate === "activate" ? onRequireActivate : gate === "login" ? onRequireLogin : undefined}
+          actionLabel={gate === "login" ? "去登录" : "去激活"}
+        />
       )}
 
-      <button
-        onClick={handleSubmit}
-        disabled={loading}
-        className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#007AFF] to-[#5856D6] text-white font-medium text-[15px] shadow-sm hover:shadow-md transition-all active:scale-[0.98] disabled:opacity-50"
-      >
-        {loading ? "AI 正在生成维权方案（约需 1~2 分钟），请稍候…" : "生成维权方案报告"}
-      </button>
+      {loading ? (
+        <div className="relative w-full py-3.5 rounded-2xl bg-gradient-to-r from-[--color-brand] to-[--color-brand-alt] text-white text-center overflow-hidden opacity-90">
+          <div className="absolute inset-0 overflow-hidden">
+            <div className="absolute top-0 left-0 h-0.5 w-1/3 bg-white/40 animate-progress" />
+          </div>
+          <span className="inline-flex items-center justify-center gap-2 text-[15px] font-medium">
+            <Spinner size={16} />
+            AI 正在生成维权策略…
+          </span>
+          <p className="text-xs opacity-80 mt-1">约需 1~2 分钟，请勿关闭页面</p>
+        </div>
+      ) : (
+        <Button
+          onClick={handleSubmit}
+          variant="primary"
+          size="lg"
+          fullWidth
+        >
+          生成维权方案报告
+        </Button>
+      )}
 
       {report && (
-        <div className="rounded-2xl bg-[--background-secondary] border border-[var(--card-border)] p-5 text-[15px] leading-relaxed text-[--foreground] animate-fade-in">
-          <ReactMarkdown disallowedElements={["script", "style", "iframe", "object", "embed", "form"]}
-            components={markdownComponents}>
+        <Card padding="md" className="text-[15px] leading-relaxed text-[--foreground] animate-fade-in">
+          <ReactMarkdown
+            disallowedElements={["script", "style", "iframe", "object", "embed", "form"]}
+            components={markdownComponents}
+          >
             {report}
           </ReactMarkdown>
-        </div>
+        </Card>
+      )}
+
+      {!report && !loading && !comp && (
+        <EmptyState
+          icon="file-text"
+          title="先完成上方估算"
+          description="填写工资、入职日期和离职情形后，可生成完整的维权方案与仲裁申请书草稿"
+        />
       )}
     </div>
   );
