@@ -8,7 +8,6 @@
 import { query, execute, withTransaction, txQuery, txExecute, isMySQLAvailable, queryWithLimit } from './db';
 import { TtlMap } from './ttl-map';
 
-const FREE_LIMIT_PER_DAY = parseInt(process.env.FREE_LIMIT_PER_DAY || '1', 10);
 const TOTAL_USAGE = 100;
 
 // ==================== Types ====================
@@ -398,7 +397,7 @@ export async function listAdminActivationCodes(
 
 // ==================== Exports ====================
 
-export { FREE_LIMIT_PER_DAY, TOTAL_USAGE };
+export { TOTAL_USAGE };
 
 export interface AdminActivationCode {
   code: string;

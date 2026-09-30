@@ -65,7 +65,7 @@ export function SubscriptionActivate({ onActivated }: Props) {
         </div>
         <h2 className="text-xl font-semibold text-[--foreground] mb-2">激活成功</h2>
         <p className="text-[--foreground-tertiary] mb-4">
-          剩余 <span className="text-[#007AFF] font-medium">{success.remaining}</span> 次对话额度
+          剩余 <span className="text-[#007AFF] font-medium">{success.remaining}</span> 次报告额度
         </p>
         {success.expiresAt && (
           <p className="text-sm text-[--foreground-tertiary]">

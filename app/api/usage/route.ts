@@ -40,8 +40,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // uid first, then deviceId fallback (anonymous free count)
-    const usage = await checkUsage(uid, deviceId);
+    const usage = await checkUsage(uid);
 
     return NextResponse.json(usage, {
       headers: {

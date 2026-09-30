@@ -84,7 +84,8 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin }: Pr
       });
       const data = await res.json();
       if (!res.ok) {
-        if (res.status === 403 && data.error === "paid_only") setGate("activate");
+        if (res.status === 403 && data.error === "login_required") setGate("login");
+        else if (res.status === 403 && data.error === "paid_only") setGate("activate");
         else if (res.status === 403 && data.error === "no_quota") setGate("activate");
         setError(data.message || "生成失败，请稍后再试");
         return;
@@ -102,7 +103,7 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin }: Pr
       <div>
         <h3 className="text-base font-semibold text-[--foreground] mb-1">生成完整维权方案报告</h3>
         <p className="text-xs text-[--foreground-tertiary]">
-          赔偿明细核对 + 证据清单 + 仲裁流程时间线 + 仲裁申请书草稿 + 谈判策略（消耗 1 次额度）
+          赔偿明细核对 + 证据清单 + 仲裁流程时间线 + 仲裁申请书草稿 + 谈判策略（消耗 1 次报告额度，每日 10 次免费对话不受影响）
         </p>
       </div>
 

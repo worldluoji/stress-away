@@ -26,6 +26,8 @@ interface UsageStatus {
   remaining: number;
   isPaid: boolean;
   total: number;
+  chatFreeRemaining: number;
+  chatFreeTotal: number;
 }
 
 // AI Assistant Avatar
@@ -359,7 +361,11 @@ export default function Home() {
     if (!input.trim() || loading) return;
 
     if (!usage?.allowed) {
-      setShowActivate(true);
+      if (!uid) {
+        setShowLogin(true);
+      } else {
+        setShowActivate(true);
+      }
       return;
     }
 
@@ -371,20 +377,39 @@ export default function Home() {
     setError("");
 
     try {
-      const res = await apiFetch("/api/chat", {
+      const payload: Record<string, unknown> = {
+        messages: newMessages,
+        scenarioId: selectedScenario?.id,
+      };
+      const chatHeaders = {
+        "Content-Type": "application/json",
+        "X-User-Id": uid || "",
+        "x-device-id": deviceId,
+      };
+      let res = await apiFetch("/api/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": uid || "",
-          "x-device-id": deviceId,
-        },
-        body: JSON.stringify({
-          messages: newMessages,
-          scenarioId: selectedScenario?.id,
-        }),
+        headers: chatHeaders,
+        body: JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      let data = await res.json();
+
+      // 402：今日免费对话已用完，需用户确认消耗购买额度后重发
+      if (res.status === 402 && data.error === "chat_quota_confirm") {
+        const confirmed = window.confirm(data.message);
+        if (!confirmed) {
+          setInput(userMessage.content);
+          setMessages(messages);
+          return;
+        }
+        res = await apiFetch("/api/chat", {
+          method: "POST",
+          headers: chatHeaders,
+          body: JSON.stringify({ ...payload, confirmPaid: true }),
+        });
+        data = await res.json();
+      }
+
+      if (!res.ok) throw new Error(data.message || data.error || "请求失败");
       const reply = data.reply
         .replace(/<think>[\s\S]*?<\/think>/gi, "")
         .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
@@ -398,25 +423,8 @@ export default function Home() {
         // Keep scenario selected
       }
 
-      if (deviceId) {
-        const usageHeaders: Record<string, string> = { "x-device-id": deviceId };
-        if (uid) usageHeaders["x-user-id"] = uid;
-        const usageRes = await apiFetch("/api/usage/consume", {
-          method: "POST",
-          headers: usageHeaders,
-        });
-        if (usageRes.ok) {
-          const usageData = await usageRes.json();
-          setUsage((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  remaining: usageData.remaining,
-                  isPaid: usageData.isPaid,
-                }
-              : null
-          );
-        }
+      if (data.quota) {
+        setUsage(data.quota);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -500,8 +508,8 @@ export default function Home() {
                   }`}
                 >
                   {usage.isPaid
-                    ? `${usage.remaining} 次可用`
-                    : `${usage.remaining}/${usage.total} 次`}
+                    ? `${usage.remaining} 份报告额度 · 今日对话 ${usage.chatFreeRemaining}/${usage.chatFreeTotal}`
+                    : `今日对话 ${usage.chatFreeRemaining}/${usage.chatFreeTotal}`}
                 </span>
               )}
               {usage && !isInitializing && user && (

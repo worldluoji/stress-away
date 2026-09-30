@@ -7,7 +7,7 @@ import {
 } from "@/lib/compensation";
 import { checkRateLimit, checkDeviceIdSpoofing, RATE_LIMITS, extractClientInfo } from "@/lib/ratelimit";
 import { getAuthContext } from "@/lib/api-auth";
-import { checkUsage, consumeOne } from "@/lib/subscription";
+import { isPaidUserByUid, getRemainingUsageByUid, consumeUsageByUid } from "@/lib/subscriptions";
 import { incrementChatCount } from "@/lib/usage-events";
 import { sanitizeMarkdown } from "@/lib/sanitize";
 
@@ -160,15 +160,23 @@ export async function POST(request: NextRequest) {
     }
 
     const auth = getAuthContext(request);
-    const usage = await checkUsage(auth.uid, deviceId);
-    if (!usage.allowed || !usage.isPaid) {
+    if (!auth.uid) {
       return NextResponse.json(
-        {
-          error: usage.allowed ? "paid_only" : "no_quota",
-          message: usage.allowed
-            ? "维权报告为付费功能，请使用激活码开通"
-            : "次数已用完，请绑定新的激活码",
-        },
+        { error: "login_required", message: "请登录后生成维权报告" },
+        { status: 403 }
+      );
+    }
+    const paid = await isPaidUserByUid(auth.uid);
+    if (!paid) {
+      return NextResponse.json(
+        { error: "paid_only", message: "维权报告为付费功能，请使用激活码开通" },
+        { status: 403 }
+      );
+    }
+    const paidRemaining = await getRemainingUsageByUid(auth.uid);
+    if (paidRemaining <= 0) {
+      return NextResponse.json(
+        { error: "no_quota", message: "次数已用完，请绑定新的激活码" },
         { status: 403 }
       );
     }
@@ -196,7 +204,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      await consumeOne(auth.uid, deviceId);
+      await consumeUsageByUid(auth.uid);
       incrementChatCount("labor-report", auth.uid, deviceId);
     } catch {
       // 扣量失败不阻塞返回，与 chat 一致，下次检查时自校正

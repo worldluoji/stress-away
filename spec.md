@@ -22,7 +22,7 @@
 ### 劳动维权（核心，`/labor`）
 - [x] 赔偿金计算器：免费无门槛，纯客户端实时估算；规则依据《劳动合同法》第40/47/87条——取整（≥6个月按1年、<6个月半月）、高薪双封顶（基数3×社平、年限≤12）、2N替代N、代通知金按上月工资（仅第40条未提前30日书面通知）、加班费150%/200%/300%（时薪=月薪÷21.75÷8）、未休年假补发200%；`lib/compensation.ts` 纯函数 + 表格驱动测试
 - [x] 社平工资封顶表：`lib/social-wage.ts` 内置15个高频城市，`SOCIAL_WAGE_DATA_AS_OF` 时效标注；未收录城市不封顶并在 warnings 提示自行核实；年度人工更新，不做自动 pipeline
-- [x] 维权方案报告：付费功能（仅 `isPaid` 用户，否则 403 `paid_only`），消耗 1 次额度零 schema 改动；金额由服务端 `computeCompensation` 重算后注入 prompt，防篡改；AI 五段式输出；`labor-report` 计入 scenario_stats 统计
+- [x] 维权方案报告：付费功能（仅 `isPaid` 用户，否则 403 `paid_only`），消耗 1 次报告额度；金额由服务端 `computeCompensation` 重算后注入 prompt，防篡改；AI 五段式输出；`labor-report` 计入 scenario_stats 统计
 - [x] 免责声明：计算器旁 / 报告页脚（route 层固定拼接）/ 首页页脚三处，标注"AI生成、不构成律师意见、以仲裁认定为准"
 
 ### 核心功能
@@ -34,12 +34,12 @@
 - [x] 模型配置：通过 DEFAULT_MODEL 环境变量选择模型
 
 ### 订阅与激活
-- [x] 免费额度：每天 1 次对话
-- [x] 激活码订阅：50 次对话额度，2 个激活码
+- [x] 免费对话：登录用户每天 10 次免费对话（按 uid 计数，不消耗购买次数）；超出后付费用户确认消耗 1 次购买额度可继续对话（402 → `confirmPaid` 重发），未付费用户 403 引导激活
+- [x] 激活码订阅：购买次数优先用于生成维权报告（默认每码 50 次），2 个激活码
 - [x] 管理端激活码：管理员生成独立激活码，支持闲鱼等平台销售
 - [x] 面包多对接：支付回调生成激活码
 - [x] 设备激活：基于 FingerprintJS 的设备标识
-- [x] 使用追踪：免费用户每日限制，付费用户按次扣费
+- [x] 使用追踪：对话优先消耗每日免费额度，报告生成与超额对话扣购买次数
 - [x] 管理后台：生成/查询管理端激活码，查询/重新生成订单激活码
 
 ### 激活码规则
@@ -94,11 +94,11 @@
 - `messages` / `message_reactions` / `saved_messages`：消息索引、点赞、收藏
 - `usage_events`：使用事件（场景浏览/聊天/复制）
 - `scenario_stats`：场景统计数据（视图数/聊天数/复制数）
-- `kv_store`：短期持久状态 KV（每日免费次数、管理端 Token、deviceId 防伪，key + value + expires_at）
+- `kv_store`：短期持久状态 KV（每日免费对话计数、管理端 Token、deviceId 防伪，key + value + expires_at）
 
 **高频/短期状态（内存 + MySQL kv_store 混合）**
 - 限流计数 / 登录与激活码防爆破计数：进程内 TtlMap（秒~分钟级 TTL，重启丢失可接受）
-- 免费用户每日计数：kv_store（跨天 TTL，必须持久，防止重启清零被薅）
+- 对话每日免费计数（按 uid）：kv_store `kvIncr` 原子自增（跨天 TTL，必须持久，防止重启清零被薅）
 - 管理端 Token：kv_store（2小时 TTL，存 SHA-256 哈希）
 - deviceId 防伪记录：kv_store（1小时 TTL）
 - 订阅状态读缓存：进程内内存（60秒 TTL，MySQL 为 source of truth）
@@ -167,7 +167,7 @@
 │   │   │   ├── callback/             # 面包多回调
 │   │   │   ├── mbaodu/activate/      # 激活设备
 │   │   │   └── query-codes/          # 查询激活码
-│   │   └── usage/                    # 额度管理
+│   │   └── usage/                    # 额度查询（GET）
 │   ├── components/
 │   │   ├── CompensationForm.tsx       # 赔偿金计算器表单
 │   │   ├── HistoryPanel.tsx           # 历史记录面板
@@ -191,7 +191,8 @@
 │   ├── ratelimit.ts                 # 限流 + deviceId 防伪
 │   ├── ttl-map.ts                   # 进程内 TTL 存储（限流/防爆破/订阅读缓存）
 │   ├── kv.ts                        # MySQL kv_store（无 MySQL 时自动降级内存）
-│   ├── free-count.ts                # 每日免费次数（kv_store 持久化）
+│   ├── chat-quota.ts               # 对话额度决策纯函数（CHAT_FREE_PER_DAY）
+│   ├── free-count.ts                # 每日免费对话次数（kv_store 持久化，按 uid）
 │   ├── admin-security.ts            # 管理端 Token + 登录防爆破
 │   ├── scenarios.ts                # 场景数据
 │   ├── storage.ts                  # LocalStorage（客户端缓存）
@@ -200,6 +201,7 @@
 │   └── migrations/
 │       └── 001_initial.sql         # MySQL 全量最终态建表语句
 ├── test/
+│   ├── chat-quota.test.ts           # 对话额度决策表格驱动测试
 │   ├── compensation.test.ts         # 赔偿金计算表格驱动测试
 │   └── report-prompt.test.ts        # 报告 prompt 断言测试
 ├── .env.local.example
@@ -210,25 +212,32 @@
 
 ### GET /api/usage
 
-查询当前设备的使用额度。
+查询当前用户的额度状态（购买次数 = 报告货币；对话另有每日免费额度）。
 
-Headers: `x-device-id`
-
-响应：
-```json
-{ "allowed": true, "remaining": 1, "isPaid": false, "total": 1 }
-```
-
-### POST /api/usage/consume
-
-消耗一次使用额度。
-
-Headers: `x-device-id`
+Headers: `x-device-id`、`x-user-id`
 
 响应：
 ```json
-{ "remaining": 2, "isPaid": false }
+{ "allowed": true, "remaining": 5, "isPaid": true, "total": 100, "chatFreeRemaining": 8, "chatFreeTotal": 10 }
 ```
+
+### POST /api/chat
+
+AI 对话。登录用户每日 10 次免费；免费额度用尽后，付费用户需带 `confirmPaid: true` 重发以消耗 1 次购买额度。
+
+Headers: `x-device-id`、`X-User-Id`
+
+请求：
+```json
+{ "messages": [{ "role": "user", "content": "…" }], "scenarioId": "general", "confirmPaid": false }
+```
+
+响应（200，AI 成功后才结算额度）：
+```json
+{ "reply": "…", "quota": { "allowed": true, "remaining": 5, "isPaid": true, "total": 100, "chatFreeRemaining": 0, "chatFreeTotal": 10 } }
+```
+
+错误：402 `chat_quota_confirm`（免费额度用尽且未确认，附 `message`/`freeUsed`/`paidRemaining`，前端确认后带 `confirmPaid: true` 重发）、403 `login_required`（未登录）、403 `free_exhausted`（未付费超每日免费额度）、403 `no_quota`（购买次数耗尽）、400 输入非法、429 限流、500 AI 失败（不结算额度）。
 
 ### POST /api/report
 
@@ -264,7 +273,7 @@ Headers: `x-device-id`、`X-User-Id`
 }
 ```
 
-错误：403 `paid_only`（非付费用户）、403 `no_quota`（次数用完）、400 `invalid_input`、429 限流、500 AI 失败（不扣额度）。
+错误：403 `login_required`（未登录）、403 `paid_only`（非付费用户）、403 `no_quota`（次数用完）、400 `invalid_input`、429 限流、500 AI 失败（不扣额度）。
 
 ### POST /api/subscription/query-codes
 
@@ -430,5 +439,4 @@ Headers: `x-device-id` + 已登录 TCB 用户
 | MYSQL_DATABASE | 生产 | - | MySQL 数据库名 |
 | MYSQL_USE_SSL | 否 | false | MySQL SSL 连接 |
 | USE_LOCAL_STORAGE | 测试 | true | true=LocalStorage，false=MySQL |
-| FREE_LIMIT_PER_DAY | 否 | 1 | 免费每日次数 |
-| PAID_LIMIT | 否 | 50 | 付费总次数 |
+| CHAT_FREE_PER_DAY | 否 | 10 | 每日免费对话次数 |
