@@ -33,14 +33,14 @@ export function HistoryPanel({ conversations, currentConversationId, onSelect, o
       />
 
       {/* Panel */}
-      <div className="absolute inset-y-0 left-0 w-full max-w-xs bg-[--card-bg] shadow-2xl flex flex-col animate-slide-up border-r border-[var(--card-border)]">
+      <div className="absolute inset-y-0 left-0 w-full max-w-xs bg-[var(--card-bg)] shadow-2xl flex flex-col animate-slide-up border-r border-[var(--card-border)]">
         {/* Header */}
         <div className="px-4 py-4 border-b border-[var(--card-border)] flex items-center justify-between">
-          <h2 className="text-[--text-h3] font-semibold text-[--foreground]">历史记录</h2>
+          <h2 className="text-[var(--text-h3)] font-semibold text-[var(--foreground)]">历史记录</h2>
           <button
             onClick={onClose}
             aria-label="关闭"
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] hover:text-[--foreground] transition-all active:scale-95"
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-[var(--background-secondary)] text-[var(--foreground-tertiary)] hover:bg-[var(--apple-gray-light)] hover:text-[var(--foreground)] transition-all active:scale-95"
           >
             <Icon name="x" size={16} />
           </button>
@@ -59,14 +59,14 @@ export function HistoryPanel({ conversations, currentConversationId, onSelect, o
               {conversations.map((conv) => (
                 <div
                   key={conv.id}
-                  className={`group px-4 py-3 flex items-start gap-3 hover:bg-[--background-secondary] cursor-pointer transition-colors ${
-                    conv.id === currentConversationId ? 'bg-[--background-secondary]' : ''
+                  className={`group px-4 py-3 flex items-start gap-3 hover:bg-[var(--background-secondary)] cursor-pointer transition-colors ${
+                    conv.id === currentConversationId ? 'bg-[var(--background-secondary)]' : ''
                   }`}
                   onClick={() => onSelect(conv)}
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[--foreground] truncate">{conv.title}</p>
-                    <p className="text-xs text-[--foreground-tertiary] mt-0.5">{formatTime(conv.updatedAt)} · {conv.messages.length} 条消息</p>
+                    <p className="text-sm font-medium text-[var(--foreground)] truncate">{conv.title}</p>
+                    <p className="text-xs text-[var(--foreground-tertiary)] mt-0.5">{formatTime(conv.updatedAt)} · {conv.messages.length} 条消息</p>
                   </div>
                   <button
                     onClick={(e) => {
@@ -74,7 +74,7 @@ export function HistoryPanel({ conversations, currentConversationId, onSelect, o
                       onDelete(conv.id);
                     }}
                     aria-label="删除对话"
-                    className="opacity-0 group-hover:opacity-100 w-8 h-8 flex items-center justify-center rounded-full hover:bg-[--apple-gray-light] text-[--foreground-tertiary] hover:text-[--color-danger] transition-all"
+                    className="opacity-0 group-hover:opacity-100 w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--apple-gray-light)] text-[var(--foreground-tertiary)] hover:text-[var(--color-danger)] transition-all"
                   >
                     <Icon name="x" size={14} />
                   </button>

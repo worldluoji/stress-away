@@ -79,13 +79,13 @@ export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProp
   const panel = (
     <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-2xl max-h-[80vh] mx-4 bg-[--card-bg] rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-scale-in border border-[var(--card-border)]">
+      <div className="relative w-full max-w-2xl max-h-[80vh] mx-4 bg-[var(--card-bg)] rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-scale-in border border-[var(--card-border)]">
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--card-border)]">
-          <h2 className="text-[--text-h3] font-semibold text-[--foreground]">我的收藏</h2>
+          <h2 className="text-[var(--text-h3)] font-semibold text-[var(--foreground)]">我的收藏</h2>
           <button
             onClick={onClose}
             aria-label="关闭"
-            className="w-8 h-8 flex items-center justify-center rounded-full text-[--foreground-tertiary] hover:bg-[--background-secondary] hover:text-[--foreground] transition-all active:scale-95"
+            className="w-8 h-8 flex items-center justify-center rounded-full text-[var(--foreground-tertiary)] hover:bg-[var(--background-secondary)] hover:text-[var(--foreground)] transition-all active:scale-95"
           >
             <Icon name="x" size={16} />
           </button>
@@ -99,7 +99,7 @@ export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProp
           )}
 
           {error && (
-            <div className="text-center py-12 text-[--foreground-tertiary]">
+            <div className="text-center py-12 text-[var(--foreground-tertiary)]">
               {error}
             </div>
           )}
@@ -117,11 +117,11 @@ export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProp
               {messages.map((msg) => (
                 <div
                   key={msg.messageId}
-                  className="bg-[--background-secondary] rounded-xl p-4 hover:bg-[--background-secondary]/70 transition-colors border border-transparent hover:border-[var(--card-border)]"
+                  className="bg-[var(--background-secondary)] rounded-xl p-4 hover:bg-[var(--background-secondary)]/70 transition-colors border border-transparent hover:border-[var(--card-border)]"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <p className="text-[--foreground] text-sm line-clamp-4 whitespace-pre-wrap">
+                      <p className="text-[var(--foreground)] text-sm line-clamp-4 whitespace-pre-wrap">
                         {msg.content}
                       </p>
                       {msg.scenarioId && (
@@ -134,17 +134,17 @@ export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProp
                       <button
                         onClick={() => setViewingMessage(msg)}
                         aria-label="查看"
-                        className="p-1.5 rounded-lg hover:bg-[--card-bg] text-[--foreground-tertiary] hover:text-[--foreground] transition-colors"
+                        className="p-1.5 rounded-lg hover:bg-[var(--card-bg)] text-[var(--foreground-tertiary)] hover:text-[var(--foreground)] transition-colors"
                       >
                         <Icon name="eye" size={14} />
                       </button>
                       <button
                         onClick={() => handleCopy(msg.messageId, msg.content)}
                         aria-label="复制"
-                        className="p-1.5 rounded-lg hover:bg-[--card-bg] text-[--foreground-tertiary] transition-colors text-xs min-w-[2.5rem] flex items-center justify-center"
+                        className="p-1.5 rounded-lg hover:bg-[var(--card-bg)] text-[var(--foreground-tertiary)] transition-colors text-xs min-w-[2.5rem] flex items-center justify-center"
                       >
                         {copiedId === msg.messageId ? (
-                          <span className="inline-flex items-center gap-1 text-[--color-success]">
+                          <span className="inline-flex items-center gap-1 text-[var(--color-success)]">
                             <Icon name="check" size={14} strokeWidth={2.4} />
                             已复制
                           </span>
@@ -155,13 +155,13 @@ export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProp
                       <button
                         onClick={(e) => handleUnsave(msg.messageId, e)}
                         aria-label="取消收藏"
-                        className="p-1.5 rounded-lg hover:bg-[--card-bg] text-[--color-brand] transition-colors"
+                        className="p-1.5 rounded-lg hover:bg-[var(--card-bg)] text-[var(--color-brand)] transition-colors"
                       >
                         <Icon name="bookmark-check" size={14} filled />
                       </button>
                     </div>
                   </div>
-                  <p className="text-xs text-[--foreground-tertiary] mt-2">
+                  <p className="text-xs text-[var(--foreground-tertiary)] mt-2">
                     {new Date(msg.createdAt).toLocaleDateString('zh-CN')}
                   </p>
                 </div>
@@ -176,19 +176,19 @@ export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProp
   const modal = viewingMessage ? (
     <div className="fixed inset-0 z-[60] flex items-center justify-center animate-fade-in">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setViewingMessage(null)} />
-      <div className="relative w-full max-w-xl mx-4 bg-[--card-bg] rounded-2xl shadow-2xl overflow-hidden animate-scale-in border border-[var(--card-border)]">
+      <div className="relative w-full max-w-xl mx-4 bg-[var(--card-bg)] rounded-2xl shadow-2xl overflow-hidden animate-scale-in border border-[var(--card-border)]">
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--card-border)]">
-          <h3 className="text-base font-semibold text-[--foreground]">消息详情</h3>
+          <h3 className="text-base font-semibold text-[var(--foreground)]">消息详情</h3>
           <button
             onClick={() => setViewingMessage(null)}
             aria-label="关闭"
-            className="w-8 h-8 flex items-center justify-center rounded-full text-[--foreground-tertiary] hover:bg-[--background-secondary] hover:text-[--foreground] transition-all active:scale-95"
+            className="w-8 h-8 flex items-center justify-center rounded-full text-[var(--foreground-tertiary)] hover:bg-[var(--background-secondary)] hover:text-[var(--foreground)] transition-all active:scale-95"
           >
             <Icon name="x" size={16} />
           </button>
         </div>
         <div className="px-5 py-4 max-h-[60vh] overflow-y-auto">
-          <p className="text-[--foreground] text-sm whitespace-pre-wrap leading-relaxed">
+          <p className="text-[var(--foreground)] text-sm whitespace-pre-wrap leading-relaxed">
             {viewingMessage.content}
           </p>
         </div>
@@ -198,13 +198,13 @@ export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProp
               handleCopy(viewingMessage.messageId, viewingMessage.content);
               setViewingMessage(null);
             }}
-            className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[--color-brand] to-[--color-brand-alt] text-white text-sm font-medium hover:shadow-[var(--shadow-moderate)] hover:-translate-y-px transition-all active:scale-95"
+            className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[var(--color-brand)] to-[var(--color-brand-alt)] text-white text-sm font-medium hover:shadow-[var(--shadow-moderate)] hover:-translate-y-px transition-all active:scale-95"
           >
             复制
           </button>
           <button
             onClick={() => setViewingMessage(null)}
-            className="flex-1 py-2.5 rounded-xl border border-[var(--card-border)] text-[--foreground] text-sm font-medium hover:bg-[--background-secondary] transition-all active:scale-95"
+            className="flex-1 py-2.5 rounded-xl border border-[var(--card-border)] text-[var(--foreground)] text-sm font-medium hover:bg-[var(--background-secondary)] transition-all active:scale-95"
           >
             关闭
           </button>

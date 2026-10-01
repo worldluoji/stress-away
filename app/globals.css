@@ -24,13 +24,13 @@
   --card-border: rgba(0, 0, 0, 0.1);
   --glass-bg: rgba(255, 255, 255, 0.72);
 
-  /* —— 语义色映射 —— */
-  --color-brand: var(--apple-blue);
-  --color-brand-alt: var(--apple-purple);
-  --color-success: var(--apple-green);
-  --color-warning: var(--apple-orange);
-  --color-danger: var(--apple-red);
-  --color-info: var(--apple-blue);
+  /* —— 语义色（直接值，避免被 Tailwind v4 当作循环引用） —— */
+  --color-brand: #007AFF;
+  --color-brand-alt: #AF52DE;
+  --color-success: #34C759;
+  --color-warning: #FF9500;
+  --color-danger: #FF3B30;
+  --color-info: #007AFF;
 
   /* —— 圆角分级 —— */
   --radius-sm: 8px;

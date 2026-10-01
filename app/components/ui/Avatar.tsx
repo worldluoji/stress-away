@@ -7,11 +7,11 @@ const ROLE_CONFIG: Record<
   { gradient: string; icon: IconName }
 > = {
   assistant: {
-    gradient: "from-[--color-brand] to-[--color-brand-alt]",
+    gradient: "from-[var(--color-brand)] to-[var(--color-brand-alt)]",
     icon: "lightbulb",
   },
   user: {
-    gradient: "from-[--color-success] to-[#30D158]",
+    gradient: "from-[var(--color-success)] to-[#30D158]",
     icon: "user",
   },
 };

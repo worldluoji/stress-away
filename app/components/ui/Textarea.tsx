@@ -18,7 +18,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, Props>(function Textarea
       {label && (
         <label
           htmlFor={inputId}
-          className="text-xs font-medium text-[--foreground-secondary]"
+          className="text-xs font-medium text-[var(--foreground-secondary)]"
         >
           {label}
         </label>
@@ -27,15 +27,15 @@ export const Textarea = forwardRef<HTMLTextAreaElement, Props>(function Textarea
         ref={ref}
         id={inputId}
         value={value}
-        className={`w-full rounded-xl bg-[--background-secondary] border px-4 py-3 text-[15px] text-[--foreground] placeholder:text-[--foreground-tertiary] transition-all resize-none
-          focus:outline-none focus:ring-2 focus:ring-[--color-brand]/30 focus:border-[--color-brand]/40
+        className={`w-full rounded-xl bg-[var(--background-secondary)] border px-4 py-3 text-[15px] text-[var(--foreground)] placeholder:text-[var(--foreground-tertiary)] transition-all resize-none
+          focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]/30 focus:border-[var(--color-brand)]/40
           disabled:opacity-50
-          ${error ? "border-[--color-danger]/50" : "border-[var(--card-border)]"}
+          ${error ? "border-[var(--color-danger)]/50" : "border-[var(--card-border)]"}
           ${className ?? ""}`}
         {...rest}
       />
-      <div className="flex justify-between text-xs text-[--foreground-tertiary]">
-        <span>{error ? <span className="text-[--color-danger]">{error}</span> : hint}</span>
+      <div className="flex justify-between text-xs text-[var(--foreground-tertiary)]">
+        <span>{error ? <span className="text-[var(--color-danger)]">{error}</span> : hint}</span>
         {maxLengthIndicator !== undefined && (
           <span>{length}/{maxLengthIndicator}</span>
         )}

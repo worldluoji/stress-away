@@ -31,10 +31,10 @@ const INTAKE_QUESTIONS: { id: string; question: string; options: string[] }[] = 
 const markdownComponents = {
   p: ({ children }: { children?: React.ReactNode }) => <p className="mb-2 last:mb-0">{children}</p>,
   h2: ({ children }: { children?: React.ReactNode }) => (
-    <h2 className="font-semibold text-[--foreground] mt-4 mb-2 first:mt-0 text-base">{children}</h2>
+    <h2 className="font-semibold text-[var(--foreground)] mt-4 mb-2 first:mt-0 text-base">{children}</h2>
   ),
   h3: ({ children }: { children?: React.ReactNode }) => (
-    <h3 className="font-semibold text-[--foreground] mt-3 mb-1">{children}</h3>
+    <h3 className="font-semibold text-[var(--foreground)] mt-3 mb-1">{children}</h3>
   ),
   ul: ({ children }: { children?: React.ReactNode }) => (
     <ul className="mb-2 list-disc pl-4 space-y-1">{children}</ul>
@@ -43,7 +43,7 @@ const markdownComponents = {
     <ol className="mb-2 list-decimal pl-4 space-y-1">{children}</ol>
   ),
   strong: ({ children }: { children?: React.ReactNode }) => (
-    <strong className="font-semibold text-[--color-brand]">{children}</strong>
+    <strong className="font-semibold text-[var(--color-brand)]">{children}</strong>
   ),
 };
 
@@ -108,8 +108,8 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin }: Pr
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-base font-semibold text-[--foreground] mb-1">生成完整维权方案报告</h3>
-        <p className="text-xs text-[--foreground-tertiary]">
+        <h3 className="text-base font-semibold text-[var(--foreground)] mb-1">生成完整维权方案报告</h3>
+        <p className="text-xs text-[var(--foreground-tertiary)]">
           赔偿明细核对 + 证据清单 + 仲裁流程时间线 + 仲裁申请书草稿 + 谈判策略（消耗 1 次报告额度，每日 10 次免费对话不受影响）
         </p>
       </div>
@@ -146,15 +146,15 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin }: Pr
       )}
 
       {loading ? (
-        <div className="relative w-full py-4 rounded-2xl bg-[--card-bg] border border-[--color-brand]/30 text-center overflow-hidden shadow-[var(--shadow-subtle)]">
+        <div className="relative w-full py-4 rounded-2xl bg-[var(--card-bg)] border border-[var(--color-brand)]/30 text-center overflow-hidden shadow-[var(--shadow-subtle)]">
           <div className="absolute top-0 left-0 right-0 h-0.5 overflow-hidden">
-            <div className="absolute top-0 left-0 h-full w-1/3 bg-gradient-to-r from-transparent via-[--color-brand] to-[--color-brand-alt] animate-progress" />
+            <div className="absolute top-0 left-0 h-full w-1/3 bg-gradient-to-r from-transparent via-[var(--color-brand)] to-[var(--color-brand-alt)] animate-progress" />
           </div>
-          <span className="inline-flex items-center justify-center gap-2 text-[15px] font-medium text-[--foreground]">
+          <span className="inline-flex items-center justify-center gap-2 text-[15px] font-medium text-[var(--foreground)]">
             <Spinner size={16} />
             AI 正在生成维权策略…
           </span>
-          <p className="text-xs text-[--foreground-tertiary] mt-1">约需 1~2 分钟，请勿关闭页面</p>
+          <p className="text-xs text-[var(--foreground-tertiary)] mt-1">约需 1~2 分钟，请勿关闭页面</p>
         </div>
       ) : (
         <Button
@@ -168,7 +168,7 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin }: Pr
       )}
 
       {report && (
-        <Card padding="md" className="text-[15px] leading-relaxed text-[--foreground] animate-fade-in">
+        <Card padding="md" className="text-[15px] leading-relaxed text-[var(--foreground)] animate-fade-in">
           <ReactMarkdown
             disallowedElements={["script", "style", "iframe", "object", "embed", "form"]}
             components={markdownComponents}

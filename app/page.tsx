@@ -41,9 +41,9 @@ interface UsageStatus {
 function TypingIndicator() {
   return (
     <div className="flex items-center gap-1.5 px-3 py-2">
-      <span className="w-2 h-2 bg-[--foreground-tertiary] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-      <span className="w-2 h-2 bg-[--foreground-tertiary] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-      <span className="w-2 h-2 bg-[--foreground-tertiary] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+      <span className="w-2 h-2 bg-[var(--foreground-tertiary)] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+      <span className="w-2 h-2 bg-[var(--foreground-tertiary)] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+      <span className="w-2 h-2 bg-[var(--foreground-tertiary)] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
     </div>
   );
 }
@@ -419,16 +419,16 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-[--background]">
+    <div className="flex flex-col h-screen bg-[var(--background)]">
       {/* Header */}
-      <header className="sticky top-0 z-20 bg-[--glass-bg] backdrop-blur-xl border-b border-[var(--card-border)]">
+      <header className="sticky top-0 z-20 bg-[var(--glass-bg)] backdrop-blur-xl border-b border-[var(--card-border)]">
         <div className="mx-auto max-w-2xl px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowHistory(true)}
                 aria-label="历史对话"
-                className="w-9 h-9 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] hover:text-[--foreground] transition-all active:scale-95"
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-[var(--background-secondary)] text-[var(--foreground-tertiary)] hover:bg-[var(--apple-gray-light)] hover:text-[var(--foreground)] transition-all active:scale-95"
               >
                 <Icon name="clock" size={18} />
               </button>
@@ -436,7 +436,7 @@ export default function Home() {
                 <button
                   onClick={() => setShowStats(true)}
                   aria-label="我的统计"
-                  className="w-9 h-9 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] hover:text-[--foreground] transition-all active:scale-95"
+                  className="w-9 h-9 flex items-center justify-center rounded-full bg-[var(--background-secondary)] text-[var(--foreground-tertiary)] hover:bg-[var(--apple-gray-light)] hover:text-[var(--foreground)] transition-all active:scale-95"
                 >
                   <Icon name="trending-up" size={18} />
                 </button>
@@ -445,7 +445,7 @@ export default function Home() {
                 <button
                   onClick={() => setShowSaved(true)}
                   aria-label="收藏的话术"
-                  className="w-9 h-9 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] hover:text-[--foreground] transition-all active:scale-95"
+                  className="w-9 h-9 flex items-center justify-center rounded-full bg-[var(--background-secondary)] text-[var(--foreground-tertiary)] hover:bg-[var(--apple-gray-light)] hover:text-[var(--foreground)] transition-all active:scale-95"
                 >
                   <Icon name="bookmark" size={18} />
                 </button>
@@ -460,16 +460,16 @@ export default function Home() {
                     setSelectedScenario(null);
                   }}
                   aria-label="新建对话"
-                  className="w-9 h-9 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] hover:text-[--foreground] transition-all active:scale-95"
+                  className="w-9 h-9 flex items-center justify-center rounded-full bg-[var(--background-secondary)] text-[var(--foreground-tertiary)] hover:bg-[var(--apple-gray-light)] hover:text-[var(--foreground)] transition-all active:scale-95"
                 >
                   <Icon name="arrow-left" size={18} />
                 </button>
               )}
               <div className="flex flex-col ml-2">
-                <h1 className="text-[--text-h2] font-semibold text-[--foreground] tracking-tight leading-tight">
+                <h1 className="text-[var(--text-h2)] font-semibold text-[var(--foreground)] tracking-tight leading-tight">
                   反PUA手册
                 </h1>
-                <p className="text-xs text-[--foreground-tertiary]">
+                <p className="text-xs text-[var(--foreground-tertiary)]">
                   裁员赔偿估算 · 职场维权助手
                 </p>
               </div>
@@ -571,18 +571,18 @@ export default function Home() {
             <div className="animate-fade-in">
               {/* Hero */}
               <div className="hero-glow text-center py-10 mb-8">
-                <div className="relative w-20 h-20 mx-auto mb-5 rounded-3xl bg-gradient-to-br from-[--color-brand] to-[--color-brand-alt] flex items-center justify-center shadow-[var(--shadow-prominent)] ring-1 ring-white/20">
+                <div className="relative w-20 h-20 mx-auto mb-5 rounded-3xl bg-gradient-to-br from-[var(--color-brand)] to-[var(--color-brand-alt)] flex items-center justify-center shadow-[var(--shadow-prominent)] ring-1 ring-white/20">
                   <Icon name="lightbulb" size={36} strokeWidth={1.5} className="text-white" />
                 </div>
-                <h2 className="text-[--text-h1] font-bold text-[--foreground] mb-2 tracking-tight">
+                <h2 className="text-[var(--text-h1)] font-bold text-[var(--foreground)] mb-2 tracking-tight">
                   被裁员？先算算你该拿多少钱
                 </h2>
-                <p className="text-sm text-[--foreground-tertiary] max-w-xs mx-auto mb-6 leading-relaxed">
+                <p className="text-sm text-[var(--foreground-tertiary)] max-w-xs mx-auto mb-6 leading-relaxed">
                   免费估算 N+1 / 2N 法定赔偿，一键生成维权方案与仲裁申请书
                 </p>
                 <Link
                   href="/labor"
-                  className="inline-flex items-center justify-center gap-2 h-12 px-6 rounded-2xl text-[15px] font-medium text-white bg-gradient-to-r from-[--color-brand] to-[--color-brand-alt] shadow-sm hover:shadow-[var(--shadow-moderate)] hover:-translate-y-px transition-all duration-[--dur-base] ease-[--ease-out] active:scale-[0.97]"
+                  className="inline-flex items-center justify-center gap-2 h-12 px-6 rounded-2xl text-[15px] font-medium text-white bg-gradient-to-r from-[var(--color-brand)] to-[var(--color-brand-alt)] shadow-sm hover:shadow-[var(--shadow-moderate)] hover:-translate-y-px transition-all duration-[var(--dur-base)] ease-[var(--ease-out)] active:scale-[0.97]"
                 >
                   算我的赔偿
                   <Icon name="arrow-right" size={16} strokeWidth={2.2} />
@@ -591,8 +591,8 @@ export default function Home() {
 
               {/* Example prompts for new users */}
               <div className="mb-8">
-                <h3 className="flex items-center gap-2 text-sm font-semibold text-[--foreground-secondary] mb-3">
-                  <Icon name="message-circle" size={16} className="text-[--color-brand]" />
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--foreground-secondary)] mb-3">
+                  <Icon name="message-circle" size={16} className="text-[var(--color-brand)]" />
                   免费应对话术
                 </h3>
                 <div className="space-y-2">
@@ -607,13 +607,13 @@ export default function Home() {
                         setInput(example);
                         inputRef.current?.focus();
                       }}
-                      className="group/example w-full text-left px-4 py-3.5 bg-[--background-secondary] hover:bg-[--background-secondary]/70 rounded-xl text-sm text-[--foreground-secondary] transition-all border border-[var(--card-border)] hover:border-[--color-brand]/30 hover:shadow-[var(--shadow-subtle)]"
+                      className="group/example w-full text-left px-4 py-3.5 bg-[var(--background-secondary)] hover:bg-[var(--background-secondary)]/70 rounded-xl text-sm text-[var(--foreground-secondary)] transition-all border border-[var(--card-border)] hover:border-[var(--color-brand)]/30 hover:shadow-[var(--shadow-subtle)]"
                     >
                       <span className="inline-flex items-center gap-2">
                         <Icon
                           name="chevron-right"
                           size={14}
-                          className="text-[--foreground-tertiary] group-hover/example:text-[--color-brand] transition-colors"
+                          className="text-[var(--foreground-tertiary)] group-hover/example:text-[var(--color-brand)] transition-colors"
                         />
                         {example}
                       </span>
@@ -624,8 +624,8 @@ export default function Home() {
 
               {/* Scenarios Grid */}
               <div className="mb-6">
-                <h3 className="flex items-center gap-2 text-sm font-semibold text-[--foreground-secondary] mb-3">
-                  <Icon name="folder-open" size={16} className="text-[--color-brand]" />
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--foreground-secondary)] mb-3">
+                  <Icon name="folder-open" size={16} className="text-[var(--color-brand)]" />
                   进阶：常见职场困境应对话术
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -642,7 +642,7 @@ export default function Home() {
               {/* Divider */}
               <div className="flex items-center gap-3 my-6">
                 <div className="flex-1 h-px bg-[var(--card-border)]" />
-                <span className="text-xs text-[--foreground-tertiary]">或直接输入</span>
+                <span className="text-xs text-[var(--foreground-tertiary)]">或直接输入</span>
                 <div className="flex-1 h-px bg-[var(--card-border)]" />
               </div>
             </div>
@@ -651,7 +651,7 @@ export default function Home() {
           {isInitializing && (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
               <Spinner size={28} />
-              <span className="text-xs text-[--foreground-tertiary]">加载历史与额度…</span>
+              <span className="text-xs text-[var(--foreground-tertiary)]">加载历史与额度…</span>
             </div>
           )}
 
@@ -672,8 +672,8 @@ export default function Home() {
                   <div
                     className={`rounded-2xl px-4 py-3 text-[15px] leading-relaxed shadow-[var(--shadow-subtle)] ${
                       msg.role === "user"
-                        ? "bg-gradient-to-r from-[--color-brand] to-[--color-brand-alt] text-white rounded-br-md"
-                        : "bg-[--background-secondary] text-[--foreground] rounded-bl-md border border-[var(--card-border)]"
+                        ? "bg-gradient-to-r from-[var(--color-brand)] to-[var(--color-brand-alt)] text-white rounded-br-md"
+                        : "bg-[var(--background-secondary)] text-[var(--foreground)] rounded-bl-md border border-[var(--card-border)]"
                     }`}
                   >
                     {msg.role === "user" ? (
@@ -688,7 +688,7 @@ export default function Home() {
                                 <p className="mb-2 last:mb-0">{children}</p>
                               ),
                               strong: ({ children }) => (
-                                <strong className="font-semibold text-[--color-brand]">{children}</strong>
+                                <strong className="font-semibold text-[var(--color-brand)]">{children}</strong>
                               ),
                               ul: ({ children }) => (
                                 <ul className="mb-2 list-disc pl-4 space-y-1">{children}</ul>
@@ -697,13 +697,13 @@ export default function Home() {
                                 <ol className="mb-2 list-decimal pl-4 space-y-1">{children}</ol>
                               ),
                               li: ({ children }) => (
-                                <li className="text-[--foreground]">{children}</li>
+                                <li className="text-[var(--foreground)]">{children}</li>
                               ),
                               h3: ({ children }) => (
-                                <h3 className="font-semibold text-[--foreground] mt-3 mb-1">{children}</h3>
+                                <h3 className="font-semibold text-[var(--foreground)] mt-3 mb-1">{children}</h3>
                               ),
                               blockquote: ({ children }) => (
-                                <blockquote className="border-l-[3px] border-[--color-brand] pl-3 my-2 text-[--foreground-secondary]">
+                                <blockquote className="border-l-[3px] border-[var(--color-brand)] pl-3 my-2 text-[var(--foreground-secondary)]">
                                   {children}
                                 </blockquote>
                               ),
@@ -723,10 +723,10 @@ export default function Home() {
                       <button
                         onClick={() => handleCopy(msg.content, i)}
                         aria-label="复制"
-                        className="p-1.5 rounded-lg hover:bg-[--background-secondary] text-[--foreground-tertiary] hover:text-[--color-success] transition-colors"
+                        className="p-1.5 rounded-lg hover:bg-[var(--background-secondary)] text-[var(--foreground-tertiary)] hover:text-[var(--color-success)] transition-colors"
                       >
                         {copiedIndex === i ? (
-                          <Icon name="check" size={14} strokeWidth={2.4} className="text-[--color-success]" />
+                          <Icon name="check" size={14} strokeWidth={2.4} className="text-[var(--color-success)]" />
                         ) : (
                           <Icon name="copy" size={14} />
                         )}
@@ -735,7 +735,7 @@ export default function Home() {
                         onClick={() => { setShareContent(msg.content); setShowShare(true); }}
                         aria-label="分享"
                         title="分享卡片"
-                        className="p-1.5 rounded-lg hover:bg-[--background-secondary] text-[--foreground-tertiary] hover:text-[--color-brand] transition-colors"
+                        className="p-1.5 rounded-lg hover:bg-[var(--background-secondary)] text-[var(--foreground-tertiary)] hover:text-[var(--color-brand)] transition-colors"
                       >
                         <Icon name="share" size={14} />
                       </button>
@@ -744,10 +744,10 @@ export default function Home() {
                           <button
                             onClick={() => handleToggleLike(msg.id!)}
                             aria-label={likedIds.has(msg.id!) ? '取消点赞' : '点赞'}
-                            className={`p-1.5 rounded-lg hover:bg-[--background-secondary] transition-colors ${likedIds.has(msg.id!) || likedAnimating === msg.id ? 'text-[--color-warning]' : 'text-[--foreground-tertiary]'}`}
+                            className={`p-1.5 rounded-lg hover:bg-[var(--background-secondary)] transition-colors ${likedIds.has(msg.id!) || likedAnimating === msg.id ? 'text-[var(--color-warning)]' : 'text-[var(--foreground-tertiary)]'}`}
                           >
                             <span
-                              className={`inline-block transition-transform duration-[--dur-base] ${likedAnimating === msg.id ? 'animate-spring' : ''}`}
+                              className={`inline-block transition-transform duration-[var(--dur-base)] ${likedAnimating === msg.id ? 'animate-spring' : ''}`}
                             >
                               <Icon
                                 name="heart"
@@ -759,7 +759,7 @@ export default function Home() {
                           <button
                             onClick={() => handleToggleSave(msg.id!)}
                             aria-label={savedIds.has(msg.id!) ? '取消收藏' : '收藏'}
-                            className={`p-1.5 rounded-lg hover:bg-[--background-secondary] transition-colors ${savedIds.has(msg.id!) ? 'text-[--color-brand]' : 'text-[--foreground-tertiary]'}`}
+                            className={`p-1.5 rounded-lg hover:bg-[var(--background-secondary)] transition-colors ${savedIds.has(msg.id!) ? 'text-[var(--color-brand)]' : 'text-[var(--foreground-tertiary)]'}`}
                           >
                             <Icon
                               name={savedIds.has(msg.id!) ? "bookmark-check" : "bookmark"}
@@ -778,7 +778,7 @@ export default function Home() {
             {loading && (
               <div className="flex gap-3 animate-fade-in">
                 <Avatar role="assistant" size="md" />
-                <div className="bg-[--background-secondary] border border-[var(--card-border)] rounded-2xl rounded-bl-md shadow-[var(--shadow-subtle)]">
+                <div className="bg-[var(--background-secondary)] border border-[var(--card-border)] rounded-2xl rounded-bl-md shadow-[var(--shadow-subtle)]">
                   <TypingIndicator />
                 </div>
               </div>
@@ -801,7 +801,7 @@ export default function Home() {
       </main>
 
       {/* Input Area */}
-      <footer className="sticky bottom-0 bg-[--glass-bg] backdrop-blur-xl border-t border-[var(--card-border)]">
+      <footer className="sticky bottom-0 bg-[var(--glass-bg)] backdrop-blur-xl border-t border-[var(--card-border)]">
         <div className="mx-auto max-w-2xl px-4 py-3">
           <form onSubmit={handleSubmit} className="flex gap-2">
             <div className="flex-1 relative">
@@ -831,10 +831,10 @@ export default function Home() {
                 autoCapitalize="off"
                 spellCheck="false"
                 rows={1}
-                className="w-full rounded-2xl bg-[--background-secondary] px-5 py-4 text-[--foreground] placeholder:text-[--foreground-tertiary] text-[15px] focus:outline-none focus:ring-2 focus:ring-[--color-brand]/30 border border-transparent focus:border-[--color-brand]/20 disabled:opacity-50 transition-all duration-[--dur-base] ease-[--ease-out] resize-none"
+                className="w-full rounded-2xl bg-[var(--background-secondary)] px-5 py-4 text-[var(--foreground)] placeholder:text-[var(--foreground-tertiary)] text-[15px] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]/30 border border-transparent focus:border-[var(--color-brand)]/20 disabled:opacity-50 transition-all duration-[var(--dur-base)] ease-[var(--ease-out)] resize-none"
                 style={{ minHeight: '80px', maxHeight: '200px' }}
               />
-              <span className="absolute bottom-2 right-3 text-xs text-[--foreground-tertiary]">
+              <span className="absolute bottom-2 right-3 text-xs text-[var(--foreground-tertiary)]">
                 {userText.length}/600
               </span>
             </div>
@@ -842,7 +842,7 @@ export default function Home() {
               type="submit"
               disabled={loading || !input.trim() || (!usage?.allowed && !isInitializing)}
               aria-label="发送"
-              className="shrink-0 h-12 w-12 rounded-2xl bg-gradient-to-br from-[--color-brand] to-[--color-brand-alt] text-white flex items-center justify-center transition-all duration-[--dur-base] ease-[--ease-out] active:scale-95 disabled:opacity-40 disabled:active:scale-100 shadow-sm hover:shadow-[var(--shadow-moderate)] hover:-translate-y-px"
+              className="shrink-0 h-12 w-12 rounded-2xl bg-gradient-to-br from-[var(--color-brand)] to-[var(--color-brand-alt)] text-white flex items-center justify-center transition-all duration-[var(--dur-base)] ease-[var(--ease-out)] active:scale-95 disabled:opacity-40 disabled:active:scale-100 shadow-sm hover:shadow-[var(--shadow-moderate)] hover:-translate-y-px"
             >
               {loading ? <Spinner size={18} /> : <Icon name="send" size={18} strokeWidth={2.2} />}
             </button>

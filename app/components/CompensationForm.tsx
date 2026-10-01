@@ -74,7 +74,7 @@ export function CompensationForm({
   return (
     <div className="space-y-5">
       <Card padding="md" className="space-y-4">
-        <h3 className="text-sm font-semibold text-[--foreground-secondary]">基本信息</h3>
+        <h3 className="text-sm font-semibold text-[var(--foreground-secondary)]">基本信息</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Input
             type="number"
@@ -88,7 +88,7 @@ export function CompensationForm({
           <div className="flex flex-col gap-1.5">
             <label
               htmlFor="city"
-              className="text-xs font-medium text-[--foreground-secondary]"
+              className="text-xs font-medium text-[var(--foreground-secondary)]"
             >
               工作城市
             </label>
@@ -97,7 +97,7 @@ export function CompensationForm({
               list="city-list"
               value={city}
               onChange={(e) => setCity(e.target.value)}
-              className="w-full rounded-xl bg-[--background-secondary] border border-[var(--card-border)] px-4 py-3 text-[15px] text-[--foreground] focus:outline-none focus:ring-2 focus:ring-[--color-brand]/30 focus:border-[--color-brand]/40 transition-all"
+              className="w-full rounded-xl bg-[var(--background-secondary)] border border-[var(--card-border)] px-4 py-3 text-[15px] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]/30 focus:border-[var(--color-brand)]/40 transition-all"
             />
             <datalist id="city-list">
               {Object.keys(SOCIAL_WAGE_MONTHLY_CAP).map((c) => (
@@ -139,7 +139,7 @@ export function CompensationForm({
       </Card>
 
       <Card padding="md" className="space-y-4">
-        <h3 className="text-sm font-semibold text-[--foreground-secondary]">离职情形</h3>
+        <h3 className="text-sm font-semibold text-[var(--foreground-secondary)]">离职情形</h3>
         <Select
           name="dismissalType"
           label="解除情形"
@@ -159,12 +159,12 @@ export function CompensationForm({
               value={lastMonthWage}
               onChange={(e) => setLastMonthWage(e.target.value)}
             />
-            <label className="flex items-end gap-2 pb-3 text-sm text-[--foreground-secondary] cursor-pointer">
+            <label className="flex items-end gap-2 pb-3 text-sm text-[var(--foreground-secondary)] cursor-pointer">
               <input
                 type="checkbox"
                 checked={noAdvanceNotice}
                 onChange={(e) => setNoAdvanceNotice(e.target.checked)}
-                className="w-4 h-4 accent-[--color-brand]"
+                className="w-4 h-4 accent-[var(--color-brand)]"
               />
               公司未提前30日书面通知（+1）
             </label>
@@ -172,8 +172,8 @@ export function CompensationForm({
         )}
       </Card>
 
-      <details className="rounded-2xl border border-[var(--card-border)] bg-[--card-bg] group">
-        <summary className="flex items-center justify-between px-4 py-3 text-sm font-medium text-[--foreground-secondary] cursor-pointer select-none hover:text-[--foreground] transition-colors">
+      <details className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] group">
+        <summary className="flex items-center justify-between px-4 py-3 text-sm font-medium text-[var(--foreground-secondary)] cursor-pointer select-none hover:text-[var(--foreground)] transition-colors">
           <span className="flex items-center gap-2">
             <Icon name="zap" size={14} />
             选填：加班时长与未休年假
@@ -225,7 +225,7 @@ export function CompensationForm({
       </details>
 
       {breakdown ? (
-        <div className="relative rounded-2xl bg-gradient-to-br from-[--color-brand] to-[--color-brand-alt] text-white p-5 shadow-[var(--shadow-prominent)] animate-fade-in overflow-hidden ring-1 ring-inset ring-white/10">
+        <div className="relative rounded-2xl bg-gradient-to-br from-[var(--color-brand)] to-[var(--color-brand-alt)] text-white p-5 shadow-[var(--shadow-prominent)] animate-fade-in overflow-hidden ring-1 ring-inset ring-white/10">
           <span
             aria-hidden="true"
             className="absolute -top-16 -right-16 w-56 h-56 rounded-full bg-white/[0.08] blur-3xl"
@@ -236,7 +236,7 @@ export function CompensationForm({
           />
           <div className="relative">
             <p className="text-xs opacity-80 mb-1">你大概率可以主张</p>
-            <p className="text-[--text-display] font-bold tracking-tight">
+            <p className="text-[var(--text-display)] font-bold tracking-tight">
               ¥ {breakdown.total.toLocaleString("zh-CN")}
             </p>
             <ul className="mt-3 space-y-1.5 text-sm opacity-95">
@@ -257,7 +257,7 @@ export function CompensationForm({
           </div>
         </div>
       ) : (
-        <p className="text-sm text-[--foreground-tertiary] text-center py-4">
+        <p className="text-sm text-[var(--foreground-tertiary)] text-center py-4">
           填写工资与入职日期，实时估算你可主张的法定赔偿
         </p>
       )}

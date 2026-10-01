@@ -12,10 +12,10 @@ export function Spinner({ size = 24, className, label }: Props) {
       <Loader2
         width={size}
         height={size}
-        className="animate-spin text-[--color-brand]"
+        className="animate-spin text-[var(--color-brand)]"
         aria-hidden="true"
       />
-      {label && <span className="text-sm text-[--foreground-tertiary]">{label}</span>}
+      {label && <span className="text-sm text-[var(--foreground-tertiary)]">{label}</span>}
     </div>
   );
 }

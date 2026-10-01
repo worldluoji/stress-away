@@ -150,7 +150,7 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
           {/* Email field - always shown in register */}
           {(mode === 'login' || step === 'form') && (
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-[--foreground-secondary]">
+              <label className="text-sm font-medium text-[var(--foreground-secondary)]">
                 {mode === 'login' ? '邮箱' : '邮箱'}
               </label>
               <input
@@ -167,7 +167,7 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
           {/* Verification code - register step 2 */}
           {mode === 'register' && step === 'code' && (
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-[--foreground-secondary]">验证码</label>
+              <label className="text-sm font-medium text-[var(--foreground-secondary)]">验证码</label>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -195,7 +195,7 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
           {(mode === 'login' || (mode === 'register' && step === 'form')) && (
             <>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-[--foreground-secondary]">密码</label>
+                <label className="text-sm font-medium text-[var(--foreground-secondary)]">密码</label>
                 <input
                   type="password"
                   value={password}
@@ -208,7 +208,7 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
 
               {mode === 'register' && (
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-[--foreground-secondary]">确认密码</label>
+                  <label className="text-sm font-medium text-[var(--foreground-secondary)]">确认密码</label>
                   <input
                     type="password"
                     value={confirmPassword}
@@ -287,7 +287,7 @@ export function AccountStatus({ user, onLogout, onLoginClick }: AccountStatusPro
       <div className="relative">
         <button
           onClick={() => setShowMenu(!showMenu)}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[--background-secondary] text-sm text-[--foreground-secondary]"
+          className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--background-secondary)] text-sm text-[var(--foreground-secondary)]"
         >
           <div className="w-6 h-6 rounded-full bg-[#007AFF]/20 flex items-center justify-center text-xs text-[#007AFF] font-medium">
             {user.username?.[0]?.toUpperCase() || 'U'}
@@ -298,10 +298,10 @@ export function AccountStatus({ user, onLogout, onLoginClick }: AccountStatusPro
           </svg>
         </button>
         {showMenu && (
-          <div className="absolute top-full right-0 mt-1 bg-[--card-bg] rounded-xl shadow-lg border border-[--border] py-1 min-w-[120px] z-10">
+          <div className="absolute top-full right-0 mt-1 bg-[var(--card-bg)] rounded-xl shadow-lg border border-[var(--border)] py-1 min-w-[120px] z-10">
             <button
               onClick={() => { onLogout(); setShowMenu(false); }}
-              className="w-full px-4 py-2 text-left text-sm text-[--foreground-secondary] hover:bg-[--background-secondary]"
+              className="w-full px-4 py-2 text-left text-sm text-[var(--foreground-secondary)] hover:bg-[var(--background-secondary)]"
             >
               退出登录
             </button>

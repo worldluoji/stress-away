@@ -3,9 +3,9 @@ import type { HTMLAttributes, ReactNode } from "react";
 type Variant = "default" | "glass" | "elevated" | "outline";
 
 const VARIANT_CLASSES: Record<Variant, string> = {
-  default: "bg-[--card-bg] border border-[var(--card-border)]",
-  glass: "bg-[--glass-bg] backdrop-blur-xl border border-[var(--card-border)]",
-  elevated: "bg-[--card-bg] shadow-[var(--shadow-prominent)]",
+  default: "bg-[var(--card-bg)] border border-[var(--card-border)]",
+  glass: "bg-[var(--glass-bg)] backdrop-blur-xl border border-[var(--card-border)]",
+  elevated: "bg-[var(--card-bg)] shadow-[var(--shadow-prominent)]",
   outline: "bg-transparent border border-[var(--card-border)]",
 };
 

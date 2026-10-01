@@ -16,7 +16,7 @@ export const Input = forwardRef<HTMLInputElement, Props>(function Input(
       {label && (
         <label
           htmlFor={inputId}
-          className="text-xs font-medium text-[--foreground-secondary]"
+          className="text-xs font-medium text-[var(--foreground-secondary)]"
         >
           {label}
         </label>
@@ -24,17 +24,17 @@ export const Input = forwardRef<HTMLInputElement, Props>(function Input(
       <input
         ref={ref}
         id={inputId}
-        className={`w-full rounded-xl bg-[--background-secondary] border px-4 py-3 text-[15px] text-[--foreground] placeholder:text-[--foreground-tertiary] transition-all
-          focus:outline-none focus:ring-2 focus:ring-[--color-brand]/30 focus:border-[--color-brand]/40
+        className={`w-full rounded-xl bg-[var(--background-secondary)] border px-4 py-3 text-[15px] text-[var(--foreground)] placeholder:text-[var(--foreground-tertiary)] transition-all
+          focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]/30 focus:border-[var(--color-brand)]/40
           disabled:opacity-50
-          ${error ? "border-[--color-danger]/50" : "border-[var(--card-border)]"}
+          ${error ? "border-[var(--color-danger)]/50" : "border-[var(--card-border)]"}
           ${className ?? ""}`}
         {...rest}
       />
       {error ? (
-        <p className="text-xs text-[--color-danger]">{error}</p>
+        <p className="text-xs text-[var(--color-danger)]">{error}</p>
       ) : hint ? (
-        <p className="text-xs text-[--foreground-tertiary]">{hint}</p>
+        <p className="text-xs text-[var(--foreground-tertiary)]">{hint}</p>
       ) : null}
     </div>
   );

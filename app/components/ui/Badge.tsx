@@ -3,12 +3,12 @@ import type { ReactNode } from "react";
 type Tone = "brand" | "success" | "warning" | "danger" | "neutral" | "info";
 
 const TONE_CLASSES: Record<Tone, string> = {
-  brand: "bg-[--color-brand]/10 text-[--color-brand]",
-  success: "bg-[--color-success]/10 text-[--color-success]",
-  warning: "bg-[--color-warning]/10 text-[--color-warning]",
-  danger: "bg-[--color-danger]/10 text-[--color-danger]",
-  info: "bg-[--color-info]/10 text-[--color-info]",
-  neutral: "bg-[--background-secondary] text-[--foreground-tertiary]",
+  brand: "bg-[var(--color-brand)]/10 text-[var(--color-brand)]",
+  success: "bg-[var(--color-success)]/10 text-[var(--color-success)]",
+  warning: "bg-[var(--color-warning)]/10 text-[var(--color-warning)]",
+  danger: "bg-[var(--color-danger)]/10 text-[var(--color-danger)]",
+  info: "bg-[var(--color-info)]/10 text-[var(--color-info)]",
+  neutral: "bg-[var(--background-secondary)] text-[var(--foreground-tertiary)]",
 };
 
 interface Props {

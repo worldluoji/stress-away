@@ -9,7 +9,7 @@ export function Skeleton({ lines = 3, className }: Props) {
       {Array.from({ length: lines }).map((_, i) => (
         <div
           key={i}
-          className="h-3 rounded-full bg-[--background-secondary] animate-pulse"
+          className="h-3 rounded-full bg-[var(--background-secondary)] animate-pulse"
           style={{ width: `${85 - i * 12}%` }}
         />
       ))}

@@ -6,13 +6,13 @@ type Size = "sm" | "md" | "lg";
 
 const VARIANT_CLASSES: Record<Variant, string> = {
   primary:
-    "bg-gradient-to-r from-[--color-brand] to-[--color-brand-alt] text-white shadow-sm hover:shadow-[var(--shadow-moderate)]",
+    "bg-gradient-to-r from-[var(--color-brand)] to-[var(--color-brand-alt)] text-white shadow-sm hover:shadow-[var(--shadow-moderate)]",
   secondary:
-    "bg-[--background-secondary] text-[--foreground] hover:bg-[--apple-gray-light]/40 border border-[var(--card-border)]",
+    "bg-[var(--background-secondary)] text-[var(--foreground)] hover:bg-[var(--apple-gray-light)]/40 border border-[var(--card-border)]",
   ghost:
-    "bg-transparent text-[--foreground-secondary] hover:bg-[--background-secondary]",
+    "bg-transparent text-[var(--foreground-secondary)] hover:bg-[var(--background-secondary)]",
   danger:
-    "bg-[--color-danger] text-white shadow-sm hover:bg-[--color-danger]/90",
+    "bg-[var(--color-danger)] text-white shadow-sm hover:bg-[var(--color-danger)]/90",
 };
 
 const SIZE_CLASSES: Record<Size, string> = {
@@ -49,7 +49,7 @@ export const Button = forwardRef<HTMLButtonElement, Props>(function Button(
     <button
       ref={ref}
       disabled={disabled || loading}
-      className={`inline-flex items-center justify-center font-medium transition-all duration-[--dur-base] ease-[--ease-out]
+      className={`inline-flex items-center justify-center font-medium transition-all duration-[var(--dur-base)] ease-[var(--ease-out)]
         active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100
         hover:-translate-y-px
         ${VARIANT_CLASSES[variant]} ${SIZE_CLASSES[size]} ${fullWidth ? "w-full" : ""} ${className ?? ""}`}

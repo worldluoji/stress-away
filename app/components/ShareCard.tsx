@@ -240,11 +240,11 @@ useEffect(() => {
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative w-full max-w-md mx-4 bg-[--card-bg] rounded-2xl shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-md mx-4 bg-[var(--card-bg)] rounded-2xl shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[--card-border]">
-          <h2 className="text-lg font-semibold text-[--foreground]">分享回复</h2>
-          <button onClick={onClose} className="p-1 text-[--foreground-tertiary] hover:text-[--foreground]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--card-border)]">
+          <h2 className="text-lg font-semibold text-[var(--foreground)]">分享回复</h2>
+          <button onClick={onClose} className="p-1 text-[var(--foreground-tertiary)] hover:text-[var(--foreground)]">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -252,8 +252,8 @@ useEffect(() => {
         </div>
 
         {/* Style selector */}
-        <div className="px-5 py-3 border-b border-[--card-border]">
-          <p className="text-xs text-[--foreground-tertiary] mb-2">选择风格</p>
+        <div className="px-5 py-3 border-b border-[var(--card-border)]">
+          <p className="text-xs text-[var(--foreground-tertiary)] mb-2">选择风格</p>
           <div className="flex gap-2">
             {CARD_STYLES.map((s, i) => (
               <button
@@ -284,7 +284,7 @@ useEffect(() => {
         <div className="px-5 pb-5 flex gap-3">
           <button
             onClick={handleCopyText}
-            className="flex-1 py-3 bg-gray-100 dark:bg-[--background-secondary] text-[--foreground] rounded-xl text-sm font-medium hover:bg-gray-200 dark:hover:bg-[--background-tertiary] transition-colors"
+            className="flex-1 py-3 bg-gray-100 dark:bg-[var(--background-secondary)] text-[var(--foreground)] rounded-xl text-sm font-medium hover:bg-gray-200 dark:hover:bg-[var(--background-tertiary)] transition-colors"
           >
             {copying ? '已复制' : '复制文字'}
           </button>

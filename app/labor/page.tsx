@@ -24,19 +24,19 @@ export default function LaborPage() {
   const handleCompChange = useCallback((c: CompInput) => setComp(c), []);
 
   return (
-    <div className="flex flex-col min-h-screen bg-[--background]">
-      <header className="sticky top-0 z-20 bg-[--glass-bg] backdrop-blur-xl border-b border-[var(--card-border)]">
+    <div className="flex flex-col min-h-screen bg-[var(--background)]">
+      <header className="sticky top-0 z-20 bg-[var(--glass-bg)] backdrop-blur-xl border-b border-[var(--card-border)]">
         <div className="mx-auto max-w-2xl px-4 py-3 flex items-center gap-3">
           <Link
             href="/"
             aria-label="返回"
-            className="w-9 h-9 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] hover:text-[--foreground] transition-all active:scale-95"
+            className="w-9 h-9 flex items-center justify-center rounded-full bg-[var(--background-secondary)] text-[var(--foreground-tertiary)] hover:bg-[var(--apple-gray-light)] hover:text-[var(--foreground)] transition-all active:scale-95"
           >
             <Icon name="arrow-left" size={18} />
           </Link>
           <div className="flex flex-col">
-            <h1 className="text-[--text-h2] font-semibold text-[--foreground] tracking-tight leading-tight">劳动维权助手</h1>
-            <p className="text-xs text-[--foreground-tertiary]">裁员赔偿 · 欠薪仲裁 · 免费估算</p>
+            <h1 className="text-[var(--text-h2)] font-semibold text-[var(--foreground)] tracking-tight leading-tight">劳动维权助手</h1>
+            <p className="text-xs text-[var(--foreground-tertiary)]">裁员赔偿 · 欠薪仲裁 · 免费估算</p>
           </div>
         </div>
       </header>
@@ -44,10 +44,10 @@ export default function LaborPage() {
       <main className="flex-1">
         <div className="mx-auto max-w-2xl px-4 py-6 space-y-8">
           <div className="hero-glow text-center pt-2 pb-4">
-            <h2 className="text-[--text-h1] font-bold text-[--foreground] mb-2 tracking-tight">
+            <h2 className="text-[var(--text-h1)] font-bold text-[var(--foreground)] mb-2 tracking-tight">
               被裁员？先算算你该拿多少钱
             </h2>
-            <p className="text-sm text-[--foreground-tertiary]">
+            <p className="text-sm text-[var(--foreground-tertiary)]">
               依据《劳动合同法》第40/47/87条即时估算，免费、无需登录
             </p>
           </div>
@@ -62,7 +62,7 @@ export default function LaborPage() {
 
           <div className="flex items-center gap-3 py-2">
             <div className="flex-1 h-px bg-[var(--card-border)]" />
-            <span className="text-xs text-[--foreground-tertiary]">下一步</span>
+            <span className="text-xs text-[var(--foreground-tertiary)]">下一步</span>
             <div className="flex-1 h-px bg-[var(--card-border)]" />
           </div>
 
@@ -80,7 +80,7 @@ export default function LaborPage() {
             />
           </Section>
 
-          <footer className="text-center text-xs text-[--foreground-tertiary] pb-4">
+          <footer className="text-center text-xs text-[var(--foreground-tertiary)] pb-4">
             赔偿封顶参照 {SOCIAL_WAGE_DATA_AS_OF} 前后公布的各地社平工资，金额与实际权益以劳动仲裁委员会/法院认定为准。
             {user ? "" : " 维权报告需登录并绑定激活码。"}
           </footer>

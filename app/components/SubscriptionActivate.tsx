@@ -57,18 +57,18 @@ export function SubscriptionActivate({ onActivated }: Props) {
 
   if (success) {
     return (
-      <div className="bg-[--card-bg] p-8 text-center">
+      <div className="bg-[var(--card-bg)] p-8 text-center">
         <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#34C759]/10 flex items-center justify-center">
           <svg className="w-8 h-8 text-[#34C759]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h2 className="text-xl font-semibold text-[--foreground] mb-2">激活成功</h2>
-        <p className="text-[--foreground-tertiary] mb-4">
+        <h2 className="text-xl font-semibold text-[var(--foreground)] mb-2">激活成功</h2>
+        <p className="text-[var(--foreground-tertiary)] mb-4">
           剩余 <span className="text-[#007AFF] font-medium">{success.remaining}</span> 次报告额度
         </p>
         {success.expiresAt && (
-          <p className="text-sm text-[--foreground-tertiary]">
+          <p className="text-sm text-[var(--foreground-tertiary)]">
             有效期至 {new Date(success.expiresAt).toLocaleDateString('zh-CN')}
           </p>
         )}
@@ -79,13 +79,13 @@ export function SubscriptionActivate({ onActivated }: Props) {
   return (
     <div className="space-y-5 px-5 pb-6">
       <div className="text-center mb-6">
-        <h2 className="text-lg font-semibold text-[--foreground] mb-1">激活设备</h2>
-        <p className="text-sm text-[--foreground-tertiary]">输入激活码直接激活</p>
+        <h2 className="text-lg font-semibold text-[var(--foreground)] mb-1">激活设备</h2>
+        <p className="text-sm text-[var(--foreground-tertiary)]">输入激活码直接激活</p>
       </div>
 
       <div className="space-y-3">
         <div className="space-y-1.5">
-          <label className="text-sm font-medium text-[--foreground-secondary]">
+          <label className="text-sm font-medium text-[var(--foreground-secondary)]">
             激活码
           </label>
           <input
@@ -96,10 +96,10 @@ export function SubscriptionActivate({ onActivated }: Props) {
             disabled={loading}
             maxLength={18}
             onKeyDown={(e) => e.key === 'Enter' && handleActivate()}
-            className="w-full px-4 py-3 bg-[--background-secondary] rounded-xl text-[--foreground] placeholder:text-[--foreground-tertiary] text-[15px] font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 disabled:opacity-50"
+            className="w-full px-4 py-3 bg-[var(--background-secondary)] rounded-xl text-[var(--foreground)] placeholder:text-[var(--foreground-tertiary)] text-[15px] font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 disabled:opacity-50"
           />
         </div>
-        <p className="text-xs text-[--foreground-tertiary]">
+        <p className="text-xs text-[var(--foreground-tertiary)]">
           激活码有效期30天，支持多次叠加绑定，额度和有效期累加
         </p>
         <button
@@ -118,7 +118,7 @@ export function SubscriptionActivate({ onActivated }: Props) {
       )}
 
       <div className="text-center pt-2">
-        <p className="text-xs text-[--foreground-tertiary]">
+        <p className="text-xs text-[var(--foreground-tertiary)]">
           遇到问题？联系客服微信 <span className="text-[#007AFF]">jmst_cute</span>
         </p>
       </div>

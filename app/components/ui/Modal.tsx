@@ -41,14 +41,14 @@ export function Modal({ open, onClose, title, children, size = "md", hideCloseBu
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`relative w-full ${SIZE_CLASS[size]} bg-[--card-bg] rounded-t-2xl sm:rounded-2xl shadow-2xl animate-slide-up sm:animate-scale-in overflow-hidden border border-[var(--card-border)] max-h-[90vh] flex flex-col`}
+        className={`relative w-full ${SIZE_CLASS[size]} bg-[var(--card-bg)] rounded-t-2xl sm:rounded-2xl shadow-2xl animate-slide-up sm:animate-scale-in overflow-hidden border border-[var(--card-border)] max-h-[90vh] flex flex-col`}
       >
-        <div className="hidden sm:block absolute top-3 left-1/2 -translate-x-1/2 w-10 h-1 bg-[--apple-gray-light] rounded-full z-10" />
+        <div className="hidden sm:block absolute top-3 left-1/2 -translate-x-1/2 w-10 h-1 bg-[var(--apple-gray-light)] rounded-full z-10" />
         {!hideCloseButton && (
           <button
             onClick={onClose}
             aria-label="关闭"
-            className="absolute top-3 right-3 sm:top-4 sm:right-4 w-8 h-8 flex items-center justify-center rounded-full bg-[--background-secondary] text-[--foreground-tertiary] hover:bg-[--apple-gray-light] transition-colors z-20"
+            className="absolute top-3 right-3 sm:top-4 sm:right-4 w-8 h-8 flex items-center justify-center rounded-full bg-[var(--background-secondary)] text-[var(--foreground-tertiary)] hover:bg-[var(--apple-gray-light)] transition-colors z-20"
           >
             <Icon name="x" size={16} />
           </button>

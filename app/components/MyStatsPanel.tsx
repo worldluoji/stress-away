@@ -93,13 +93,13 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative w-full max-w-md mx-4 max-h-[85vh] bg-[--card-bg] rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-scale-in border border-[var(--card-border)]">
+      <div className="relative w-full max-w-md mx-4 max-h-[85vh] bg-[var(--card-bg)] rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-scale-in border border-[var(--card-border)]">
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--card-border)]">
-          <h2 className="text-[--text-h3] font-semibold text-[--foreground]">我的数据</h2>
+          <h2 className="text-[var(--text-h3)] font-semibold text-[var(--foreground)]">我的数据</h2>
           <button
             onClick={onClose}
             aria-label="关闭"
-            className="w-8 h-8 flex items-center justify-center rounded-full text-[--foreground-tertiary] hover:bg-[--background-secondary] hover:text-[--foreground] transition-all active:scale-95"
+            className="w-8 h-8 flex items-center justify-center rounded-full text-[var(--foreground-tertiary)] hover:bg-[var(--background-secondary)] hover:text-[var(--foreground)] transition-all active:scale-95"
           >
             <Icon name="x" size={16} />
           </button>
@@ -114,34 +114,34 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
 
           {error && (
             <div className="text-center py-12">
-              <p className="text-[--foreground-tertiary]">{error}</p>
+              <p className="text-[var(--foreground-tertiary)]">{error}</p>
             </div>
           )}
 
           {!loading && !error && stats && (
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-[--background-secondary] rounded-xl p-4 text-center">
-                  <div className="text-2xl font-bold text-[--foreground]">{stats.totalChats}</div>
-                  <div className="text-xs text-[--foreground-tertiary] mt-1">总对话数</div>
+                <div className="bg-[var(--background-secondary)] rounded-xl p-4 text-center">
+                  <div className="text-2xl font-bold text-[var(--foreground)]">{stats.totalChats}</div>
+                  <div className="text-xs text-[var(--foreground-tertiary)] mt-1">总对话数</div>
                 </div>
-                <div className="bg-[--background-secondary] rounded-xl p-4 text-center">
-                  <div className="text-2xl font-bold text-[--foreground]">{stats.activeDays}</div>
-                  <div className="text-xs text-[--foreground-tertiary] mt-1">活跃天数</div>
+                <div className="bg-[var(--background-secondary)] rounded-xl p-4 text-center">
+                  <div className="text-2xl font-bold text-[var(--foreground)]">{stats.activeDays}</div>
+                  <div className="text-xs text-[var(--foreground-tertiary)] mt-1">活跃天数</div>
                 </div>
               </div>
 
               {(stats.weeklyActivity || []).length > 0 && (
                 <div>
-                  <h3 className="text-sm font-medium text-[--foreground-secondary] mb-3">本周活跃</h3>
+                  <h3 className="text-sm font-medium text-[var(--foreground-secondary)] mb-3">本周活跃</h3>
                   <div className="flex items-end gap-1.5 h-16">
                     {(stats.weeklyActivity || []).map((day) => (
                       <div key={day.date} className="flex-1 flex flex-col items-center gap-1">
                         <div
-                          className="w-full rounded-sm bg-gradient-to-t from-[--color-brand] to-[--color-brand-alt] transition-all"
+                          className="w-full rounded-sm bg-gradient-to-t from-[var(--color-brand)] to-[var(--color-brand-alt)] transition-all"
                           style={{ height: `${Math.max((day.count / 5) * 48, day.count > 0 ? 8 : 4)}px` }}
                         />
-                        <span className="text-[10px] text-[--foreground-tertiary]">{day.label}</span>
+                        <span className="text-[10px] text-[var(--foreground-tertiary)]">{day.label}</span>
                       </div>
                     ))}
                   </div>
@@ -150,22 +150,22 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
 
               {(stats.scenarios || []).length > 0 && (
                 <div>
-                  <h3 className="text-sm font-medium text-[--foreground-secondary] mb-3">话题分布</h3>
+                  <h3 className="text-sm font-medium text-[var(--foreground-secondary)] mb-3">话题分布</h3>
                   <div className="space-y-2">
                     {(stats.scenarios || []).map((s) => {
                       const pct = Math.round((s.count / getMaxCount(stats.scenarios || [])) * 100);
                       return (
                         <div key={s.scenarioId} className="flex items-center gap-3">
-                          <span className="text-sm text-[--foreground] w-28 truncate">
+                          <span className="text-sm text-[var(--foreground)] w-28 truncate">
                             {getScenarioName(s.scenarioId)}
                           </span>
-                          <div className="flex-1 h-2 bg-[--background-secondary] rounded-full overflow-hidden">
+                          <div className="flex-1 h-2 bg-[var(--background-secondary)] rounded-full overflow-hidden">
                             <div
-                              className="h-full bg-gradient-to-r from-[--color-brand] to-[--color-brand-alt] rounded-full transition-all"
+                              className="h-full bg-gradient-to-r from-[var(--color-brand)] to-[var(--color-brand-alt)] rounded-full transition-all"
                               style={{ width: `${pct}%` }}
                             />
                           </div>
-                          <span className="text-xs text-[--foreground-tertiary] w-8 text-right">{s.count}</span>
+                          <span className="text-xs text-[var(--foreground-tertiary)] w-8 text-right">{s.count}</span>
                         </div>
                       );
                     })}
@@ -175,12 +175,12 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
 
               {(stats.keywords || []).length > 0 && (
                 <div>
-                  <h3 className="text-sm font-medium text-[--foreground-secondary] mb-3">高频关键词</h3>
+                  <h3 className="text-sm font-medium text-[var(--foreground-secondary)] mb-3">高频关键词</h3>
                   <div className="flex flex-wrap gap-2">
                     {(stats.keywords || []).map((kw) => (
                       <span
                         key={kw.keyword}
-                        className="px-3 py-1.5 bg-[--background-secondary] rounded-full text-xs text-[--foreground-secondary]"
+                        className="px-3 py-1.5 bg-[var(--background-secondary)] rounded-full text-xs text-[var(--foreground-secondary)]"
                       >
                         {kw.keyword}
                       </span>
@@ -200,8 +200,8 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
           )}
 
           <div className="text-center pt-4 mt-4 border-t border-[var(--card-border)]">
-            <p className="text-xs text-[--foreground-tertiary]">
-              遇到问题？联系客服微信 <span className="text-[--color-brand]">jmst_cute</span>
+            <p className="text-xs text-[var(--foreground-tertiary)]">
+              遇到问题？联系客服微信 <span className="text-[var(--color-brand)]">jmst_cute</span>
             </p>
           </div>
         </div>
