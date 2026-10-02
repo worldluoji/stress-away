@@ -33,6 +33,6 @@
 ## 后续迭代（非阻塞，验证付费成立后再做）
 
 - [ ] 计算器结果分享卡片（复用 `ShareCard.tsx`）
-- [ ] 报告持久化/历史（复用 conversations 机制）
+- [ ] 报告持久化/历史：当前 reply 只活在客户端 React state，刷新即丢；服务端 `/api/report` 仅 `consumeUsageByUid` + `incrementChatCount("labor-report")`，不存内容。实施：`lib/conversations.ts` 加 `kind: 'chat' | 'report'` 分桶复用现有持久化层；新建 `/api/reports` 列表接口 + history 抽屉新增"报告"tab；点击历史条目可重新加载并复用 docx 下载。**触发条件：付费转化率验证通过后**（避免给未验证有用的功能堆第二套持久化层）
 - [ ] 扩充社平工资城市覆盖到 30+ 城（含省会/计划单列市/主要地级市），同步扩 `lib/cities.ts` 省份映射
 - [ ] 若付费验证成立：考虑 B 端/律师导流
