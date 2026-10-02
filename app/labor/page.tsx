@@ -6,6 +6,7 @@ import type { CompInput } from "@/lib/compensation";
 import { CompensationForm } from "@/app/components/CompensationForm";
 import { ReportPanel } from "@/app/components/ReportPanel";
 import { SubscriptionActivate } from "@/app/components/SubscriptionActivate";
+import { LaborHistoryPanel } from "@/app/components/LaborHistoryPanel";
 import dynamic from "next/dynamic";
 const LoginModal = dynamic(() => import("@/app/components/LoginModal").then(m => ({ default: m.LoginModal })), { ssr: false });
 import { useAuth } from "@/app/components/LoginModal";
@@ -16,14 +17,17 @@ import { Badge } from "@/app/components/ui/Badge";
 import { apiFetch } from "@/lib/request-api";
 import { getDeviceId } from "@/lib/utils";
 import type { UsageStatus } from "@/lib/subscription";
+import type { LaborReport } from "@/lib/labor-reports";
 
 export default function LaborPage() {
   const [comp, setComp] = useState<CompInput | null>(null);
   const [showActivate, setShowActivate] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [activateKey, setActivateKey] = useState(0);
   const [usage, setUsage] = useState<UsageStatus | null>(null);
   const [deviceId, setDeviceId] = useState<string>("");
+  const [history, setHistory] = useState<LaborReport[]>([]);
   const { user, uid } = useAuth();
 
   const handleCompChange = useCallback((c: CompInput) => setComp(c), []);
@@ -57,6 +61,39 @@ export default function LaborPage() {
     fetchUsage();
   }, [fetchUsage, deviceId]);
 
+  const fetchHistory = useCallback(async () => {
+    if (!uid) return;
+    try {
+      const headers: Record<string, string> = {
+        "x-device-id": deviceId,
+        "X-User-Id": uid,
+      };
+      const res = await apiFetch("/api/labor-reports", { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setHistory(data.reports ?? []);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [uid, deviceId]);
+
+  const handleDeleteReport = useCallback(async (id: string) => {
+    if (!uid) return;
+    try {
+      await apiFetch(`/api/labor-reports/${id}`, {
+        method: "DELETE",
+        headers: {
+          "x-device-id": deviceId,
+          "X-User-Id": uid,
+        },
+      });
+      setHistory((prev) => prev.filter((r) => r.id !== id));
+    } catch {
+      /* ignore */
+    }
+  }, [uid, deviceId]);
+
   return (
     <div className="flex flex-col min-h-screen bg-[var(--background)]">
       <header className="sticky top-0 z-20 bg-[var(--glass-bg)] backdrop-blur-xl border-b border-[var(--card-border)]">
@@ -72,6 +109,15 @@ export default function LaborPage() {
             <h1 className="text-[var(--text-h2)] font-semibold text-[var(--foreground)] tracking-tight leading-tight">劳动维权助手</h1>
             <p className="text-xs text-[var(--foreground-tertiary)]">裁员赔偿 · 欠薪仲裁 · 免费估算</p>
           </div>
+          {uid && (
+            <button
+              onClick={() => { setShowHistory(true); fetchHistory(); }}
+              aria-label="报告历史"
+              className="w-9 h-9 flex items-center justify-center rounded-full bg-[var(--background-secondary)] text-[var(--foreground-tertiary)] hover:bg-[var(--apple-gray-light)] hover:text-[var(--foreground)] transition-all active:scale-95"
+            >
+              <Icon name="clock" size={18} />
+            </button>
+          )}
           {usage && deviceId && (
             <Badge tone={usage.isPaid ? "success" : "neutral"}>
               {usage.isPaid ? (
@@ -123,7 +169,7 @@ export default function LaborPage() {
               uid={uid}
               onRequireActivate={() => { setActivateKey(k => k + 1); setShowActivate(true); }}
               onRequireLogin={() => setShowLogin(true)}
-              onUsageChanged={fetchUsage}
+              onUsageChanged={() => { fetchUsage(); fetchHistory(); }}
             />
           </Section>
 
@@ -145,6 +191,14 @@ export default function LaborPage() {
       </Modal>
 
       <LoginModal isOpen={showLogin} onClose={() => setShowLogin(false)} onSuccess={() => setShowLogin(false)} />
+
+      {showHistory && (
+        <LaborHistoryPanel
+          reports={history}
+          onDelete={handleDeleteReport}
+          onClose={() => setShowHistory(false)}
+        />
+      )}
     </div>
   );
 }

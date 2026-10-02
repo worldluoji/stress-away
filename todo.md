@@ -33,6 +33,6 @@
 ## 后续迭代（非阻塞，验证付费成立后再做）
 
 - [ ] 计算器结果分享卡片（复用 `ShareCard.tsx`）
-- [ ] 报告持久化/历史：当前 reply 只活在客户端 React state，刷新即丢；服务端 `/api/report` 仅 `consumeUsageByUid` + `incrementChatCount("labor-report")`，不存内容。实施：`lib/conversations.ts` 加 `kind: 'chat' | 'report'` 分桶复用现有持久化层；新建 `/api/reports` 列表接口 + history 抽屉新增"报告"tab；点击历史条目可重新加载并复用 docx 下载。**触发条件：付费转化率验证通过后**（避免给未验证有用的功能堆第二套持久化层）
+- [x] 报告持久化/历史（PR #4 进行中）：当前 reply 只活在客户端 React state，刷新即丢；用户也可能误关窗口。实施：新表 `labor_reports`（uid + comp_json + computation_json + reply + created_at，索引 `uid+created_at`）；`lib/labor-reports.ts` CRUD；`GET /api/labor-reports` 列表 + `GET/DELETE /api/labor-reports/[id]` 单条（uid-scoped 防越权）；`/api/report` 在 AI 成功 + consumeUsageByUid 后追加 `saveLaborReport`（失败不阻塞）；`/labor` 头部加时钟按钮 → 抽屉展示历史，点击行展开全文 + 复用复制/下载 Word
 - [ ] 扩充社平工资城市覆盖到 30+ 城（含省会/计划单列市/主要地级市），同步扩 `lib/cities.ts` 省份映射
 - [ ] 若付费验证成立：考虑 B 端/律师导流

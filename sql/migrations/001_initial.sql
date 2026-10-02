@@ -128,3 +128,16 @@ CREATE TABLE IF NOT EXISTS saved_messages (
   INDEX idx_message (message_id),
   INDEX idx_uid_created (uid, created_at DESC)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- labor_reports: paid 维权方案报告历史（uid-scoped，刷新/关窗口后仍可找回）
+CREATE TABLE IF NOT EXISTS labor_reports (
+  id VARCHAR(32) PRIMARY KEY,
+  uid VARCHAR(64) NOT NULL,
+  comp_json TEXT NOT NULL,             -- CompInput JSON
+  intake_answers_json TEXT,            -- Record<string, string>
+  narrative TEXT NOT NULL,
+  computation_json TEXT NOT NULL,      -- CompBreakdown JSON（含 total/lines/warnings/wageSource）
+  reply TEXT NOT NULL,                 -- 已 sanitize 的 markdown + 免责
+  created_at BIGINT NOT NULL,
+  INDEX idx_uid_created (uid, created_at DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

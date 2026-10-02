@@ -10,6 +10,7 @@ import { getAuthContext } from "@/lib/api-auth";
 import { isPaidUserByUid, getRemainingUsageByUid, consumeUsageByUid } from "@/lib/subscriptions";
 import { incrementChatCount } from "@/lib/usage-events";
 import { sanitizeMarkdown } from "@/lib/sanitize";
+import { saveLaborReport } from "@/lib/labor-reports";
 
 const MAX_NARRATIVE_LENGTH = 600;
 const MAX_ANSWER_LENGTH = 200;
@@ -244,6 +245,25 @@ export async function POST(request: NextRequest) {
         .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
         .trim() + DISCLAIMER
     );
+
+    // 落库：付费用户的报告存为历史，便于刷新/关窗口后找回
+    try {
+      await saveLaborReport(
+        {
+          id: `r_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
+          uid: auth.uid,
+          comp,
+          intakeAnswers,
+          narrative,
+          computation: breakdown,
+          reply,
+          createdAt: Date.now(),
+        },
+        auth.uid
+      );
+    } catch {
+      // 落库失败不阻塞返回，与扣量同模式
+    }
 
     return NextResponse.json(
       { reply, computation: breakdown },

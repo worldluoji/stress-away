@@ -279,6 +279,44 @@ Headers: `x-device-id`、`X-User-Id`
 
 错误：402 `report_quota_confirm`（付费用户需确认消耗 1 次额度，body 含 `paidRemaining`，前端确认后带 `confirmPaid: true` 重发）、403 `login_required`（未登录）、403 `paid_only`（非付费用户）、403 `no_quota`（次数用完）、400 `invalid_input`、429 限流、500 AI 失败（不扣额度）。
 
+副作用：成功后报告入库到 `labor_reports`（uid + comp_json + computation_json + reply + created_at），用户后续可在 `/labor` 历史抽屉找回；落库失败不阻塞返回（与扣量同模式）。
+
+### GET /api/labor-reports
+
+列出当前 uid 的维权报告历史（最多 50 条，按 created_at DESC）。
+
+Headers：`X-User-Id`
+
+响应：
+```json
+{ "reports": [{ "id": "r_xxx", "uid": "u1", "comp": {...}, "computation": {...}, "reply": "…", "narrative": "…", "intakeAnswers": {...}, "createdAt": 1700000000000 }] }
+```
+
+错误：401 `login_required`（未登录）。
+
+### GET /api/labor-reports/:id
+
+按 id + uid 取单条报告（uid-scoped 防越权）。
+
+Headers：`X-User-Id`
+
+响应：
+```json
+{ "report": { "id": "r_xxx", "...": "..." } }
+```
+
+错误：401 `login_required`（未登录）、404 `not_found`（id 不存在或不属于当前 uid）。
+
+### DELETE /api/labor-reports/:id
+
+按 id + uid 删除单条报告。
+
+Headers：`X-User-Id`
+
+响应：`{ "success": true }`
+
+错误：401 `login_required`（未登录）。
+
 ### POST /api/subscription/query-codes
 
 查询激活码。

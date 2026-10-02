@@ -8,6 +8,7 @@
 - **赔偿金计算器**（`/labor`，免费无需登录）：依据《劳动合同法》第40/47/87条实时估算 N、2N、代通知金、加班费（150%/200%/300%）、未休年假折算；含高薪双封顶（3×社平、12年）与取整规则，规则由表格驱动单元测试钉死
 - **维权方案报告**（付费，消耗 1 次报告额度）：AI 生成五段式报告——赔偿明细核对、证据清单、仲裁流程时间线（时效1年/受理5日/审期45+15日）、仲裁申请书草稿、风险与谈判策略；金额由服务端重算后注入，防篡改
 - **报告复制/下载**：生成后可一键复制全文（raw markdown 入剪贴板），或下载为 Word（.docx）便于提交仲裁或转发律师
+- **报告历史**：付费用户生成的报告自动入库（`labor_reports` 表，最多 50 条）；`/labor` 头部时钟按钮可拉抽屉查看历史，点击行展开全文并复用复制/下载，刷新或关窗口后仍可找回
 - **付费明示**：点击生成时会弹出 `window.confirm` 提示「本次生成将消耗 1 次报告额度（剩余 X 次）」，用户确认后才真正扣费；AI 失败时不扣
 - **社平工资表**：内置 17 个高频城市封顶基数（`lib/social-wage.ts`），每条记录含人社局来源 URL 与生效日期；未收录城市自动回退到所属省份省会数据作为代理；用户可在「自定义社平工资」高级选项中手动覆盖；年度人工更新，不做自动 pipeline
 - **免责**：全程标注"AI 生成、不构成律师意见、以仲裁认定为准"
@@ -169,7 +170,8 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 │   │   │   ├── login/route.ts         # 管理登录
 │   │   │   └── orders/[orderId]/route.ts # 订单激活码管理
 │   │   ├── chat/route.ts              # AI 对话
-│   │   ├── report/route.ts            # 维权方案报告（付费，服务端重算金额）
+│   │   ├── report/route.ts            # 维权方案报告（付费，服务端重算金额，落库历史）
+│   │   ├── labor-reports/             # 维权报告历史列表/单条/删除
 │   │   ├── scenarios/                 # 场景模板
 │   │   ├── subscription/              # 订阅与激活
 │   │   │   ├── admin/activate/       # 管理端激活码激活
@@ -181,6 +183,7 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 │   │   ├── CompensationForm.tsx       # 赔偿金计算器表单（客户端实时估算）
 │   │   ├── HistoryPanel.tsx           # 历史记录面板
 │   │   ├── ReportPanel.tsx            # 维权报告生成面板
+│   │   ├── LaborHistoryPanel.tsx      # 维权报告历史抽屉
 │   │   ├── ScenarioCard.tsx           # 场景卡片
 │   │   ├── ScenarioModal.tsx          # 场景详情弹窗
 │   │   └── SubscriptionActivate.tsx   # 激活组件
@@ -194,6 +197,7 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 │   ├── conversations.ts               # 对话历史 MySQL 持久化
 │   ├── subscriptions.ts              # 订阅/激活码 MySQL + 内存缓存
 │   ├── report-docx.ts                # 报告 markdown → .docx Blob + 下载触发
+│   ├── labor-reports.ts              # 维权方案报告持久化（uid-scoped）
 │   ├── usage-events.ts               # 使用事件追踪 + 场景统计
 │   ├── mbaodu.ts                    # 面包多 API
 │   ├── models.ts                    # 模型配置
@@ -211,6 +215,7 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 │   ├── compensation.test.ts           # 赔偿金计算表格驱动测试
 │   ├── report-prompt.test.ts          # 报告 prompt 断言测试
 │   ├── report-docx.test.ts            # 报告 markdown→.docx 转换测试
+│   ├── labor-reports.test.ts          # 报告持久化无 MySQL 降级测试
 │   ├── ttl-map.test.ts                # 进程内 TTL 存储表格驱动测试
 │   └── kv-fallback.test.ts            # kv 无 MySQL 降级测试
 ├── sql/
