@@ -260,11 +260,14 @@ Headers: `x-device-id`、`X-User-Id`
     "unusedAnnualLeaveDays": 5
   },
   "intakeAnswers": { "目前的情况": "公司通知裁员" },
-  "narrative": "公司以架构调整为由口头通知离职…"
+  "narrative": "公司以架构调整为由口头通知离职…",
+  "confirmPaid": false
 }
 ```
 
 `dismissalType` 枚举：`mutual | no-fault-40 | illegal | expired | forced-resign`。
+
+`confirmPaid`：付费用户首次调用置 `false`（默认），后端返回 402 `report_quota_confirm` 并附 `paidRemaining`，前端用 `window.confirm` 二次确认后置 `true` 重发；不传等同于 `false`。
 
 响应：
 ```json
@@ -274,7 +277,7 @@ Headers: `x-device-id`、`X-User-Id`
 }
 ```
 
-错误：403 `login_required`（未登录）、403 `paid_only`（非付费用户）、403 `no_quota`（次数用完）、400 `invalid_input`、429 限流、500 AI 失败（不扣额度）。
+错误：402 `report_quota_confirm`（付费用户需确认消耗 1 次额度，body 含 `paidRemaining`，前端确认后带 `confirmPaid: true` 重发）、403 `login_required`（未登录）、403 `paid_only`（非付费用户）、403 `no_quota`（次数用完）、400 `invalid_input`、429 限流、500 AI 失败（不扣额度）。
 
 ### POST /api/subscription/query-codes
 

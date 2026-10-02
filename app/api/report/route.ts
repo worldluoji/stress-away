@@ -118,9 +118,26 @@ function validateBody(body: unknown): { comp: CompInput; intakeAnswers: Record<s
  *                 type: object
  *               narrative:
  *                 type: string
+ *               confirmPaid:
+ *                 type: boolean
+ *                 description: 付费用户在前端确认消耗1次报告额度时置 true；不传或 false 时返回 402 提示
  *     responses:
  *       200:
  *         description: 报告与计算明细
+ *       402:
+ *         description: 付费用户需确认消耗1次额度（前端二次确认）
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   enum: [report_quota_confirm]
+ *                 message:
+ *                   type: string
+ *                 paidRemaining:
+ *                   type: number
  *       403:
  *         description: 无配额或非付费用户
  *       429:
@@ -182,6 +199,17 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    const confirmPaid = (body as { confirmPaid?: boolean })?.confirmPaid === true;
+    if (!confirmPaid) {
+      return NextResponse.json(
+        {
+          error: "report_quota_confirm",
+          message: "本次生成将消耗 1 次报告额度",
+          paidRemaining,
+        },
+        { status: 402 }
+      );
+    }
     const parsed = validateBody(body);
     if (typeof parsed === "string") {
       return NextResponse.json({ error: "invalid_input", message: parsed }, { status: 400 });

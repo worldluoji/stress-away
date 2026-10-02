@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { CompInput } from "@/lib/compensation";
 import { CompensationForm } from "@/app/components/CompensationForm";
@@ -12,15 +12,50 @@ import { useAuth } from "@/app/components/LoginModal";
 import { Icon } from "@/app/components/ui/Icon";
 import { Modal } from "@/app/components/ui/Modal";
 import { Section } from "@/app/components/ui/Section";
+import { Badge } from "@/app/components/ui/Badge";
+import { apiFetch } from "@/lib/request-api";
+import { getDeviceId } from "@/lib/utils";
+import type { UsageStatus } from "@/lib/subscription";
 
 export default function LaborPage() {
   const [comp, setComp] = useState<CompInput | null>(null);
   const [showActivate, setShowActivate] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [activateKey, setActivateKey] = useState(0);
+  const [usage, setUsage] = useState<UsageStatus | null>(null);
+  const [deviceId, setDeviceId] = useState<string>("");
   const { user, uid } = useAuth();
 
   const handleCompChange = useCallback((c: CompInput) => setComp(c), []);
+
+  useEffect(() => {
+    const init = async () => {
+      const id = await getDeviceId();
+      setDeviceId(id);
+    };
+    init();
+  }, []);
+
+  const fetchUsage = useCallback(async () => {
+    if (!deviceId) return;
+    try {
+      const headers: Record<string, string> = { "x-device-id": deviceId };
+      if (uid) headers["x-user-id"] = uid;
+      const res = await apiFetch("/api/usage", { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setUsage(data);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [uid, deviceId]);
+
+  useEffect(() => {
+    if (!deviceId) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchUsage();
+  }, [fetchUsage, deviceId]);
 
   return (
     <div className="flex flex-col min-h-screen bg-[var(--background)]">
@@ -33,10 +68,22 @@ export default function LaborPage() {
           >
             <Icon name="arrow-left" size={18} />
           </Link>
-          <div className="flex flex-col">
+          <div className="flex flex-col flex-1">
             <h1 className="text-[var(--text-h2)] font-semibold text-[var(--foreground)] tracking-tight leading-tight">劳动维权助手</h1>
             <p className="text-xs text-[var(--foreground-tertiary)]">裁员赔偿 · 欠薪仲裁 · 免费估算</p>
           </div>
+          {usage && deviceId && (
+            <Badge tone={usage.isPaid ? "success" : "neutral"}>
+              {usage.isPaid ? (
+                <>
+                  <Icon name="check" size={11} strokeWidth={2.4} />
+                  {usage.remaining} 份报告
+                </>
+              ) : (
+                <>免费登录后可生成报告</>
+              )}
+            </Badge>
+          )}
         </div>
       </header>
 
@@ -76,6 +123,7 @@ export default function LaborPage() {
               uid={uid}
               onRequireActivate={() => { setActivateKey(k => k + 1); setShowActivate(true); }}
               onRequireLogin={() => setShowLogin(true)}
+              onUsageChanged={fetchUsage}
             />
           </Section>
 
@@ -93,7 +141,7 @@ export default function LaborPage() {
         size="md"
         hideCloseButton
       >
-        <SubscriptionActivate key={activateKey} onActivated={() => setShowActivate(false)} />
+        <SubscriptionActivate key={activateKey} onActivated={() => { setShowActivate(false); fetchUsage(); }} />
       </Modal>
 
       <LoginModal isOpen={showLogin} onClose={() => setShowLogin(false)} onSuccess={() => setShowLogin(false)} />

@@ -12,6 +12,8 @@ import { Spinner } from "./ui/Spinner";
 import { ErrorBanner } from "./ui/ErrorBanner";
 import { EmptyState } from "./ui/EmptyState";
 import { Card } from "./ui/Card";
+import { Icon } from "./ui/Icon";
+import { markdownToDocxBlob, triggerDocxDownload } from "@/lib/report-docx";
 
 const MAX_NARRATIVE_LENGTH = 600;
 
@@ -52,17 +54,34 @@ interface Props {
   uid: string | null;
   onRequireActivate: () => void;
   onRequireLogin: () => void;
+  onUsageChanged?: () => void;
 }
 
-export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin }: Props) {
+export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUsageChanged }: Props) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [narrative, setNarrative] = useState("");
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState("");
+  const [rawReply, setRawReply] = useState("");
   const [gate, setGate] = useState<"none" | "login" | "activate">("none");
   const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
-  const handleSubmit = async () => {
+  async function postReport(confirmPaid: boolean): Promise<Response> {
+    const deviceId = await getDeviceId();
+    return apiFetch("/api/report", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-User-Id": uid ?? "",
+        "x-device-id": deviceId,
+      },
+      body: JSON.stringify({ comp, intakeAnswers: answers, narrative, confirmPaid }),
+    });
+  }
+
+  async function handleSubmit() {
     if (!comp) {
       setError("请先填写上方的赔偿计算信息");
       return;
@@ -79,31 +98,79 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin }: Pr
     setError("");
     setLoading(true);
     try {
-      const deviceId = await getDeviceId();
-      const res = await apiFetch("/api/report", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": uid,
-          "x-device-id": deviceId,
-        },
-        body: JSON.stringify({ comp, intakeAnswers: answers, narrative }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        if (res.status === 403 && data.error === "login_required") setGate("login");
-        else if (res.status === 403 && data.error === "paid_only") setGate("activate");
-        else if (res.status === 403 && data.error === "no_quota") setGate("activate");
-        setError(data.message || "生成失败，请稍后再试");
+      // 第一步：不带 confirmPaid，看后端是否要确认
+      const r1 = await postReport(false);
+      if (r1.status === 402) {
+        const data = await r1.json();
+        const confirmed = window.confirm(
+          `${data.message || "本次生成将消耗 1 次报告额度"}（剩余 ${data.paidRemaining} 次），是否继续？`
+        );
+        if (!confirmed) return;
+        // 第二步：用户确认后重发
+        const r2 = await postReport(true);
+        const data2 = await r2.json();
+        if (!r2.ok) {
+          handleErrorResponse(r2, data2);
+          return;
+        }
+        setReport(data2.reply);
+        setRawReply(data2.reply);
+        onUsageChanged?.();
         return;
       }
-      setReport(data.reply);
+      const data1 = await r1.json();
+      if (!r1.ok) {
+        handleErrorResponse(r1, data1);
+        return;
+      }
+      setReport(data1.reply);
+      setRawReply(data1.reply);
+      onUsageChanged?.();
     } catch {
       setError("网络错误，请稍后再试");
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  function handleErrorResponse(res: Response, data: { error?: string; message?: string }) {
+    if (res.status === 403 && data.error === "login_required") setGate("login");
+    else if (res.status === 403 && data.error === "paid_only") setGate("activate");
+    else if (res.status === 403 && data.error === "no_quota") setGate("activate");
+    setError(data.message || "生成失败，请稍后再试");
+  }
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(rawReply);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = rawReply;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand("copy");
+      } catch {
+        /* fallback 失败，忽略 */
+      } finally {
+        document.body.removeChild(textarea);
+      }
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function handleDownload() {
+    setDownloading(true);
+    try {
+      const blob = await markdownToDocxBlob(rawReply);
+      triggerDocxDownload(blob, `维权方案报告_${new Date().toISOString().slice(0, 10)}`);
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -169,6 +236,28 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin }: Pr
 
       {report && (
         <Card padding="md" className="text-[15px] leading-relaxed text-[var(--foreground)] animate-fade-in">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <h4 className="text-sm font-semibold text-[var(--foreground-secondary)]">维权方案报告</h4>
+            <div className="flex items-center gap-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                leftIcon={<Icon name="copy" size={14} />}
+                onClick={handleCopy}
+              >
+                {copied ? "已复制" : "复制全文"}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                leftIcon={<Icon name="download" size={14} />}
+                onClick={handleDownload}
+                disabled={downloading}
+              >
+                {downloading ? "生成中…" : "下载 Word"}
+              </Button>
+            </div>
+          </div>
           <ReactMarkdown
             disallowedElements={["script", "style", "iframe", "object", "embed", "form"]}
             components={markdownComponents}
