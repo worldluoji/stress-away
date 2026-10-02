@@ -7,7 +7,7 @@ import {
   type CompInput,
   type DismissalType,
 } from "@/lib/compensation";
-import { SOCIAL_WAGE_MONTHLY_CAP, SOCIAL_WAGE_DATA_AS_OF } from "@/lib/social-wage";
+import { SOCIAL_WAGE_MONTHLY_CAP } from "@/lib/social-wage";
 import { Card } from "./ui/Card";
 import { Input } from "./ui/Input";
 import { Select } from "./ui/Select";
@@ -37,6 +37,7 @@ export function CompensationForm({
   const [otWeekend, setOtWeekend] = useState("");
   const [otHoliday, setOtHoliday] = useState("");
   const [leaveDays, setLeaveDays] = useState("");
+  const [userSocialWage, setUserSocialWage] = useState("");
 
   const wageNum = parseFloat(wage);
   const valid =
@@ -59,8 +60,9 @@ export function CompensationForm({
         holiday: parseFloat(otHoliday) || 0,
       },
       unusedAnnualLeaveDays: parseFloat(leaveDays) || 0,
+      userSocialWage: userSocialWage ? parseFloat(userSocialWage) : null,
     };
-  }, [valid, wageNum, lastMonthWage, hiredAt, firedAt, city, dismissalType, noAdvanceNotice, otWeekday, otWeekend, otHoliday, leaveDays]);
+  }, [valid, wageNum, lastMonthWage, hiredAt, firedAt, city, dismissalType, noAdvanceNotice, otWeekday, otWeekend, otHoliday, leaveDays, userSocialWage]);
 
   useEffect(() => {
     if (comp) onChangeComp?.(comp);
@@ -104,6 +106,9 @@ export function CompensationForm({
                 <option key={c} value={c} />
               ))}
             </datalist>
+            <p className="text-xs text-[var(--foreground-tertiary)] mt-1">
+              输入城市名即可，未收录城市会自动回退到所属省份平均值；可在下方高级选项中手动覆盖
+            </p>
           </div>
           <Input
             type="date"
@@ -224,6 +229,34 @@ export function CompensationForm({
         </div>
       </details>
 
+      <details className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] group">
+        <summary className="flex items-center justify-between px-4 py-3 text-sm font-medium text-[var(--foreground-secondary)] cursor-pointer select-none hover:text-[var(--foreground)] transition-colors">
+          <span className="flex items-center gap-2">
+            <Icon name="lightbulb" size={14} />
+            选填：自定义社平工资
+          </span>
+          <Icon
+            name="chevron-right"
+            size={16}
+            className="transition-transform group-open:rotate-90"
+          />
+        </summary>
+        <div className="px-4 pb-4 space-y-2">
+          <Input
+            type="number"
+            inputMode="numeric"
+            name="userSocialWage"
+            label="当地社平工资（月，元）"
+            placeholder="留空则使用系统默认值（查表 / 省会代理）"
+            value={userSocialWage}
+            onChange={(e) => setUserSocialWage(e.target.value)}
+          />
+          <p className="text-xs text-[var(--foreground-tertiary)]">
+            若你已通过当地人社局官网确认了最新数值，可在此覆盖默认值；系统会按你输入的值计算第 47 条封顶
+          </p>
+        </div>
+      </details>
+
       {breakdown ? (
         <div className="relative rounded-2xl bg-gradient-to-br from-[var(--color-brand)] to-[var(--color-brand-alt)] text-white p-5 shadow-[var(--shadow-prominent)] animate-fade-in overflow-hidden ring-1 ring-inset ring-white/10">
           <span
@@ -252,8 +285,53 @@ export function CompensationForm({
               </ul>
             )}
             <p className="mt-3 text-xs opacity-70">
-              估算依据 {SOCIAL_WAGE_DATA_AS_OF} 社平标准与《劳动合同法》第40/47/87条，最终以劳动仲裁认定为准。
+              依据《劳动合同法》第40/47/87条估算，最终以劳动仲裁认定为准。
             </p>
+            {breakdown.wageSource && (
+              <p className="mt-2 text-xs opacity-80">
+                {breakdown.wageSource.source === "city" && breakdown.wageSource.sourceUrl && (
+                  <>
+                    封顶基数：{breakdown.wageSource.label}（{breakdown.wageSource.effectiveDate}） ·{" "}
+                    <a
+                      className="underline hover:opacity-100"
+                      href={breakdown.wageSource.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      数据来源
+                    </a>
+                  </>
+                )}
+                {breakdown.wageSource.source === "city" && !breakdown.wageSource.sourceUrl && (
+                  <>封顶基数：{breakdown.wageSource.label}（{breakdown.wageSource.effectiveDate}）</>
+                )}
+                {breakdown.wageSource.source === "province" && (
+                  <>
+                    封顶基数：未收录「{comp?.city}」，使用{breakdown.wageSource.label}（{breakdown.wageSource.effectiveDate}）代理 ·{" "}
+                    {breakdown.wageSource.sourceUrl ? (
+                      <a
+                        className="underline hover:opacity-100"
+                        href={breakdown.wageSource.sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        数据来源
+                      </a>
+                    ) : (
+                      "数据来源"
+                    )}
+                  </>
+                )}
+                {breakdown.wageSource.source === "user" && (
+                  <>封顶基数：{breakdown.wageSource.label}，未与官方口径核对</>
+                )}
+                {breakdown.wageSource.source === "uncovered" && (
+                  <span className="text-amber-200">
+                    未收录「{comp?.city}」的社平工资数据且无省份代理值，请自行核实当地标准
+                  </span>
+                )}
+              </p>
+            )}
           </div>
         </div>
       ) : (

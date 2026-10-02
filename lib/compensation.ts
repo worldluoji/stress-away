@@ -1,4 +1,4 @@
-import { getSocialWageCap, SOCIAL_WAGE_DATA_AS_OF } from "./social-wage";
+import { getSocialWageContext, SOCIAL_WAGE_DATA_AS_OF, type WageSource } from "./social-wage";
 
 // 《劳动合同法》第47条：每满一年支付一个月工资；六个月以上不满一年按一年；不满六个月支付半个月。
 // 第87条：违法解除按经济补偿标准的二倍支付赔偿金（2N 替代 N）。
@@ -23,6 +23,16 @@ export interface CompInput {
   noAdvanceNotice?: boolean;
   overtimeHours?: { weekday: number; weekend: number; holiday: number };
   unusedAnnualLeaveDays?: number;
+  /** 用户手动提供的当地社平工资（月，元）。非正数/null/undefined 时忽略。 */
+  userSocialWage?: number | null;
+}
+
+/** 封顶基数来源展示用。Form 渲染时把它放在结果卡里。 */
+export interface WageSourceInfo {
+  source: WageSource;
+  label: string;
+  effectiveDate: string;
+  sourceUrl: string;
 }
 
 export interface CompBreakdown {
@@ -34,6 +44,8 @@ export interface CompBreakdown {
   total: number;
   lines: string[];
   warnings: string[];
+  /** 封顶基数来源；失败兜底（uncovered）时字段全空 */
+  wageSource?: WageSourceInfo;
 }
 
 // 本地时区的 yyyy-mm-dd（不能用 toISOString，UTC 会在东八区早8点前偏移一天）
@@ -86,20 +98,43 @@ export function computeCompensation(input: CompInput): CompBreakdown {
   const lines: string[] = [];
 
   const monthsRaw = computeSeveranceMonths(input.hiredAt, input.firedAt);
-  const cap = getSocialWageCap(input.city);
+  const ctx = getSocialWageContext(input.city, input.userSocialWage ?? null);
+
+  const wageSource: WageSourceInfo = ctx.record
+    ? {
+        source: ctx.source,
+        label: ctx.record.sourceLabel,
+        effectiveDate: ctx.record.effectiveDate,
+        sourceUrl: ctx.record.sourceUrl,
+      }
+    : ctx.source === "user"
+    ? { source: "user", label: `用户输入 ${ctx.wage}`, effectiveDate: "", sourceUrl: "" }
+    : { source: "uncovered", label: "", effectiveDate: "", sourceUrl: "" };
 
   let base = input.monthlyAvgWage;
   let months = monthsRaw;
-  if (cap === null) {
+
+  if (ctx.wage === null) {
     warnings.push(
-      `未收录「${input.city}」的社平工资数据（截至${SOCIAL_WAGE_DATA_AS_OF}），高薪封顶未应用，请自行核实当地标准。`
+      `未收录「${input.city}」的社平工资数据（截至${SOCIAL_WAGE_DATA_AS_OF}），也未匹配到所属省份的代理值，请自行核实当地标准。`
     );
-  } else if (input.monthlyAvgWage > HIGH_EARNER_CAP_MULTIPLIER * cap) {
-    base = HIGH_EARNER_CAP_MULTIPLIER * cap;
+  } else if (input.monthlyAvgWage > HIGH_EARNER_CAP_MULTIPLIER * ctx.wage) {
+    base = HIGH_EARNER_CAP_MULTIPLIER * ctx.wage;
     if (months > HIGH_EARNER_YEARS_CAP) months = HIGH_EARNER_YEARS_CAP;
-    warnings.push(
-      `月薪超过当地社平工资${HIGH_EARNER_CAP_MULTIPLIER}倍，触发第47条双封顶：计算基数按3×社平、年限最多${HIGH_EARNER_YEARS_CAP}年。`
-    );
+
+    if (ctx.source === "province") {
+      warnings.push(
+        `月薪超过当地社平工资${HIGH_EARNER_CAP_MULTIPLIER}倍，触发第47条双封顶：计算基数按 3×${ctx.fallbackNote}`
+      );
+    } else if (ctx.source === "user") {
+      warnings.push(
+        `月薪超过当地社平工资${HIGH_EARNER_CAP_MULTIPLIER}倍（按用户输入 ${ctx.wage} 元），触发第47条双封顶：计算基数按 3×该值、年限最多${HIGH_EARNER_YEARS_CAP}年。请确保所填社平与当地人社局一致。`
+      );
+    } else {
+      warnings.push(
+        `月薪超过当地社平工资${HIGH_EARNER_CAP_MULTIPLIER}倍，触发第47条双封顶：计算基数按3×社平、年限最多${HIGH_EARNER_YEARS_CAP}年。`
+      );
+    }
   }
 
   const severanceN = Math.round(base * months);
@@ -146,7 +181,21 @@ export function computeCompensation(input: CompInput): CompBreakdown {
   }
 
   const total = severanceN + illegalExtra + noticePay + overtimePay + annualLeavePay;
-  warnings.push(`赔偿估算依据 ${SOCIAL_WAGE_DATA_AS_OF} 前后公布的社平标准，实际以劳动仲裁/法院认定为准。`);
+
+  if (ctx.record) {
+    const proxyClause = ctx.source === "province" ? `，${ctx.resolvedCity} 代理 ${input.city}` : "";
+    warnings.push(
+      `封顶基数依据${ctx.record.sourceLabel} ${ctx.record.effectiveDate} 公布的"全口径城镇单位就业人员月平均工资"（${ctx.wage} 元${proxyClause}），实际以劳动仲裁/法院认定为准。`
+    );
+  } else if (ctx.source === "user") {
+    warnings.push(
+      `封顶基数依据用户输入（${ctx.wage} 元），请确保与当地人社局公布口径一致；实际以劳动仲裁/法院认定为准。`
+    );
+  } else {
+    warnings.push(
+      `赔偿估算依据 ${SOCIAL_WAGE_DATA_AS_OF} 前后公布的社平标准（本次未命中任何城市/省份代理值），实际以劳动仲裁/法院认定为准。`
+    );
+  }
 
   return {
     severanceN,
@@ -157,5 +206,6 @@ export function computeCompensation(input: CompInput): CompBreakdown {
     total,
     lines,
     warnings,
+    wageSource,
   };
 }

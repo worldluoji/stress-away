@@ -3,7 +3,6 @@
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import type { CompInput } from "@/lib/compensation";
-import { SOCIAL_WAGE_DATA_AS_OF } from "@/lib/social-wage";
 import { CompensationForm } from "@/app/components/CompensationForm";
 import { ReportPanel } from "@/app/components/ReportPanel";
 import { SubscriptionActivate } from "@/app/components/SubscriptionActivate";
@@ -81,7 +80,7 @@ export default function LaborPage() {
           </Section>
 
           <footer className="text-center text-xs text-[var(--foreground-tertiary)] pb-4">
-            赔偿封顶参照 {SOCIAL_WAGE_DATA_AS_OF} 前后公布的各地社平工资，金额与实际权益以劳动仲裁委员会/法院认定为准。
+            各地封顶基数见计算器结果页「数据来源」，实际权益以劳动仲裁委员会/法院认定为准。
             {user ? "" : " 维权报告需登录并绑定激活码。"}
           </footer>
         </div>

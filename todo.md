@@ -1,18 +1,20 @@
 # TODO — 劳动维权转型上线清单
 
-> 2026-09-30 转型 MVP 代码已完成（22 测试全绿、build 成功、lint 无新增错误）。以下为上线前/上线后待办。
+> 2026-09-30 转型 MVP 代码已完成（22 测试全绿、build 成功、lint 无新增错误）。
+> 2026-10-02 社平工资表结构重构（PR #1）已完成，测试扩充到 92 项全绿。
+> 2026-10-02 Form UX 补齐（PR #2）已完成：城市输入下方说明、新增「自定义社平工资」高级选项、结果卡按 source 分支展示来源 label/date/URL。下方为剩余待办。
 
 ## 上线前（阻塞项）
 
-- [ ] **核对社平工资数据**：`lib/social-wage.ts` 中 15 个城市封顶基数为近似值，逐城市对照当地人社局最新公布的"全口径城镇单位就业人员月平均工资"核实，并更新 `SOCIAL_WAGE_DATA_AS_OF`
+- [ ] **逐城核对社平工资数据**：`lib/social-wage.ts` 中 17 个城市（15 + 重庆 + 济南）封顶基数为近似值，逐城市对照当地人社局最新公布的"全口径城镇单位就业人员月平均工资"核实，更新 wage / sourceUrl / effectiveDate；`SOCIAL_WAGE_DATA_AS_OF` 同步更新
 - [ ] **部署环境端到端验证**（本地无 Redis/MySQL，`/api/report` 与 `/api/chat` 本地均 500，属既有行为）：
   - [ ] 匿名访问 /labor，填表实时算出金额
   - [ ] 免费登录用户请求报告 → 预期 403 `paid_only`
   - [ ] 绑定激活码后生成报告 → 五段式内容完整、金额与服务端计算一致
   - [ ] AI 调用失败时不扣额度
-- [ ] **浏览器中人工走查 /labor UI**（本次仅验证了路由编译与 build，未做点击测试）：表单交互、结果卡片、报告 Markdown 渲染、激活/登录弹窗
+- [ ] **浏览器中人工走查 /labor UI**（PR #2 新增：4 种 city 路径下结果卡显示正确——北京走 city + 人社局链接、温州走 province 代理杭州 + 警告含「浙江省」、用户输入 15000 走 user、未收录城市走 uncovered 提示自行核实）
 - [ ] **提交代码**：按 Conventional Commits 序列
-  `chore: add vitest` → `test: compensation specs` → `feat: calculator + social wage` → `feat: report prompt & callModel refactor` → `feat: /api/report` → `feat: labor page & homepage` → `docs: sync`
+  `chore: add vitest` → `test: compensation specs` → `feat: calculator + social wage` → `feat: report prompt & callModel refactor` → `feat: /api/report` → `feat: labor page & homepage` → `docs: sync` → `refactor(social-wage): 三级查表链 + 来源元数据` → `feat(social-wage): 表单高级选项 + 结果卡来源感知渲染`
 
 ## 上线后（数据与运营）
 
@@ -26,5 +28,5 @@
 
 - [ ] 计算器结果分享卡片（复用 `ShareCard.tsx`）
 - [ ] 报告持久化/历史（复用 conversations 机制）
-- [ ] 扩充社平工资城市覆盖
+- [ ] 扩充社平工资城市覆盖到 30+ 城（含省会/计划单列市/主要地级市），同步扩 `lib/cities.ts` 省份映射
 - [ ] 若付费验证成立：考虑 B 端/律师导流
