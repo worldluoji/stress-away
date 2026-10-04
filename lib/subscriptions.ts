@@ -152,6 +152,11 @@ export async function isPaidUserByUid(uid: string): Promise<boolean> {
 
 export async function consumeUsageByUid(uid: string): Promise<number> {
   if (!isMySQLAvailable()) return 0;
+  // 注意：业务校验失败（无记录 / 未激活 / 额度用完 / 已过期）返回 0，
+  // 调用方应据此判定为 "no_quota"。只有真正的 DB/连接/事务异常才 throw，
+  // 调用方据此返 500 并由前端引导重试或联系客服。
+  // —— 这是与之前的区别：之前会把 DB 错误也降级为 return 0，
+  // 导致 AI 生成报告后扣额度失败被静默吞。
   try {
     return await withTransaction(async (conn) => {
       const rows = await txQuery<SubscriptionRow>(
@@ -181,7 +186,7 @@ export async function consumeUsageByUid(uid: string): Promise<number> {
     });
   } catch (err) {
     console.error('[consumeUsageByUid] failed:', err);
-    return 0;
+    throw err;
   }
 }
 

@@ -244,8 +244,25 @@ export async function POST(request: NextRequest) {
     try {
       await consumeUsageByUid(auth.uid);
       incrementChatCount("labor-report", auth.uid, deviceId);
-    } catch {
-      // 扣量失败不阻塞返回，与 chat 一致，下次检查时自校正
+    } catch (err) {
+      // consumeUsageByUid 现在会对真正的 DB 异常抛错（业务失败仍 return 0）。
+      // 这是极少数 edge case（admin 撤销并发 / MySQL 抖动）：AI 已生成、扣额度失败，
+      // 不能直接 throw 让 reply 丢失（用户看不到 AI 回复会困惑），也不能 silent-fail（产品损失）。
+      // 返 settle_failed 让前端展示报告 + 顶部错误横幅告知"次数扣除异常请联系客服"，
+      // 由 admin 从 console 拿 rawReply 手动补偿。
+      console.error("[report] consumeUsageByUid threw (DB error), reply returned for manual compensation:", err);
+      const replyOnSettleFail = sanitizeMarkdown(
+        rawReply.replace(/[\s\S]*?<\/think>/gi, "").replace(/<thinking>[\s\S]*?<\/thinking>/gi, "").trim() + DISCLAIMER
+      );
+      return NextResponse.json(
+        {
+          error: "settle_failed",
+          message: "报告已生成但次数扣除异常，请稍后刷新页面核对；如持续异常请联系客服补偿",
+          reply: replyOnSettleFail,
+          computation: breakdown,
+        },
+        { status: 500 }
+      );
     }
 
     const reply = sanitizeMarkdown(
@@ -274,6 +291,22 @@ export async function POST(request: NextRequest) {
     } catch (err) {
       console.error("[report] saveLaborReport failed:", err);
       saveWarning = "报告已生成但保存到历史失败，刷新页面将无法找回，请复制全文或下载 Word 保存";
+    }
+
+    // consume 自愈校验：consume 后回查额度，若未减 1 则提示用户额度可能错位
+    //（覆盖 admin 撤销 race 或 lib/subscriptions.ts 内部 DB 错误被降级为 return 0 的场景）
+    try {
+      const afterRemaining = await getRemainingUsageByUid(auth.uid);
+      if (afterRemaining > paidRemaining - 1) {
+        console.error(
+          `[report] quota self-heal check failed: expected ${paidRemaining - 1}, got ${afterRemaining}`
+        );
+        saveWarning = saveWarning
+          ? `${saveWarning}；另外本次次数可能未正确扣除，请稍后刷新页面核对。`
+          : "本次次数可能未正确扣除，请稍后刷新页面核对。";
+      }
+    } catch (err) {
+      console.error("[report] quota self-heal check threw:", err);
     }
 
     return NextResponse.json(

@@ -97,6 +97,9 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
     }
     setGate("none");
     setError("");
+    setWarning("");
+    setReport("");
+    setRawReply("");
     setLoading(true);
     try {
       // 第一步：不带 confirmPaid，看后端是否要确认
@@ -107,15 +110,17 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
           `${data.message || "本次生成将消耗 1 次报告额度"}（剩余 ${data.paidRemaining} 次），是否继续？`
         );
         if (!confirmed) return;
-        // 第二步：用户确认后重发（带 confirmPaid=true 应直接通过）
+        // 第二步：用户确认后重发（带 confirmPaid=true 应直接通过；后端 finalRemaining 防御 race）
         const r2 = await postReport(true);
-        if (r2.status === 402) {
-          // 理论上不会发生（confirmPaid=true 后端不再返回 402），但 race 兜底
-          setError("确认状态异常，请刷新页面后重试");
-          return;
-        }
         const data2 = await r2.json();
         if (!r2.ok) {
+          if (data2.error === "settle_failed" && data2.reply) {
+            setReport(data2.reply);
+            setRawReply(data2.reply);
+            setError(data2.message || "次数扣除异常，请联系客服补偿");
+            onUsageChanged?.();
+            return;
+          }
           handleErrorResponse(r2, data2);
           return;
         }
@@ -127,6 +132,13 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
       }
       const data1 = await r1.json();
       if (!r1.ok) {
+        if (data1.error === "settle_failed" && data1.reply) {
+          setReport(data1.reply);
+          setRawReply(data1.reply);
+          setError(data1.message || "次数扣除异常，请联系客服补偿");
+          onUsageChanged?.();
+          return;
+        }
         handleErrorResponse(r1, data1);
         return;
       }
