@@ -211,6 +211,15 @@ export async function POST(request: NextRequest) {
         { status: 402 }
       );
     }
+    // 第二步前再查一次额度：防御 admin 撤销 / 并发用尽的 race condition
+    // 此时已确认用户意图，重查到 0 直接拒绝并要求刷新
+    const finalRemaining = await getRemainingUsageByUid(auth.uid);
+    if (finalRemaining <= 0) {
+      return NextResponse.json(
+        { error: "no_quota", message: "次数已用完，请绑定新的激活码" },
+        { status: 403 }
+      );
+    }
     const parsed = validateBody(body);
     if (typeof parsed === "string") {
       return NextResponse.json({ error: "invalid_input", message: parsed }, { status: 400 });
@@ -247,10 +256,11 @@ export async function POST(request: NextRequest) {
     );
 
     // 落库：付费用户的报告存为历史，便于刷新/关窗口后找回
+    let saveWarning: string | undefined;
     try {
       await saveLaborReport(
         {
-          id: `r_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
+          id: crypto.randomUUID(),
           uid: auth.uid,
           comp,
           intakeAnswers,
@@ -261,12 +271,13 @@ export async function POST(request: NextRequest) {
         },
         auth.uid
       );
-    } catch {
-      // 落库失败不阻塞返回，与扣量同模式
+    } catch (err) {
+      console.error("[report] saveLaborReport failed:", err);
+      saveWarning = "报告已生成但保存到历史失败，刷新页面将无法找回，请复制全文或下载 Word 保存";
     }
 
     return NextResponse.json(
-      { reply, computation: breakdown },
+      { reply, computation: breakdown, warning: saveWarning },
       {
         headers: {
           "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),

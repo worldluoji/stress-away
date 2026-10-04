@@ -37,7 +37,7 @@ const markdownComponents = {
 export function LaborHistoryPanel({ reports, onDelete, onClose }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
 
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -60,12 +60,16 @@ export function LaborHistoryPanel({ reports, onDelete, onClose }: Props) {
   }
 
   async function handleDownload(report: LaborReport) {
-    setDownloadingId(report.id);
+    setDownloadingIds((prev) => new Set(prev).add(report.id));
     try {
       const blob = await markdownToDocxBlob(report.reply);
       triggerDocxDownload(blob, `维权方案报告_${new Date(report.createdAt).toISOString().slice(0, 10)}`);
     } finally {
-      setDownloadingId(null);
+      setDownloadingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(report.id);
+        return next;
+      });
     }
   }
 
@@ -116,7 +120,9 @@ export function LaborHistoryPanel({ reports, onDelete, onClose }: Props) {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          onDelete(r.id);
+                          if (window.confirm("确定要删除这份报告吗？此操作不可恢复。")) {
+                            onDelete(r.id);
+                          }
                         }}
                         aria-label="删除报告"
                         className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--apple-gray-light)] text-[var(--foreground-tertiary)] hover:text-[var(--color-danger)] transition-all"
@@ -140,9 +146,9 @@ export function LaborHistoryPanel({ reports, onDelete, onClose }: Props) {
                             variant="ghost"
                             leftIcon={<Icon name="download" size={14} />}
                             onClick={() => handleDownload(r)}
-                            disabled={downloadingId === r.id}
+                            disabled={downloadingIds.has(r.id)}
                           >
-                            {downloadingId === r.id ? "生成中…" : "下载 Word"}
+                            {downloadingIds.has(r.id) ? "生成中…" : "下载 Word"}
                           </Button>
                         </div>
                         <ReactMarkdown

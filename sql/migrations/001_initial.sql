@@ -131,7 +131,7 @@ CREATE TABLE IF NOT EXISTS saved_messages (
 
 -- labor_reports: paid 维权方案报告历史（uid-scoped，刷新/关窗口后仍可找回）
 CREATE TABLE IF NOT EXISTS labor_reports (
-  id VARCHAR(32) PRIMARY KEY,
+  id VARCHAR(36) PRIMARY KEY,             -- crypto.randomUUID() (8-4-4-4-12)
   uid VARCHAR(64) NOT NULL,
   comp_json TEXT NOT NULL,             -- CompInput JSON
   intake_answers_json TEXT,            -- Record<string, string>

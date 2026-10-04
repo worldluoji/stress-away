@@ -63,6 +63,7 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState("");
   const [rawReply, setRawReply] = useState("");
+  const [warning, setWarning] = useState("");
   const [gate, setGate] = useState<"none" | "login" | "activate">("none");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
@@ -106,8 +107,13 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
           `${data.message || "本次生成将消耗 1 次报告额度"}（剩余 ${data.paidRemaining} 次），是否继续？`
         );
         if (!confirmed) return;
-        // 第二步：用户确认后重发
+        // 第二步：用户确认后重发（带 confirmPaid=true 应直接通过）
         const r2 = await postReport(true);
+        if (r2.status === 402) {
+          // 理论上不会发生（confirmPaid=true 后端不再返回 402），但 race 兜底
+          setError("确认状态异常，请刷新页面后重试");
+          return;
+        }
         const data2 = await r2.json();
         if (!r2.ok) {
           handleErrorResponse(r2, data2);
@@ -115,6 +121,7 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
         }
         setReport(data2.reply);
         setRawReply(data2.reply);
+        setWarning(data2.warning || "");
         onUsageChanged?.();
         return;
       }
@@ -125,6 +132,7 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
       }
       setReport(data1.reply);
       setRawReply(data1.reply);
+      setWarning(data1.warning || "");
       onUsageChanged?.();
     } catch {
       setError("网络错误，请稍后再试");
@@ -236,6 +244,12 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
 
       {report && (
         <Card padding="md" className="text-[15px] leading-relaxed text-[var(--foreground)] animate-fade-in">
+          {warning && (
+            <div className="mb-3 px-3 py-2 rounded-lg bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/30 text-xs text-[var(--foreground-secondary)] flex items-start gap-2">
+              <Icon name="alert-circle" size={14} className="shrink-0 mt-0.5 text-[var(--color-warning)]" />
+              <span>{warning}</span>
+            </div>
+          )}
           <div className="flex items-center justify-between gap-2 mb-3">
             <h4 className="text-sm font-semibold text-[var(--foreground-secondary)]">维权方案报告</h4>
             <div className="flex items-center gap-1">

@@ -12,6 +12,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ reports });
   } catch (err) {
     console.error("[labor-reports GET]", err);
-    return NextResponse.json({ reports: [] });
+    return NextResponse.json(
+      { error: "Internal error", message: "加载报告历史失败" },
+      { status: 500 }
+    );
   }
 }

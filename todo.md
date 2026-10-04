@@ -33,6 +33,18 @@
 ## 后续迭代（非阻塞，验证付费成立后再做）
 
 - [ ] 计算器结果分享卡片（复用 `ShareCard.tsx`）
-- [x] 报告持久化/历史（PR #4 进行中）：当前 reply 只活在客户端 React state，刷新即丢；用户也可能误关窗口。实施：新表 `labor_reports`（uid + comp_json + computation_json + reply + created_at，索引 `uid+created_at`）；`lib/labor-reports.ts` CRUD；`GET /api/labor-reports` 列表 + `GET/DELETE /api/labor-reports/[id]` 单条（uid-scoped 防越权）；`/api/report` 在 AI 成功 + consumeUsageByUid 后追加 `saveLaborReport`（失败不阻塞）；`/labor` 头部加时钟按钮 → 抽屉展示历史，点击行展开全文 + 复用复制/下载 Word
+- [x] 报告持久化/历史（PR #4）：新表 `labor_reports`（uid + comp_json + computation_json + reply + created_at，索引 `uid+created_at`）；`lib/labor-reports.ts` CRUD；`GET /api/labor-reports` 列表 + `GET/DELETE /api/labor-reports/[id]` 单条（uid-scoped 防越权）；`/api/report` 在 AI 成功 + consumeUsageByUid 后追加 `saveLaborReport`（失败不阻塞）；`/labor` 头部加时钟按钮 → 抽屉展示历史，点击行展开全文 + 复用复制/下载 Word
+- [ ] **PR #5 — 报告代码检视修复（f14d99b + 6853a35 检视）**：
+  - 🔴 **报告 id 熵提升**：`r_${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}` 仅 7 字符 `Math.random()`，同秒并发有碰撞风险 → PK 冲突 500；改 `crypto.randomUUID()` 或扩到 12 字符（`lib/labor-reports.ts:59-81` + `app/api/report/route.ts:253`）
+  - 🔴 **`saveLaborReport` ON DUPLICATE KEY 是死代码**：id 永远新生成，分支不触发；改为纯 `INSERT` 简化语义（`lib/labor-reports.ts:62-70`）
+  - 🔴 **第二步生成前重检额度**：`ReportPanel` 第二步不再查 quota，但 admin 撤销/并发场景下用户会看到 AI 成功 + 扣额度失败；r2 前再 `getRemainingUsageByUid` 一次（`ReportPanel.tsx:110` + `app/api/report/route.ts:236`）
+  - 🔴 **落库失败应告知用户**：AI 成功 + 扣额度后 `saveLaborReport` 静默吞错，用户刷新找不到历史会怀疑系统；响应加 `warning` 字段或前端 toast（`app/api/report/route.ts:250-266`）
+  - 🟡 **`/api/labor-reports` 错误响应不一致**：列表端点错误时返回 `{reports: []}` 200；改为 500 或至少加 `error` 字段（`app/api/labor-reports/route.ts:14-15`）
+  - 🟡 **`ReportPanel` r2 = 402 误导**：第二步理论上不该 402，但 race condition 仍可能；r2.status === 402 时直接报错不弹 confirm（`ReportPanel.tsx:103-120`）
+  - 🟡 **历史抽屉并发下载状态**：`downloadingId` 单值，并发点两个下载会互相覆盖；改 `Set<string>` 或接受现状（`LaborHistoryPanel.tsx:40, 62-70`）
+  - 🟢 **历史 narrative 截断按词**：`slice(0, 30)` 中文截字可能断词；改 `Intl.Segmenter('zh')`（`LaborHistoryPanel.tsx:113`）
+  - 🟢 **历史金额可能与算法升级不同步**：落库时记 `schemaVersion`，旧报告渲染时标注（`LaborHistoryPanel.tsx:110` + DB 加列）
+  - 🟢 **删除报告无 undo**：`LaborHistoryPanel` 点 `x` 即删，建议加 `window.confirm` 或 toast undo
+  - 🟢 **历史 LIMIT 50 静默丢失旧记录**：超过 50 条无声丢弃，加翻页或扩 LIMIT + 前端分页（`lib/labor-reports.ts:49`）
 - [ ] 扩充社平工资城市覆盖到 30+ 城（含省会/计划单列市/主要地级市），同步扩 `lib/cities.ts` 省份映射
 - [ ] 若付费验证成立：考虑 B 端/律师导流

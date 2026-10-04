@@ -61,13 +61,7 @@ export async function saveLaborReport(report: LaborReport, uid: string): Promise
   try {
     await execute(
       `INSERT INTO labor_reports (id, uid, comp_json, intake_answers_json, narrative, computation_json, reply, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         comp_json = VALUES(comp_json),
-         intake_answers_json = VALUES(intake_answers_json),
-         narrative = VALUES(narrative),
-         computation_json = VALUES(computation_json),
-         reply = VALUES(reply)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         report.id,
         uid,
