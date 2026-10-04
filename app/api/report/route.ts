@@ -294,7 +294,8 @@ export async function POST(request: NextRequest) {
     }
 
     // consume 自愈校验：consume 后回查额度，若未减 1 则提示用户额度可能错位
-    //（覆盖 admin 撤销 race 或 lib/subscriptions.ts 内部 DB 错误被降级为 return 0 的场景）
+    //（覆盖 admin 在 AI 生成与 consume 之间撤销订阅导致 consume 业务失败返回 0 的 race 场景；
+    //  真正的 DB 错误现在由 settle_failed 分支处理，这里不重复）
     try {
       const afterRemaining = await getRemainingUsageByUid(auth.uid);
       if (afterRemaining > paidRemaining - 1) {

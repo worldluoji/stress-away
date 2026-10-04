@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { Icon } from "./Icon";
 
 interface Props {
@@ -7,6 +6,7 @@ interface Props {
   onAction?: () => void;
   actionLabel?: string;
   variant?: "inline" | "banner";
+  tone?: "error" | "warning";
 }
 
 export function ErrorBanner({
@@ -15,12 +15,17 @@ export function ErrorBanner({
   onAction,
   actionLabel = "去激活",
   variant = "inline",
+  tone = "error",
 }: Props) {
   const action = onRetry || onAction;
   return (
     <div
       role="alert"
-      className={`flex items-center justify-between gap-3 rounded-xl text-sm bg-[var(--color-danger)]/10 text-[var(--color-danger)] ${
+      className={`flex items-center justify-between gap-3 rounded-xl text-sm ${
+        tone === "warning"
+          ? "bg-[var(--color-warning)]/10 text-[var(--color-warning)]"
+          : "bg-[var(--color-danger)]/10 text-[var(--color-danger)]"
+      } ${
         variant === "banner" ? "px-4 py-3" : "px-4 py-2.5"
       } animate-fade-in`}
     >

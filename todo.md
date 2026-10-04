@@ -46,5 +46,7 @@
   - 🟢 **历史金额可能与算法升级不同步**：落库时记 `schemaVersion`，旧报告渲染时标注（`LaborHistoryPanel.tsx:110` + DB 加列）
   - 🟢 **删除报告无 undo**：`LaborHistoryPanel` 点 `x` 即删，建议加 `window.confirm` 或 toast undo
   - 🟢 **历史 LIMIT 50 静默丢失旧记录**：超过 50 条无声丢弃，加翻页或扩 LIMIT + 前端分页（`lib/labor-reports.ts:49`）
+- [ ] **PR #6 — settle_failed UX 优化 + ErrorBanner tone 扩展**：
+  - 🟡 **`settle_failed` 用 ErrorBanner 红色显示易误导**：报告内容正确但顶部红色"次数扣除异常请联系客服"会让用户误以为报告出错；建议给 ErrorBanner 加 `tone="warning"` 变体（黄色 + warning icon），settle_failed 时用 warning 风格而非 error 风格（`ReportPanel.tsx:117-120, 135-138`）
 - [ ] 扩充社平工资城市覆盖到 30+ 城（含省会/计划单列市/主要地级市），同步扩 `lib/cities.ts` 省份映射
 - [ ] 若付费验证成立：考虑 B 端/律师导流

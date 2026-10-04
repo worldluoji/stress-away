@@ -162,13 +162,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Settle AFTER AI success. If settle fails, still return the AI reply to the user.
+    // （chat 是免费引流场景，故意 silent-fail；report 是付费场景已返 settle_failed 区分处理）
     try {
       if (auth.uid) {
         await settleChat(auth.uid, quota.action);
       }
       incrementChatCount(scenarioId ?? 'general', auth.uid, deviceId);
     } catch (err) {
-      // 结算失败不阻塞返回，额度将在下次检查时自校正
+      console.error("[chat] settle failed (DB error), quota will self-heal on next /api/usage:", err);
     }
 
     const reply = sanitizeMarkdown(

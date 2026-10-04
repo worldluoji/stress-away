@@ -117,7 +117,7 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
           if (data2.error === "settle_failed" && data2.reply) {
             setReport(data2.reply);
             setRawReply(data2.reply);
-            setError(data2.message || "次数扣除异常，请联系客服补偿");
+            setWarning(data2.message || "次数扣除异常，请联系客服补偿");
             onUsageChanged?.();
             return;
           }
@@ -135,7 +135,7 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
         if (data1.error === "settle_failed" && data1.reply) {
           setReport(data1.reply);
           setRawReply(data1.reply);
-          setError(data1.message || "次数扣除异常，请联系客服补偿");
+          setWarning(data1.message || "次数扣除异常，请联系客服补偿");
           onUsageChanged?.();
           return;
         }
