@@ -337,6 +337,24 @@ Headers：`X-User-Id`
   - `ReportPanel.tsx` 新报告用 `markdownToDocxBlob(rawReply, { uid: uid ?? undefined })`
   - `LaborHistoryPanel.tsx` 历史报告用 `markdownToDocxBlob(report.reply, { generatedAt: new Date(report.createdAt) })`（沿用报告原始生成时间）
 
+#### Mac Word 兼容性踩坑（commit 205b5f0 / 11d4a6b / ffef1fe / c46aaff / c749712 / 106a51f）
+
+Mac Word 对 docx 库输出比 Pages/WPS 严格得多，会因各种 OOXML schema 不严格符合而直接拒打开。下列每条都必须满足，否则用户生成报告后会看到 "Word 在试图打开文件时遇到错误"。Pages/Pages 替我们做了兼容性补救，所以同样的文件 Pages 能打开、Word 不能。
+
+1. **页码字段用 SimpleField 不用 PageNumber**：`new SimpleField("PAGE", "1")` 生成 `<w:fldSimple>` + cached run；`PageNumber.CURRENT` 生成 `begin/separate/end` 复杂字段，部分 Word 版本拒绝打开。
+2. **单 section + titlePage=true**：避免 docx 库在 section 边界自动插入空 `<w:p><w:pPr><w:sectPr/></w:pPr></w:p>`（无 `<w:r>`），Mac Word 严格模式拒绝。
+3. **pageBreakBefore 不用独立 PageBreak 段落**：`new Paragraph({ pageBreakBefore: true })` 替代 `new Paragraph({ children: [new PageBreak()] })`。Mac Word 对独立 PageBreak 段落有时报"unreadable content"。
+4. **表格表头不能空 `<w:r>`**：`renderTable` 表头处 `parseInline(cell).map((r) => new TextRun({ ...r, bold: true }))` 看似正确，但 spread docx `TextRun` 实例会丢失 `text` 字段（docx 内部用嵌套 root 树存 text，不在 enumerable own properties 上），结果只输出 `<w:r><w:rPr><w:b/></w:rPr></w:r>` 无 `<w:t>`。`parseInline` 改返 `{ text, bold }[]` 纯数据 + 新 helper `toTextRuns` 统一构造。
+5. **titlePage 模式下必须补 first-page header/footer reference**：`<w:titlePg/>` 启用时 Mac Word 要求 sectPr 含 `type="first"` 的 headerReference + footerReference（Word 用 first-page header 渲染封面页；缺失时渲染路径异常）。给 `headers.first` / `footers.first` 加空 Header/Footer，docx 库自动生成 `header2.xml` / `footer2.xml` 并正确声明 reference。
+6. **数字列表必须注册 reference**：`renderLine` 里 `numbering: { reference: "default-numbering", level: 0 }` —— 如果 `Document.numbering.config` 没注册同名 reference，docx 库会把 reference 字面输出为 `<w:numId w:val="{default-numbering-0}"/>`，违反 OOXML schema 的 `ST_DecimalNumber` 类型（必须是数字）。Mac Word 严格模式拒打开。修复：在 `Document.numbering.config` 注册 `default-numbering`（level 0 = decimal `%1.`），docx 库正确解析为真实 numId。
+
+**如何快速定位新 bug**：如果新版本生成的 docx 在 Mac Word 打不开但 Pages 能开，做以下二分：
+- 用 Python `zipfile` + `xml.etree.ElementTree` 校验所有 part 解析通过
+- 用 Python `python-docx` 库 `Document(path)` 看是否能打开（python-docx 严格按 OOXML 标准，能开 = 文件结构合法）
+- 隔离替换：把出问题的 docx 的 `word/document.xml`、`word/header1.xml`、`word/footer1.xml`、`word/styles.xml` 逐个换成 Pages 转存版本，看哪个 part 替换后 Word 能开
+- 砍 document.xml body 长度二分定位问题段
+- 关键搜索：`grep -oE '<w:r><w:rPr>[^<]*</w:rPr></w:r>'`（空 run）、`<w:numId w:val="[^"]*"`（numId 必须是数字）、`<w:[a-z]+ w:type="[^"]*"` 计数（first/default 配对）、`<w:t[^/]*/>`（空文本）
+
 ### POST /api/subscription/query-codes
 
 查询激活码。
