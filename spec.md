@@ -317,6 +317,26 @@ Headers：`X-User-Id`
 
 错误：401 `login_required`（未登录）。
 
+### 客户端：Word 报告生成（`lib/report-docx.ts`）
+
+报告展示页提供"下载 Word"按钮，调用 `markdownToDocxBlob(reply, opts)` 把 AI 输出的五段式 markdown 转成 `.docx` Blob，再通过 `triggerDocxDownload` 触发浏览器下载。
+
+- **封面页（section 1）**：独占整页，居中标题"维权方案报告"（22pt 微软雅黑 bold 蓝色 #2E5C8A）+ "生成日期：YYYY-MM-DD" + 可选 "UID：{uid}"，然后分页符
+- **正文（section 2）**：
+  - 页眉左侧"维权方案报告"、右侧生成日期（9pt 微软雅黑灰色）
+  - 页脚居中"第 X 页 / 共 Y 页"（PAGE / NUMPAGES 字段，由 Word/WPS 打开时替换为实际页码）
+  - 正文 11pt 微软雅黑、行距 1.5
+- **Markdown 解析（block-by-block）**：
+  - `##` → `Heading1`、`###` → `Heading2`、`-` → bullet、`1.` → numbered、`**bold**` → bold 内联
+  - 管道表格 `| col1 | col2 |` + 分隔行 `|---|---|` → `<w:tbl>`，表头加粗 + #F5F5F5 底色 + 全边框（single 4pt #999999）
+  - 单元格内文本继续走 `**bold**` 内联解析
+- **opts**：
+  - `generatedAt?: Date`（默认 `new Date()`）—— 封面与页眉的日期来源
+  - `uid?: string` —— 封面第三行"UID：{uid}"；不传时不渲染该行
+- **调用约定**：
+  - `ReportPanel.tsx` 新报告用 `markdownToDocxBlob(rawReply, { uid: uid ?? undefined })`
+  - `LaborHistoryPanel.tsx` 历史报告用 `markdownToDocxBlob(report.reply, { generatedAt: new Date(report.createdAt) })`（沿用报告原始生成时间）
+
 ### POST /api/subscription/query-codes
 
 查询激活码。

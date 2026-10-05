@@ -18,6 +18,13 @@ async function extractDocText(blob: Blob): Promise<string> {
     .trim();
 }
 
+/** 解析 docx blob，提取 word/document.xml 的原始 XML（含标签，用于断言 <w:tbl> 等结构） */
+async function extractDocXml(blob: Blob): Promise<string> {
+  const buf = Buffer.from(await blob.arrayBuffer());
+  const zip = await JSZip.loadAsync(buf);
+  return zip.file("word/document.xml")!.async("string");
+}
+
 describe("markdownToDocxBlob — markdown 语法映射", () => {
   const cases: { desc: string; input: string; mustContain: string[] }[] = [
     {
@@ -90,17 +97,107 @@ describe("markdownToDocxBlob — markdown 语法映射", () => {
     });
   });
 
-  it("不识别表格（按正文段落处理，不报错）", async () => {
-    const blob = await markdownToDocxBlob("| col1 | col2 |\n|---|---|\n| a | b |");
+  it("识别管道表格：渲染为 <w:tbl> + 表头加粗 + 边框", async () => {
+    const blob = await markdownToDocxBlob(
+      "| 名称 | 金额 |\n|---|---|\n| N | 60000 |\n| 代通知金 | 15000 |"
+    );
+    const xml = await extractDocXml(blob);
+    expect(xml).toContain("<w:tbl>");
+    // 3 行：1 表头 + 2 数据
+    const rowMatches = xml.match(/<w:tr\b/g) ?? [];
+    expect(rowMatches.length).toBe(3);
+    // 4 个单元格（2 列 × 2 行），但每个单元格在 XML 中只展开一次；用 tr→tc 计数
+    const cellMatches = xml.match(/<w:tc\b/g) ?? [];
+    expect(cellMatches.length).toBe(6);
+    // 表头单元格 bold（第一个 <w:tc> 内应出现 <w:b/>）
+    const firstCellEnd = xml.indexOf("</w:tc>");
+    const firstCell = xml.slice(0, firstCellEnd);
+    expect(firstCell).toMatch(/<w:b\s*\/?>/);
+    // 边框定义存在
+    expect(xml).toMatch(/<w:tblBorders>/);
+  });
+
+  it("单行带 | 但无分隔行 → 视为段落不渲染表格", async () => {
+    // 没有 ≥2 行 + |---|---| 分隔 → 不会触发表格解析
+    const blob = await markdownToDocxBlob("| col1 | col2 |");
+    const xml = await extractDocXml(blob);
+    expect(xml).not.toContain("<w:tbl>");
     const text = await extractDocText(blob);
     expect(text).toContain("col1");
-    expect(text).toContain("a");
+    expect(text).toContain("col2");
   });
 
   it("空字符串也能生成有效 blob", async () => {
     const blob = await markdownToDocxBlob("");
     expect(blob).toBeInstanceOf(Blob);
     expect(blob.size).toBeGreaterThan(0);
+  });
+});
+
+describe("markdownToDocxBlob — 封面页与 opts", () => {
+  /** 把 blob 解压出多个部件：document + headers + footers 的纯文本 */
+  async function extractAllText(blob: Blob): Promise<string> {
+    const buf = Buffer.from(await blob.arrayBuffer());
+    const zip = await JSZip.loadAsync(buf);
+    const parts: string[] = [];
+    const targets = ["word/document.xml", "word/header1.xml", "word/header2.xml", "word/footer1.xml", "word/footer2.xml"];
+    for (const path of targets) {
+      const f = zip.file(path);
+      if (!f) continue;
+      const xml = await f.async("string");
+      parts.push(
+        xml
+          .replace(/<[^>]+>/g, "")
+          .replace(/&amp;/g, "&")
+          .replace(/&lt;/g, "<")
+          .replace(/&gt;/g, ">")
+          .replace(/&quot;/g, '"')
+          .replace(/&apos;/g, "'")
+          .replace(/\s+/g, " ")
+          .trim()
+      );
+    }
+    return parts.join(" ||| ");
+  }
+
+  it("不传 opts 时：封面有标题+当天日期，不含 UID 行", async () => {
+    const blob = await markdownToDocxBlob("## 报告正文");
+    const text = await extractAllText(blob);
+    expect(text).toContain("维权方案报告");
+    // 当天日期：YYYY-MM-DD（不锁死具体值，匹配任意 4-2-2）
+    expect(text).toMatch(/\d{4}-\d{2}-\d{2}/);
+    expect(text).not.toContain("UID：");
+  });
+
+  it("传 opts.generatedAt = 固定日期，封面日期正确格式化", async () => {
+    const blob = await markdownToDocxBlob("## 报告正文", {
+      // 用本地时间构造，避免时区漂移导致测试不稳定
+      generatedAt: new Date(2024, 0, 15, 12, 0, 0),
+    });
+    const text = await extractAllText(blob);
+    // 至少出现一次 "2024-01-15"（封面 + 页眉）
+    const matches = text.match(/2024-01-15/g) ?? [];
+    expect(matches.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("传 opts.uid = 'u123'，封面出现 'UID：u123'", async () => {
+    const blob = await markdownToDocxBlob("## 报告正文", { uid: "u123" });
+    const text = await extractAllText(blob);
+    expect(text).toContain("UID：u123");
+  });
+
+  it("页眉含标题 + 日期；页脚含 '第 X 页 / 共 Y 页' 模板", async () => {
+    const blob = await markdownToDocxBlob("## 报告", {
+      generatedAt: new Date(2024, 0, 15, 12, 0, 0),
+    });
+    const text = await extractAllText(blob);
+    expect(text).toContain("维权方案报告");
+    expect(text).toContain("2024-01-15");
+    // 页码字段在 docx 里渲染为 PAGE / NUMPAGES 字段占位，由 Word/WPS 打开时替换为实际数字
+    expect(text).toContain("PAGE");
+    expect(text).toContain("NUMPAGES");
+    expect(text).toContain("第");
+    expect(text).toContain("共");
   });
 });
 

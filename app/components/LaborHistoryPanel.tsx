@@ -62,7 +62,9 @@ export function LaborHistoryPanel({ reports, onDelete, onClose }: Props) {
   async function handleDownload(report: LaborReport) {
     setDownloadingIds((prev) => new Set(prev).add(report.id));
     try {
-      const blob = await markdownToDocxBlob(report.reply);
+      const blob = await markdownToDocxBlob(report.reply, {
+        generatedAt: new Date(report.createdAt),
+      });
       triggerDocxDownload(blob, `维权方案报告_${new Date(report.createdAt).toISOString().slice(0, 10)}`);
     } finally {
       setDownloadingIds((prev) => {

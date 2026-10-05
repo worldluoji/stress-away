@@ -185,7 +185,7 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
   async function handleDownload() {
     setDownloading(true);
     try {
-      const blob = await markdownToDocxBlob(rawReply);
+      const blob = await markdownToDocxBlob(rawReply, { uid: uid ?? undefined });
       triggerDocxDownload(blob, `维权方案报告_${new Date().toISOString().slice(0, 10)}`);
     } finally {
       setDownloading(false);
