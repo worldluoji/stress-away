@@ -238,6 +238,110 @@ describe("getSocialWageContext — 三级查表链", () => {
       want: { wage: 9500, source: "user", resolvedCity: "温州" },
       desc: "user override 优先于 province fallback",
     },
+    // 扩列：30 城范围内的省会/计划单列市 → city 直命中
+    {
+      city: "合肥",
+      want: { wage: SOCIAL_WAGE_MONTHLY_CAP["合肥"], source: "city", resolvedCity: "合肥" },
+      desc: "安徽省会合肥 → city 命中",
+    },
+    {
+      city: "福州",
+      want: { wage: SOCIAL_WAGE_MONTHLY_CAP["福州"], source: "city", resolvedCity: "福州" },
+      desc: "福建省会福州 → city 命中",
+    },
+    {
+      city: "厦门",
+      want: { wage: SOCIAL_WAGE_MONTHLY_CAP["厦门"], source: "city", resolvedCity: "厦门" },
+      desc: "福建计划单列市厦门 → city 命中",
+    },
+    {
+      city: "沈阳",
+      want: { wage: SOCIAL_WAGE_MONTHLY_CAP["沈阳"], source: "city", resolvedCity: "沈阳" },
+      desc: "辽宁省会沈阳 → city 命中",
+    },
+    {
+      city: "大连",
+      want: { wage: SOCIAL_WAGE_MONTHLY_CAP["大连"], source: "city", resolvedCity: "大连" },
+      desc: "辽宁计划单列市大连 → city 命中",
+    },
+    {
+      city: "宁波",
+      want: { wage: SOCIAL_WAGE_MONTHLY_CAP["宁波"], source: "city", resolvedCity: "宁波" },
+      desc: "浙江计划单列市宁波（已在 CITY_TO_PROVINCE）→ city 命中（升级自 province 代理）",
+    },
+    {
+      city: "南昌",
+      want: { wage: SOCIAL_WAGE_MONTHLY_CAP["南昌"], source: "city", resolvedCity: "南昌" },
+      desc: "江西省会南昌 → city 命中",
+    },
+    {
+      city: "石家庄",
+      want: { wage: SOCIAL_WAGE_MONTHLY_CAP["石家庄"], source: "city", resolvedCity: "石家庄" },
+      desc: "河北省会石家庄 → city 命中",
+    },
+    {
+      city: "太原",
+      want: { wage: SOCIAL_WAGE_MONTHLY_CAP["太原"], source: "city", resolvedCity: "太原" },
+      desc: "山西省会太原 → city 命中",
+    },
+    {
+      city: "昆明",
+      want: { wage: SOCIAL_WAGE_MONTHLY_CAP["昆明"], source: "city", resolvedCity: "昆明" },
+      desc: "云南省会昆明 → city 命中",
+    },
+    {
+      city: "贵阳",
+      want: { wage: SOCIAL_WAGE_MONTHLY_CAP["贵阳"], source: "city", resolvedCity: "贵阳" },
+      desc: "贵州省会贵阳 → city 命中",
+    },
+    {
+      city: "南宁",
+      want: { wage: SOCIAL_WAGE_MONTHLY_CAP["南宁"], source: "city", resolvedCity: "南宁" },
+      desc: "广西省会南宁 → city 命中",
+    },
+    {
+      city: "海口",
+      want: { wage: SOCIAL_WAGE_MONTHLY_CAP["海口"], source: "city", resolvedCity: "海口" },
+      desc: "海南省会海口 → city 命中",
+    },
+    // 扩列：新省份下的高活跃地级市 → province 省会代理
+    {
+      city: "泉州",
+      want: { wage: SOCIAL_WAGE_MONTHLY_CAP["福州"], source: "province", resolvedCity: "福州" },
+      desc: "福建非省会 → province 代理福州",
+    },
+    {
+      city: "唐山",
+      want: { wage: SOCIAL_WAGE_MONTHLY_CAP["石家庄"], source: "province", resolvedCity: "石家庄" },
+      desc: "河北非省会 → province 代理石家庄",
+    },
+    {
+      city: "鞍山",
+      want: { wage: SOCIAL_WAGE_MONTHLY_CAP["沈阳"], source: "province", resolvedCity: "沈阳" },
+      desc: "辽宁非省会 → province 代理沈阳",
+    },
+    {
+      city: "赣州",
+      want: { wage: SOCIAL_WAGE_MONTHLY_CAP["南昌"], source: "province", resolvedCity: "南昌" },
+      desc: "江西非省会 → province 代理南昌",
+    },
+    {
+      city: "桂林",
+      want: { wage: SOCIAL_WAGE_MONTHLY_CAP["南宁"], source: "province", resolvedCity: "南宁" },
+      desc: "广西非省会 → province 代理南宁",
+    },
+    {
+      city: "保定",
+      want: { wage: SOCIAL_WAGE_MONTHLY_CAP["石家庄"], source: "province", resolvedCity: "石家庄" },
+      desc: "河北非省会 → province 代理石家庄",
+    },
+    // 扩列：user override 在新省会上
+    {
+      city: "合肥",
+      userOverride: 10000,
+      want: { wage: 10000, source: "user", resolvedCity: "合肥" },
+      desc: "user override 优先于新省会 city 命中",
+    },
   ];
   cases.forEach((c) => {
     it(c.desc, () => {
@@ -273,6 +377,24 @@ describe("getSocialWageContext — 三级查表链", () => {
     const ctx = getSocialWageContext("拉萨");
     expect(ctx.record).toBeNull();
     expect(ctx.fallbackNote).toBe("");
+  });
+
+  it("city 分支的 record.isEstimate 透传（默认 true）", () => {
+    const ctx = getSocialWageContext("北京");
+    expect(ctx.record).not.toBeNull();
+    expect(ctx.record?.isEstimate).toBe(true);
+  });
+
+  it("province 分支的 record 沿用省会 isEstimate（默认 true）", () => {
+    const ctx = getSocialWageContext("温州");
+    expect(ctx.record).not.toBeNull();
+    expect(ctx.record?.isEstimate).toBe(true);
+    expect(ctx.record?.sourceLabel).toBe(CITY_WAGE_TABLE["杭州"].sourceLabel);
+  });
+
+  it("user 分支的 record 为 null（不传播 isEstimate）", () => {
+    const ctx = getSocialWageContext("北京", 15000);
+    expect(ctx.record).toBeNull();
   });
 });
 
@@ -418,6 +540,25 @@ describe("CITY_WAGE_TABLE — 全局不变量", () => {
       expect(rec.wage, `${city}.wage`).toBeGreaterThan(0);
       expect(rec.sourceUrl, `${city}.sourceUrl`).not.toBe("");
       expect(rec.sourceLabel, `${city}.sourceLabel`).not.toBe("");
+    }
+  });
+
+  it("每条 sourceUrl 的 hostname 以 .gov.cn 结尾（手敲 typo 防护）", () => {
+    for (const [city, rec] of Object.entries(CITY_WAGE_TABLE)) {
+      let host = "";
+      try {
+        host = new URL(rec.sourceUrl).hostname;
+      } catch {
+        host = "";
+      }
+      expect(host, `${city}.sourceUrl 必须可解析`).not.toBe("");
+      expect(host.endsWith(".gov.cn"), `${city}.sourceUrl.hostname=${host}`).toBe(true);
+    }
+  });
+
+  it("每条记录默认 isEstimate: true（逐城核对后改 false；当前未核对）", () => {
+    for (const [city, rec] of Object.entries(CITY_WAGE_TABLE)) {
+      expect(rec.isEstimate, `${city}.isEstimate`).toBe(true);
     }
   });
 

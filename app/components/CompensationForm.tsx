@@ -7,7 +7,7 @@ import {
   type CompInput,
   type DismissalType,
 } from "@/lib/compensation";
-import { SOCIAL_WAGE_MONTHLY_CAP } from "@/lib/social-wage";
+import { SOCIAL_WAGE_MONTHLY_CAP, getSocialWageContext } from "@/lib/social-wage";
 import { Card } from "./ui/Card";
 import { Input } from "./ui/Input";
 import { Select } from "./ui/Select";
@@ -73,6 +73,14 @@ export function CompensationForm({
     [comp]
   );
 
+  // 实时计算"当前城市"的系统默认社平（user 提供表 + 表/省会代理三种情况），
+  // 用于社平输入框的 placeholder 与提示。不写入 input value，仅供参考。
+  const defaultWage = useMemo(() => {
+    const ctx = getSocialWageContext(city);
+    if (ctx.wage === null) return null;
+    return { wage: ctx.wage, source: ctx.source, record: ctx.record, resolvedCity: ctx.resolvedCity };
+  }, [city]);
+
   return (
     <div className="space-y-5">
       <Card padding="md" className="space-y-4">
@@ -107,7 +115,7 @@ export function CompensationForm({
               ))}
             </datalist>
             <p className="text-xs text-[var(--foreground-tertiary)] mt-1">
-              输入城市名即可，未收录城市会自动回退到所属省份平均值；可在下方高级选项中手动覆盖
+              输入城市名即可；未收录城市会自动回退到所属省份平均值
             </p>
           </div>
           <Input
@@ -141,6 +149,24 @@ export function CompensationForm({
             className="cursor-pointer"
           />
         </div>
+        <Input
+          type="number"
+          inputMode="numeric"
+          name="userSocialWage"
+          label="当地社平工资（月，元；选填）"
+          placeholder={
+            defaultWage === null
+              ? "未收录城市，请手动输入"
+              : defaultWage.source === "city"
+              ? `系统估算：${defaultWage.wage} 元（${defaultWage.record?.sourceLabel} ${defaultWage.record?.effectiveDate}），建议核对当地人社局公告后覆盖`
+              : `系统估算：${defaultWage.wage} 元（代理 ${defaultWage.resolvedCity} ${defaultWage.record?.sourceLabel} ${defaultWage.record?.effectiveDate}），请以 ${city.trim()}市人社局为准`
+          }
+          value={userSocialWage}
+          onChange={(e) => setUserSocialWage(e.target.value)}
+        />
+        <p className="text-xs text-[var(--foreground-tertiary)] -mt-2">
+          用于《劳动合同法》第 47 条&quot;3 倍社平&quot;封顶基数；留空使用系统默认估算值。建议核对当地人社局最新公告后覆盖
+        </p>
       </Card>
 
       <Card padding="md" className="space-y-4">
@@ -229,34 +255,6 @@ export function CompensationForm({
         </div>
       </details>
 
-      <details className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] group">
-        <summary className="flex items-center justify-between px-4 py-3 text-sm font-medium text-[var(--foreground-secondary)] cursor-pointer select-none hover:text-[var(--foreground)] transition-colors">
-          <span className="flex items-center gap-2">
-            <Icon name="lightbulb" size={14} />
-            选填：自定义社平工资
-          </span>
-          <Icon
-            name="chevron-right"
-            size={16}
-            className="transition-transform group-open:rotate-90"
-          />
-        </summary>
-        <div className="px-4 pb-4 space-y-2">
-          <Input
-            type="number"
-            inputMode="numeric"
-            name="userSocialWage"
-            label="当地社平工资（月，元）"
-            placeholder="留空则使用系统默认值（查表 / 省会代理）"
-            value={userSocialWage}
-            onChange={(e) => setUserSocialWage(e.target.value)}
-          />
-          <p className="text-xs text-[var(--foreground-tertiary)]">
-            若你已通过当地人社局官网确认了最新数值，可在此覆盖默认值；系统会按你输入的值计算第 47 条封顶
-          </p>
-        </div>
-      </details>
-
       {breakdown ? (
         <div className="relative rounded-2xl bg-gradient-to-br from-[var(--color-brand)] to-[var(--color-brand-alt)] text-white p-5 shadow-[var(--shadow-prominent)] animate-fade-in overflow-hidden ring-1 ring-inset ring-white/10">
           <span
@@ -300,6 +298,7 @@ export function CompensationForm({
                     >
                       数据来源
                     </a>
+                    <span className="ml-1 opacity-90">（系统估算，请以人社局最新公告为准）</span>
                   </>
                 )}
                 {breakdown.wageSource.source === "city" && !breakdown.wageSource.sourceUrl && (
@@ -320,6 +319,7 @@ export function CompensationForm({
                     ) : (
                       "数据来源"
                     )}
+                    <span className="ml-1 opacity-90">（系统估算，请以{comp?.city}市人社局最新公告为准）</span>
                   </>
                 )}
                 {breakdown.wageSource.source === "user" && (

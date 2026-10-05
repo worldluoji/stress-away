@@ -21,7 +21,7 @@
 
 ### 劳动维权（核心，`/labor`）
 - [x] 赔偿金计算器：免费无门槛，纯客户端实时估算；规则依据《劳动合同法》第40/47/87条——取整（≥6个月按1年、<6个月半月）、高薪双封顶（基数3×社平、年限≤12）、2N替代N、代通知金按上月工资（仅第40条未提前30日书面通知）、加班费150%/200%/300%（时薪=月薪÷21.75÷8）、未休年假补发200%；`lib/compensation.ts` 纯函数 + 表格驱动测试
-- [x] 社平工资封顶表：`lib/social-wage.ts` 内置 17 个高频城市，每条 `WageRecord { wage, effectiveDate, sourceUrl, sourceLabel }`；未收录城市按三级查表链 `城市表 → 省会代理 → 用户自填` 处理（详见 `getSocialWageContext`），省份映射见 `lib/cities.ts`；`SOCIAL_WAGE_DATA_AS_OF` 为全局时效 floor；年度人工更新，不做自动 pipeline
+- [x] 社平工资封顶表：`lib/social-wage.ts` 内置 30 个高频城市，每条 `WageRecord { wage, effectiveDate, sourceUrl, sourceLabel, isEstimate }`；`isEstimate` 标记是否经人社局核对（默认 `true`，人工核对后改 `false`）；未收录城市按三级查表链 `城市表 → 省会代理 → 用户自填` 处理（详见 `getSocialWageContext`），省份映射见 `lib/cities.ts`；`SOCIAL_WAGE_DATA_AS_OF` 为全局时效 floor；年度人工更新，不做自动 pipeline
   - 表单交互：城市输入框下方提示「未收录城市会自动回退到所属省份平均值」；并列折叠 details「选填：自定义社平工资」可输入本地数值（>0 才生效）；结果卡末尾按 `breakdown.wageSource.source` 分支展示「city/province/user/uncovered」对应文案，city/province 分支含人社局来源链接
 - [x] 维权方案报告：付费功能（仅 `isPaid` 用户，否则 403 `paid_only`），消耗 1 次报告额度；金额由服务端 `computeCompensation` 重算后注入 prompt，防篡改；AI 五段式输出；`labor-report` 计入 scenario_stats 统计
 - [x] 免责声明：计算器旁 / 报告页脚（route 层固定拼接）/ 首页页脚三处，标注"AI生成、不构成律师意见、以仲裁认定为准"
