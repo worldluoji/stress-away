@@ -229,6 +229,25 @@ describe("markdownToDocxBlob — 封面页与 opts", () => {
     const settingsXml = await zip.file("word/settings.xml")!.async("string");
     expect(settingsXml).toContain("<w:updateFields");
   });
+
+  it("titlePage=true 时 sectPr 必须同时声明 first-page header/footer reference（Mac Word 兼容性）", async () => {
+    // Mac Word 严格模式下，<w:titlePg/> 要求 sectPr 含 type="first" 的 headerReference + footerReference，
+    // 否则渲染路径异常并弹错。Pages 等软件会自动补 first header/footer，但 docx 库不会。
+    const blob = await markdownToDocxBlob("## 报告");
+    const buf = Buffer.from(await blob.arrayBuffer());
+    const zip = await JSZip.loadAsync(buf);
+    const docXml = await zip.file("word/document.xml")!.async("string");
+    // sectPr 内必须同时存在 4 个 reference
+    expect(docXml).toMatch(/<w:headerReference[^>]*w:type="default"/);
+    expect(docXml).toMatch(/<w:headerReference[^>]*w:type="first"/);
+    expect(docXml).toMatch(/<w:footerReference[^>]*w:type="default"/);
+    expect(docXml).toMatch(/<w:footerReference[^>]*w:type="first"/);
+    // package 必须真有 header2.xml + footer2.xml（first 类型对应的 part）
+    const header2 = await zip.file("word/header2.xml")?.async("string");
+    const footer2 = await zip.file("word/footer2.xml")?.async("string");
+    expect(header2).toBeDefined();
+    expect(footer2).toBeDefined();
+  });
 });
 
 describe("triggerDocxDownload — 浏览器下载触发", () => {

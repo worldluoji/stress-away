@@ -116,6 +116,9 @@ export async function markdownToDocxBlob(
               }),
             ],
           }),
+          // titlePage=true 时 Mac Word 严格要求存在 first-page header/footer reference；
+          // 封面页本身不需要页眉，给个空 Header 让 Word 渲染路径走通
+          first: new Header({ children: [new Paragraph({ children: [] })] }),
         },
         footers: {
           default: new Footer({
@@ -134,6 +137,8 @@ export async function markdownToDocxBlob(
               }),
             ],
           }),
+          // 同上：titlePage=true 要求 first-page footer reference 存在
+          first: new Footer({ children: [new Paragraph({ children: [] })] }),
         },
         children: [...coverChildren, ...bodyChildren],
       },
