@@ -44,7 +44,11 @@ export async function markdownToDocxBlob(
   const dateStr = formatYMD(generatedAt);
   const uid = opts?.uid;
 
-  // —— 封面页（section 1，独占整页） ——
+  // —— 封面页（独占 page 1，由 titlePage=true + 手动分页符实现） ——
+  // 单 section + titlePage=true：Word 会把首页（封面）当作"title page"，
+  // 不会渲染 default header/footer；正文页（page 2+）走 default。
+  // 用手动 PageBreak 段落把封面和正文切开，避免双 section 结构里
+  // docx 库自动插入"只有 <w:pPr><w:sectPr/> 没有 <w:r>"的空段落（部分 Word 版本会拒绝打开）。
   const coverChildren: (Paragraph | Table)[] = [
     new Paragraph({
       children: [new TextRun({ text: "维权方案报告", font: CN_FONT, size: 44, bold: true, color: BRAND_BLUE })],
@@ -67,7 +71,7 @@ export async function markdownToDocxBlob(
     new Paragraph({ children: [new PageBreak()] }),
   ];
 
-  // —— 正文（section 2） ——
+  // —— 正文 ——
   const lines = reply.split(/\r?\n/);
   const blocks = splitIntoBlocks(lines);
   const bodyChildren: (Paragraph | Table)[] = [];
@@ -99,12 +103,7 @@ export async function markdownToDocxBlob(
       {
         properties: {
           page: { margin: { top: 1500, right: 1500, bottom: 1500, left: 1500 } },
-        },
-        children: coverChildren,
-      },
-      {
-        properties: {
-          page: { margin: { top: 1500, right: 1500, bottom: 1500, left: 1500 } },
+          titlePage: true,
         },
         headers: {
           default: new Header({
@@ -137,7 +136,7 @@ export async function markdownToDocxBlob(
             ],
           }),
         },
-        children: bodyChildren,
+        children: [...coverChildren, ...bodyChildren],
       },
     ],
   });
