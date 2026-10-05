@@ -12,7 +12,7 @@ import {
   ShadingType,
   Header,
   Footer,
-  PageNumber,
+  SimpleField,
   PageBreak,
 } from "docx";
 
@@ -84,6 +84,7 @@ export async function markdownToDocxBlob(
   const doc = new Document({
     creator: "反PUA手册",
     title: "维权方案报告",
+    features: { updateFields: true },
     styles: {
       default: {
         document: {
@@ -125,9 +126,11 @@ export async function markdownToDocxBlob(
                 alignment: AlignmentType.CENTER,
                 children: [
                   new TextRun({ text: "第 ", font: CN_FONT, size: 18, color: "666666" }),
-                  new TextRun({ children: [PageNumber.CURRENT], font: CN_FONT, size: 18, color: "666666" }),
+                  // SimpleField 比 PageNumber 兼容性好：生成 <w:fldSimple> + cached value 文本，
+                  // 部分 Word 版本对 begin/separate/end 之间无 cached run 的复杂字段会拒绝打开
+                  new SimpleField("PAGE", "1"),
                   new TextRun({ text: " 页 / 共 ", font: CN_FONT, size: 18, color: "666666" }),
-                  new TextRun({ children: [PageNumber.TOTAL_PAGES], font: CN_FONT, size: 18, color: "666666" }),
+                  new SimpleField("NUMPAGES", "1"),
                   new TextRun({ text: " 页", font: CN_FONT, size: 18, color: "666666" }),
                 ],
               }),

@@ -186,18 +186,30 @@ describe("markdownToDocxBlob — 封面页与 opts", () => {
     expect(text).toContain("UID：u123");
   });
 
-  it("页眉含标题 + 日期；页脚含 '第 X 页 / 共 Y 页' 模板", async () => {
+  it("页眉含标题 + 日期；页脚用 <w:fldSimple> 页码字段 + cached '1'", async () => {
     const blob = await markdownToDocxBlob("## 报告", {
       generatedAt: new Date(2024, 0, 15, 12, 0, 0),
     });
     const text = await extractAllText(blob);
     expect(text).toContain("维权方案报告");
     expect(text).toContain("2024-01-15");
-    // 页码字段在 docx 里渲染为 PAGE / NUMPAGES 字段占位，由 Word/WPS 打开时替换为实际数字
-    expect(text).toContain("PAGE");
-    expect(text).toContain("NUMPAGES");
+    // 抽取后的纯文本含 cached 占位 "1" + 中文页脚模板
     expect(text).toContain("第");
+    expect(text).toContain("页");
+    expect(text).toContain("/");
     expect(text).toContain("共");
+
+    // 校验 XML 用了 SimpleField 形式（<w:fldSimple>）+ PAGE/NUMPAGES instruction，
+    // 这比 begin/separate/end 复杂字段兼容性更好，避免部分 Word 版本拒绝打开
+    const buf = Buffer.from(await blob.arrayBuffer());
+    const zip = await JSZip.loadAsync(buf);
+    const footerXml = await zip.file("word/footer1.xml")!.async("string");
+    expect(footerXml).toContain("<w:fldSimple");
+    expect(footerXml).toContain("PAGE");
+    expect(footerXml).toContain("NUMPAGES");
+    // settings 启用 updateFields，Word 打开时自动重算页码
+    const settingsXml = await zip.file("word/settings.xml")!.async("string");
+    expect(settingsXml).toContain("<w:updateFields");
   });
 });
 
