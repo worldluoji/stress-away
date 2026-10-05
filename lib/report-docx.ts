@@ -13,6 +13,7 @@ import {
   Header,
   Footer,
   SimpleField,
+  LevelFormat,
 } from "docx";
 
 /** 封面元数据：生成日期（默认当前时刻）+ UID（可选）。 */
@@ -88,6 +89,25 @@ export async function markdownToDocxBlob(
     creator: "反PUA手册",
     title: "维权方案报告",
     features: { updateFields: true },
+    // 注册 "default-numbering" reference，否则 renderLine 里
+    // numbering: { reference: "default-numbering" } 会被 docx 库字面输出为
+    // <w:numId w:val="{default-numbering-0}"/>（非 ST_DecimalNumber，Mac Word 严格模式拒打开）
+    numbering: {
+      config: [
+        {
+          reference: "default-numbering",
+          levels: [
+            {
+              level: 0,
+              format: LevelFormat.DECIMAL,
+              text: "%1.",
+              alignment: AlignmentType.LEFT,
+              start: 1,
+            },
+          ],
+        },
+      ],
+    },
     styles: {
       default: {
         document: {

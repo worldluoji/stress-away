@@ -48,6 +48,11 @@ describe("markdownToDocxBlob — markdown 语法映射", () => {
       mustContain: ["第一步", "第二步"],
     },
     {
+      desc: "1. 编号列表 numId 必须是真实数字（不能是 {default-numbering-0} 字面字符串，否则 Mac Word 严格模式拒绝打开）",
+      input: "1. 第一步",
+      mustContain: [],
+    },
+    {
       desc: "**bold** 提取为粗体内联",
       input: "这是 **关键** 一句",
       mustContain: ["这是", "关键", "一句"],
@@ -95,6 +100,21 @@ describe("markdownToDocxBlob — markdown 语法映射", () => {
         expect(text).toContain(s);
       }
     });
+  });
+
+  it("1. 编号列表的 numId 必须是合法 ST_DecimalNumber（数字），不是字面 reference 字符串", async () => {
+    // 旧 bug：Document 没注册 "default-numbering" reference，docx 库把 reference
+    // 字面输出为 <w:numId w:val="{default-numbering-0}"/>，违反 ST_DecimalNumber schema，
+    // Mac Word 严格模式拒绝打开。
+    const blob = await markdownToDocxBlob("1. 第一步\n2. 第二步");
+    const xml = await extractDocXml(blob);
+    const numIds = xml.match(/<w:numId\s+w:val="([^"]*)"\s*\/>/g) ?? [];
+    expect(numIds.length).toBeGreaterThan(0);
+    for (const n of numIds) {
+      // w:val 必须是纯数字字符串，不能含 { } 等
+      expect(n).toMatch(/w:val="[0-9]+"/);
+      expect(n).not.toContain("{");
+    }
   });
 
   it("识别管道表格：渲染为 <w:tbl> + 表头加粗 + 边框", async () => {
