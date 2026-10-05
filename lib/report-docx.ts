@@ -13,7 +13,6 @@ import {
   Header,
   Footer,
   SimpleField,
-  PageBreak,
 } from "docx";
 
 /** 封面元数据：生成日期（默认当前时刻）+ UID（可选）。 */
@@ -44,11 +43,9 @@ export async function markdownToDocxBlob(
   const dateStr = formatYMD(generatedAt);
   const uid = opts?.uid;
 
-  // —— 封面页（独占 page 1，由 titlePage=true + 手动分页符实现） ——
-  // 单 section + titlePage=true：Word 会把首页（封面）当作"title page"，
-  // 不会渲染 default header/footer；正文页（page 2+）走 default。
-  // 用手动 PageBreak 段落把封面和正文切开，避免双 section 结构里
-  // docx 库自动插入"只有 <w:pPr><w:sectPr/> 没有 <w:r>"的空段落（部分 Word 版本会拒绝打开）。
+  // —— 封面页（page 1）+ 正文（page 2 起） ——
+  // 单 section，封面内容在前几段；用"首个正文段落加 pageBreakBefore"切开（Mac Word
+  // 对独立 PageBreak 段落有时报"unreadable content"，用 pageBreakBefore 更兼容）
   const coverChildren: (Paragraph | Table)[] = [
     new Paragraph({
       children: [new TextRun({ text: "维权方案报告", font: CN_FONT, size: 44, bold: true, color: BRAND_BLUE })],
@@ -68,19 +65,21 @@ export async function markdownToDocxBlob(
           }),
         ]
       : []),
-    new Paragraph({ children: [new PageBreak()] }),
   ];
 
   // —— 正文 ——
   const lines = reply.split(/\r?\n/);
   const blocks = splitIntoBlocks(lines);
   const bodyChildren: (Paragraph | Table)[] = [];
+  let firstBodyRendered = false;
   for (const block of blocks) {
     if (block.kind === "table") {
       bodyChildren.push(renderTable(block.lines));
     } else {
       for (const line of block.lines) {
-        bodyChildren.push(renderLine(line));
+        // 首个正文段落加 pageBreakBefore，强制从 page 2 开始
+        bodyChildren.push(renderLine(line, !firstBodyRendered));
+        firstBodyRendered = true;
       }
     }
   }
@@ -173,32 +172,37 @@ function splitIntoBlocks(lines: string[]): MarkdownBlock[] {
   return blocks;
 }
 
-function renderLine(line: string): Paragraph {
+function renderLine(line: string, pageBreakBefore = false): Paragraph {
+  const baseOpts = pageBreakBefore ? { pageBreakBefore: true } : {};
   if (line.startsWith("### ")) {
     return new Paragraph({
+      ...baseOpts,
       children: parseInline(line.slice(4)),
       heading: HeadingLevel.HEADING_2,
     });
   }
   if (line.startsWith("## ")) {
     return new Paragraph({
+      ...baseOpts,
       children: parseInline(line.slice(3)),
       heading: HeadingLevel.HEADING_1,
     });
   }
   if (line.startsWith("- ")) {
     return new Paragraph({
+      ...baseOpts,
       children: parseInline(line.slice(2)),
       bullet: { level: 0 },
     });
   }
   if (/^\d+\.\s/.test(line)) {
     return new Paragraph({
+      ...baseOpts,
       children: parseInline(line.replace(/^\d+\.\s/, "")),
       numbering: { reference: "default-numbering", level: 0 },
     });
   }
-  return new Paragraph({ children: parseInline(line) });
+  return new Paragraph({ ...baseOpts, children: parseInline(line) });
 }
 
 function renderTable(lines: string[]): Table {
