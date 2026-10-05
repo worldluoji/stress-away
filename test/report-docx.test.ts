@@ -117,6 +117,24 @@ describe("markdownToDocxBlob — markdown 语法映射", () => {
     expect(xml).toMatch(/<w:tblBorders>/);
   });
 
+  it("表格表头单元格必须包含表头文本（不能是空 run，Word for Mac 会拒绝打开）", async () => {
+    const blob = await markdownToDocxBlob(
+      "| 名称 | 金额 |\n|---|---|\n| N | 60000 |"
+    );
+    const xml = await extractDocXml(blob);
+    // 找出第一个 <w:tr ...>...</w:tr>（表头行）
+    const headerRowMatch = xml.match(/<w:tr\b[^>]*>[\s\S]*?<\/w:tr>/);
+    expect(headerRowMatch).not.toBeNull();
+    const headerRow = headerRowMatch![0];
+    // 表头行里必须包含 <w:t>名称</w:t> 和 <w:t>金额</w:t> —— 即每个表头单元格都有文本内容
+    expect(headerRow).toContain(">名称<");
+    expect(headerRow).toContain(">金额<");
+    // 防御：不能存在 <w:r>...<w:rPr>...</w:rPr></w:r> 这种空 run（无 <w:t>）
+    // 用正则找一个 run 后是否紧跟 </w:r> 而中间没有 <w:t>
+    const emptyRunRe = /<w:r>(?!.*<w:t[ >])[\s\S]*?<\/w:r>/;
+    expect(emptyRunRe.test(headerRow)).toBe(false);
+  });
+
   it("单行带 | 但无分隔行 → 视为段落不渲染表格", async () => {
     // 没有 ≥2 行 + |---|---| 分隔 → 不会触发表格解析
     const blob = await markdownToDocxBlob("| col1 | col2 |");

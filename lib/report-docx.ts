@@ -177,32 +177,32 @@ function renderLine(line: string, pageBreakBefore = false): Paragraph {
   if (line.startsWith("### ")) {
     return new Paragraph({
       ...baseOpts,
-      children: parseInline(line.slice(4)),
+      children: toTextRuns(parseInline(line.slice(4))),
       heading: HeadingLevel.HEADING_2,
     });
   }
   if (line.startsWith("## ")) {
     return new Paragraph({
       ...baseOpts,
-      children: parseInline(line.slice(3)),
+      children: toTextRuns(parseInline(line.slice(3))),
       heading: HeadingLevel.HEADING_1,
     });
   }
   if (line.startsWith("- ")) {
     return new Paragraph({
       ...baseOpts,
-      children: parseInline(line.slice(2)),
+      children: toTextRuns(parseInline(line.slice(2))),
       bullet: { level: 0 },
     });
   }
   if (/^\d+\.\s/.test(line)) {
     return new Paragraph({
       ...baseOpts,
-      children: parseInline(line.replace(/^\d+\.\s/, "")),
+      children: toTextRuns(parseInline(line.replace(/^\d+\.\s/, ""))),
       numbering: { reference: "default-numbering", level: 0 },
     });
   }
-  return new Paragraph({ ...baseOpts, children: parseInline(line) });
+  return new Paragraph({ ...baseOpts, children: toTextRuns(parseInline(line)) });
 }
 
 function renderTable(lines: string[]): Table {
@@ -230,7 +230,7 @@ function renderTable(lines: string[]): Table {
           new TableCell({
             children: [
               new Paragraph({
-                children: parseInline(cell).map((r) => new TextRun({ ...r, bold: true })),
+                children: toTextRuns(parseInline(cell), { bold: true }),
               }),
             ],
             shading: { type: ShadingType.CLEAR, fill: "F5F5F5", color: "auto" },
@@ -243,7 +243,7 @@ function renderTable(lines: string[]): Table {
           children: cells.map(
             (cell) =>
               new TableCell({
-                children: [new Paragraph({ children: parseInline(cell) })],
+                children: [new Paragraph({ children: toTextRuns(parseInline(cell)) })],
               })
           ),
         })
@@ -264,19 +264,27 @@ function renderTable(lines: string[]): Table {
   });
 }
 
-/** 解析 **bold** 内联语法，返回 TextRun[]（不带字体设置，由调用方覆盖）。 */
-function parseInline(text: string): TextRun[] {
-  const runs: TextRun[] = [];
+/** 解析 **bold** 内联语法，返回 { text, bold } 纯数据。调用方各自包 TextRun。 */
+interface InlineRun {
+  text: string;
+  bold: boolean;
+}
+function parseInline(text: string): InlineRun[] {
+  const runs: InlineRun[] = [];
   const re = /\*\*([^*]+)\*\*/g;
   let lastIdx = 0;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
-    if (m.index > lastIdx) runs.push(new TextRun({ text: text.slice(lastIdx, m.index) }));
-    runs.push(new TextRun({ text: m[1], bold: true }));
+    if (m.index > lastIdx) runs.push({ text: text.slice(lastIdx, m.index), bold: false });
+    runs.push({ text: m[1], bold: true });
     lastIdx = m.index + m[0].length;
   }
-  if (lastIdx < text.length) runs.push(new TextRun({ text: text.slice(lastIdx) }));
-  return runs.length > 0 ? runs : [new TextRun({ text })];
+  if (lastIdx < text.length) runs.push({ text: text.slice(lastIdx), bold: false });
+  return runs.length > 0 ? runs : [{ text, bold: false }];
+}
+
+function toTextRuns(inlines: InlineRun[], overrides: Partial<{ bold: boolean }> = {}): TextRun[] {
+  return inlines.map((r) => new TextRun({ text: r.text, bold: r.bold || overrides.bold }));
 }
 
 /** 触发浏览器下载 */
