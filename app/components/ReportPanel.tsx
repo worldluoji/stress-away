@@ -16,6 +16,7 @@ import { Modal } from "./ui/Modal";
 import { Card } from "./ui/Card";
 import { Icon } from "./ui/Icon";
 import { markdownToDocxBlob, triggerDocxDownload } from "@/lib/report-docx";
+import { remarkPlugins, markdownComponents, disallowedElements } from "./markdown";
 
 const MAX_NARRATIVE_LENGTH = 600;
 
@@ -31,25 +32,6 @@ const INTAKE_QUESTIONS: { id: string; question: string; options: string[] }[] = 
     options: ["还没谈，不知道", "N+1赔偿", "低于N+1", "要求主动离职无赔偿"],
   },
 ];
-
-const markdownComponents = {
-  p: ({ children }: { children?: React.ReactNode }) => <p className="mb-2 last:mb-0">{children}</p>,
-  h2: ({ children }: { children?: React.ReactNode }) => (
-    <h2 className="font-semibold text-[var(--foreground)] mt-4 mb-2 first:mt-0 text-base">{children}</h2>
-  ),
-  h3: ({ children }: { children?: React.ReactNode }) => (
-    <h3 className="font-semibold text-[var(--foreground)] mt-3 mb-1">{children}</h3>
-  ),
-  ul: ({ children }: { children?: React.ReactNode }) => (
-    <ul className="mb-2 list-disc pl-4 space-y-1">{children}</ul>
-  ),
-  ol: ({ children }: { children?: React.ReactNode }) => (
-    <ol className="mb-2 list-decimal pl-4 space-y-1">{children}</ol>
-  ),
-  strong: ({ children }: { children?: React.ReactNode }) => (
-    <strong className="font-semibold text-[var(--color-brand)]">{children}</strong>
-  ),
-};
 
 interface Props {
   comp: CompInput | null;
@@ -313,7 +295,8 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
             </div>
           </div>
           <ReactMarkdown
-            disallowedElements={["script", "style", "iframe", "object", "embed", "form"]}
+            remarkPlugins={remarkPlugins}
+            disallowedElements={disallowedElements}
             components={markdownComponents}
           >
             {report}

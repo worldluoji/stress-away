@@ -8,6 +8,7 @@ import { generateMessageId } from "@/lib/models";
 import { generateConversationId, generateTitle, type Conversation } from "@/lib/storage";
 import { getDeviceId } from "@/lib/utils";
 import { SubscriptionActivate } from "./components/SubscriptionActivate";
+import { remarkPlugins, markdownComponents, disallowedElements } from "./components/markdown";
 import dynamic from 'next/dynamic';
 const LoginModal = dynamic(() => import('./components/LoginModal').then(m => ({ default: m.LoginModal })), { ssr: false });
 const AccountStatus = dynamic(() => import('./components/LoginModal').then(m => ({ default: m.AccountStatus })), { ssr: false });
@@ -682,35 +683,9 @@ export default function Home() {
                       <>
                         <div className="group">
                           <ReactMarkdown
-                            disallowedElements={['script', 'style', 'iframe', 'object', 'embed', 'applet', 'form', 'meta', 'link', 'body', 'html', 'head']}
-                            components={{
-                              p: ({ children }) => (
-                                <p className="mb-2 last:mb-0">{children}</p>
-                              ),
-                              strong: ({ children }) => (
-                                <strong className="font-semibold text-[var(--color-brand)]">{children}</strong>
-                              ),
-                              ul: ({ children }) => (
-                                <ul className="mb-2 list-disc pl-4 space-y-1">{children}</ul>
-                              ),
-                              ol: ({ children }) => (
-                                <ol className="mb-2 list-decimal pl-4 space-y-1">{children}</ol>
-                              ),
-                              li: ({ children }) => (
-                                <li className="text-[var(--foreground)]">{children}</li>
-                              ),
-                              h3: ({ children }) => (
-                                <h3 className="font-semibold text-[var(--foreground)] mt-3 mb-1">{children}</h3>
-                              ),
-                              blockquote: ({ children }) => (
-                                <blockquote className="border-l-[3px] border-[var(--color-brand)] pl-3 my-2 text-[var(--foreground-secondary)]">
-                                  {children}
-                                </blockquote>
-                              ),
-                              pre: ({ children }) => (
-                                <pre className="whitespace-pre-wrap break-words">{children}</pre>
-                              ),
-                            }}
+                            remarkPlugins={remarkPlugins}
+                            disallowedElements={disallowedElements}
+                            components={markdownComponents}
                           >
                             {msg.content}
                           </ReactMarkdown>

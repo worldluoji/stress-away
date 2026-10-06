@@ -7,6 +7,7 @@
 ### 劳动维权（核心付费功能）
 - **赔偿金计算器**（`/labor`，免费无需登录）：依据《劳动合同法》第40/47/87条实时估算 N、2N、代通知金、加班费（150%/200%/300%）、未休年假折算；含高薪双封顶（3×社平、12年）与取整规则，规则由表格驱动单元测试钉死
 - **维权方案报告**（付费，消耗 1 次报告额度）：AI 生成五段式报告——赔偿明细核对、证据清单、仲裁流程时间线（时效1年/受理5日/审期45+15日）、仲裁申请书草稿、风险与谈判策略；金额由服务端重算后注入，防篡改
+- **报告展示**：网页端启用 GFM 表格渲染（remark-gfm），AI 输出的证据清单等管道符表格渲染为带边框的真实表格（窄屏横向滚动）；markdown 渲染配置统一收口在 `app/components/markdown.tsx`，报告面板/历史抽屉/聊天页三处复用
 - **报告复制/下载**：生成后可一键复制全文（raw markdown 入剪贴板），或下载为 Word（.docx）便于提交仲裁或转发律师
 - **报告历史**：付费用户生成的报告自动入库（`labor_reports` 表，最多 50 条）；`/labor` 头部时钟按钮可拉抽屉查看历史，点击行展开全文并复用复制/下载，刷新或关窗口后仍可找回
 - **付费明示**：点击生成时弹出自绘确认框，展示「剩余额度 X 次 → 本次后 X-1 次」与「预计回款 ¥…」，用户确认后才真正扣费；AI 失败时不扣；402 探测请求不消耗限流额度
@@ -48,6 +49,7 @@
 - **语言**: TypeScript
 - **测试**: Vitest（表格驱动单元测试）
 - **样式**: Tailwind CSS 4
+- **Markdown 渲染**: react-markdown + remark-gfm（GFM 表格）
 - **AI**: DeepSeek / MiniMax API
 - **存储**: MySQL 8.0（生产）/ LocalStorage（测试）
 - **缓存/计数**: 进程内内存（限流、防爆破、订阅读缓存 60s TTL）+ MySQL kv_store（每日免费对话计数、管理端 Token、deviceId 防伪）
@@ -188,6 +190,7 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 │   │   ├── HistoryPanel.tsx           # 历史记录面板
 │   │   ├── ReportPanel.tsx            # 维权报告生成面板
 │   │   ├── LaborHistoryPanel.tsx      # 维权报告历史抽屉
+│   │   ├── markdown.tsx               # 网页端 markdown 渲染共享配置（remark-gfm + 组件样式 + 禁用元素）
 │   │   ├── ScenarioCard.tsx           # 场景卡片
 │   │   ├── ScenarioModal.tsx          # 场景详情弹窗
 │   │   └── SubscriptionActivate.tsx   # 激活组件
@@ -220,6 +223,7 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 │   ├── compensation.test.ts           # 赔偿金计算表格驱动测试
 │   ├── report-prompt.test.ts          # 报告 prompt 断言测试
 │   ├── report-docx.test.ts            # 报告 markdown→.docx 转换测试
+│   ├── markdown-render.test.ts        # 网页端 markdown/GFM 表格渲染测试
 │   ├── labor-reports.test.ts          # 报告持久化无 MySQL 降级测试
 │   ├── ttl-map.test.ts                # 进程内 TTL 存储表格驱动测试
 │   └── kv-fallback.test.ts            # kv 无 MySQL 降级测试

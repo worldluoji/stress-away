@@ -176,6 +176,7 @@
 │   │   ├── CompensationForm.tsx       # 赔偿金计算器表单
 │   │   ├── HistoryPanel.tsx           # 历史记录面板
 │   │   ├── ReportPanel.tsx            # 维权报告生成面板
+│   │   ├── markdown.tsx               # 网页端 markdown 渲染共享配置（remark-gfm + 组件样式 + 禁用元素）
 │   │   ├── ScenarioCard.tsx          # 场景卡片
 │   │   ├── ScenarioModal.tsx          # 场景详情弹窗
 │   │   └── SubscriptionActivate.tsx  # 激活组件
@@ -208,6 +209,7 @@
 ├── test/
 │   ├── chat-quota.test.ts           # 对话额度决策表格驱动测试
 │   ├── compensation.test.ts         # 赔偿金计算表格驱动测试
+│   ├── markdown-render.test.ts      # 网页端 markdown/GFM 表格渲染测试
 │   └── report-prompt.test.ts        # 报告 prompt 断言测试
 ├── .env.local.example
 └── package.json
@@ -339,6 +341,16 @@ Headers：`X-User-Id`
 响应：`{ "success": true }`
 
 错误：401 `login_required`（未登录）。
+
+### 客户端：网页 Markdown 渲染（`app/components/markdown.tsx`）
+
+AI 报告正文（含历史抽屉、聊天页）统一用 react-markdown 渲染。react-markdown 默认只支持 CommonMark，管道符表格（GFM）会原样显示成一长行文本，因此共享模块导出三件套，三处 `<ReactMarkdown>`（`ReportPanel.tsx`、`LaborHistoryPanel.tsx`、`app/page.tsx`）全部引用同一配置，避免样式/安全配置漂移：
+
+- `remarkPlugins = [remarkGfm]`：启用 GFM，证据清单等表格渲染为带边框真实 `<table>`，外层包 `overflow-x-auto` 容器防窄屏溢出；表头 `bg-[var(--background-secondary)]` 加粗，单元格边框用 `var(--card-border)`
+- `markdownComponents`：p/h2/h3/ul/ol/li/strong/blockquote/pre + table/th/td 样式，沿用 Tailwind + CSS 变量模式
+- `disallowedElements`：script/style/iframe/object/embed/applet/form/meta/link/body/html/head（三处原配置的并集；react-markdown 本身不渲染原始 HTML，此为纵深防御）
+
+渲染行为由 `test/markdown-render.test.ts` 用 `renderToStaticMarkup` 做表格驱动断言（表格渲染、混排、既有语法回归、script 不生成可执行标签）。docx 导出链路不受影响（`lib/report-docx.ts` 有自己的表格解析）。
 
 ### 客户端：Word 报告生成（`lib/report-docx.ts`）
 
