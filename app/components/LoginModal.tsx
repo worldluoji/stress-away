@@ -12,6 +12,16 @@ import {
 
 type RegisterStep = 'form' | 'code';
 
+// TCB SDK 可能抛 Error 也可能抛带 message 的普通对象，统一安全提取
+function extractErrorMessage(err: unknown): string {
+  if (typeof err === 'string') return err;
+  if (err && typeof err === 'object' && 'message' in err) {
+    const m = (err as { message?: unknown }).message;
+    if (typeof m === 'string') return m;
+  }
+  return '';
+}
+
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -42,8 +52,8 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
       setAuthUid(uid);
       onSuccess(user);
       onClose();
-    } catch (err: any) {
-      setError(err.message || '登录失败');
+    } catch (err) {
+      setError(extractErrorMessage(err) || '登录失败');
     } finally {
       setLoading(false);
     }
@@ -73,8 +83,8 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
       const fn = await sendEmailCode(email.trim(), password);
       setVerifyFn(() => fn);
       setStep('code');
-    } catch (err: any) {
-      setError(err.message || '发送验证码失败');
+    } catch (err) {
+      setError(extractErrorMessage(err) || '发送验证码失败');
     } finally {
       setLoading(false);
     }
@@ -97,8 +107,8 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
       setAuthUid(uid);
       onSuccess(user);
       onClose();
-    } catch (err: any) {
-      setError(err.message || '验证码错误');
+    } catch (err) {
+      setError(extractErrorMessage(err) || '验证码错误');
     } finally {
       setLoading(false);
     }

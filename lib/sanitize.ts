@@ -24,6 +24,18 @@ export function sanitizeMarkdown(content: string): string {
 }
 
 /**
+ * Strip LLM chain-of-thought blocks (think / thinking) from generated output.
+ * Anchored on the opening tag so a stray closing tag in the middle of the
+ * report never swallows the preceding content.
+ */
+export function stripThinkTags(text: string): string {
+  return text
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
+    .trim();
+}
+
+/**
  * Strip all HTML tags completely (no markdown, just text)
  */
 export function stripHtml(html: string): string {

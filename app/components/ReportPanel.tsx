@@ -2,15 +2,17 @@
 
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
-import type { CompInput } from "@/lib/compensation";
-import { getDeviceId } from "@/lib/utils";
+import { computeCompensation, type CompInput } from "@/lib/compensation";
+import { getDeviceId, copyTextToClipboard } from "@/lib/utils";
 import { apiFetch } from "@/lib/request-api";
+import { trackEvent } from "@/lib/analytics-client";
 import { Select } from "./ui/Select";
 import { Textarea } from "./ui/Textarea";
 import { Button } from "./ui/Button";
 import { Spinner } from "./ui/Spinner";
 import { ErrorBanner } from "./ui/ErrorBanner";
 import { EmptyState } from "./ui/EmptyState";
+import { Modal } from "./ui/Modal";
 import { Card } from "./ui/Card";
 import { Icon } from "./ui/Icon";
 import { markdownToDocxBlob, triggerDocxDownload } from "@/lib/report-docx";
@@ -66,8 +68,9 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
   const [warning, setWarning] = useState("");
   const [gate, setGate] = useState<"none" | "login" | "activate">("none");
   const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [copyState, setCopyState] = useState<"copied" | "failed" | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [pendingConfirm, setPendingConfirm] = useState<{ paidRemaining: number } | null>(null);
 
   async function postReport(confirmPaid: boolean): Promise<Response> {
     const deviceId = await getDeviceId();
@@ -102,55 +105,58 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
     setRawReply("");
     setLoading(true);
     try {
-      // 第一步：不带 confirmPaid，看后端是否要确认
+      // 探测：不带 confirmPaid，若后端要求确认则弹自绘 Modal（探测不计限流）
       const r1 = await postReport(false);
       if (r1.status === 402) {
         const data = await r1.json();
-        const confirmed = window.confirm(
-          `${data.message || "本次生成将消耗 1 次报告额度"}（剩余 ${data.paidRemaining} 次），是否继续？`
-        );
-        if (!confirmed) return;
-        // 第二步：用户确认后重发（带 confirmPaid=true 应直接通过；后端 finalRemaining 防御 race）
-        const r2 = await postReport(true);
-        const data2 = await r2.json();
-        if (!r2.ok) {
-          if (data2.error === "settle_failed" && data2.reply) {
-            setReport(data2.reply);
-            setRawReply(data2.reply);
-            setWarning(data2.message || "次数扣除异常，请联系客服补偿");
-            onUsageChanged?.();
-            return;
-          }
-          handleErrorResponse(r2, data2);
-          return;
-        }
-        setReport(data2.reply);
-        setRawReply(data2.reply);
-        setWarning(data2.warning || "");
-        onUsageChanged?.();
+        setPendingConfirm({ paidRemaining: data.paidRemaining });
+        trackEvent("paywall_view", { uid });
         return;
       }
-      const data1 = await r1.json();
-      if (!r1.ok) {
-        if (data1.error === "settle_failed" && data1.reply) {
-          setReport(data1.reply);
-          setRawReply(data1.reply);
-          setWarning(data1.message || "次数扣除异常，请联系客服补偿");
-          onUsageChanged?.();
-          return;
-        }
-        handleErrorResponse(r1, data1);
-        return;
-      }
-      setReport(data1.reply);
-      setRawReply(data1.reply);
-      setWarning(data1.warning || "");
-      onUsageChanged?.();
+      await handleResult(r1);
     } catch {
       setError("网络错误，请稍后再试");
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleResult(res: Response) {
+    const data = await res.json();
+    if (!res.ok) {
+      if (data.error === "settle_failed" && data.reply) {
+        setReport(data.reply);
+        setRawReply(data.reply);
+        setWarning(data.message || "次数扣除异常，请联系客服补偿");
+        onUsageChanged?.();
+        return;
+      }
+      handleErrorResponse(res, data);
+      return;
+    }
+    setReport(data.reply);
+    setRawReply(data.reply);
+    setWarning(data.warning || "");
+    onUsageChanged?.();
+  }
+
+  async function runGeneration() {
+    setPendingConfirm(null);
+    trackEvent("paywall_confirm", { uid });
+    setLoading(true);
+    try {
+      // confirmPaid=true 真实生成；后端 finalRemaining 防御 race
+      await handleResult(await postReport(true));
+    } catch {
+      setError("网络错误，请稍后再试");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleCancelConfirm() {
+    if (pendingConfirm) trackEvent("paywall_cancel", { uid });
+    setPendingConfirm(null);
   }
 
   function handleErrorResponse(res: Response, data: { error?: string; message?: string }) {
@@ -161,32 +167,21 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
   }
 
   async function handleCopy() {
-    try {
-      await navigator.clipboard.writeText(rawReply);
-    } catch {
-      const textarea = document.createElement("textarea");
-      textarea.value = rawReply;
-      textarea.style.position = "fixed";
-      textarea.style.opacity = "0";
-      document.body.appendChild(textarea);
-      textarea.select();
-      try {
-        document.execCommand("copy");
-      } catch {
-        /* fallback 失败，忽略 */
-      } finally {
-        document.body.removeChild(textarea);
-      }
-    }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    const ok = await copyTextToClipboard(rawReply);
+    setCopyState(ok ? "copied" : "failed");
+    setTimeout(() => setCopyState(null), 2000);
   }
 
   async function handleDownload() {
     setDownloading(true);
+    setError("");
     try {
       const blob = await markdownToDocxBlob(rawReply, { uid: uid ?? undefined });
       triggerDocxDownload(blob, `维权方案报告_${new Date().toISOString().slice(0, 10)}`);
+      trackEvent("report_download", { uid });
+    } catch (err) {
+      console.error("[report] docx download failed:", err);
+      setError("Word 生成失败，请稍后重试");
     } finally {
       setDownloading(false);
     }
@@ -194,6 +189,39 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
 
   return (
     <div className="space-y-4">
+      <Modal open={pendingConfirm !== null} onClose={handleCancelConfirm} title="确认生成维权报告" size="sm">
+        <div className="px-5 pt-6 pb-5">
+          <h3 className="text-base font-semibold text-[var(--foreground)] mb-4">确认生成维权报告</h3>
+          <div className="space-y-3 text-sm">
+            <div className="flex items-center justify-between rounded-xl bg-[var(--background-secondary)] px-4 py-3">
+              <span className="text-[var(--foreground-secondary)]">剩余报告额度</span>
+              <span className="font-semibold text-[var(--foreground)]">
+                {pendingConfirm?.paidRemaining} 次 → 本次后 {Math.max((pendingConfirm?.paidRemaining ?? 1) - 1, 0)} 次
+              </span>
+            </div>
+            {comp && (
+              <div className="flex items-center justify-between rounded-xl bg-[var(--background-secondary)] px-4 py-3">
+                <span className="text-[var(--foreground-secondary)]">预计回款</span>
+                <span className="font-semibold text-[var(--color-brand)]">
+                  ¥{computeCompensation(comp).total.toLocaleString("zh-CN")}
+                </span>
+              </div>
+            )}
+            <p className="text-xs text-[var(--foreground-tertiary)] leading-relaxed">
+              报告包含：赔偿明细核对 · 证据清单 · 仲裁流程时间线 · 仲裁申请书草稿 · 谈判策略
+            </p>
+            <p className="text-xs text-[var(--foreground-tertiary)]">每日 10 次免费对话不受影响。</p>
+          </div>
+          <div className="flex gap-2 mt-5">
+            <Button variant="ghost" size="lg" fullWidth onClick={handleCancelConfirm}>
+              取消
+            </Button>
+            <Button variant="primary" size="lg" fullWidth onClick={runGeneration}>
+              确认生成（-1 次）
+            </Button>
+          </div>
+        </div>
+      </Modal>
       <div>
         <h3 className="text-base font-semibold text-[var(--foreground)] mb-1">生成完整维权方案报告</h3>
         <p className="text-xs text-[var(--foreground-tertiary)]">
@@ -271,7 +299,7 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
                 leftIcon={<Icon name="copy" size={14} />}
                 onClick={handleCopy}
               >
-                {copied ? "已复制" : "复制全文"}
+                {copyState === "copied" ? "已复制" : copyState === "failed" ? "复制失败" : "复制全文"}
               </Button>
               <Button
                 size="sm"

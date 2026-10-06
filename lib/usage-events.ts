@@ -3,12 +3,33 @@
  *
  * Track user behavior for analytics:
  * - event_type: chat | scenario_view | copy | activate | free_consume
+ *   | calculator | paywall_view | paywall_confirm | paywall_cancel | report_generate | report_download
  * - scenario_stats: aggregated counters per scenario
  */
 
 import { query, execute, isMySQLAvailable } from './db';
 
-export type EventType = 'chat' | 'scenario_view' | 'copy' | 'activate' | 'free_consume';
+export type EventType =
+  | 'chat'
+  | 'scenario_view'
+  | 'copy'
+  | 'activate'
+  | 'free_consume'
+  | 'calculator'
+  | 'paywall_view'
+  | 'paywall_confirm'
+  | 'paywall_cancel'
+  | 'report_generate'
+  | 'report_download';
+
+// 客户端可上报的事件白名单（report_generate 等服务端事件不在此列，防伪造）
+export const CLIENT_EVENT_TYPES: EventType[] = [
+  'calculator',
+  'paywall_view',
+  'paywall_confirm',
+  'paywall_cancel',
+  'report_download',
+];
 
 interface EventRow {
   id: number;
@@ -168,5 +189,68 @@ export async function getTotalUsage(): Promise<{
   } catch (err) {
 
     return { totalChats: 0, totalViews: 0, totalCopies: 0, activeDevices: 0 };
+  }
+}
+
+// ==================== 报告付费漏斗 ====================
+
+export interface FunnelStep {
+  count: number;
+  users: number;
+}
+
+export interface ReportFunnel {
+  calculator: FunnelStep;
+  paywallView: FunnelStep;
+  paywallConfirm: FunnelStep;
+  paywallCancel: FunnelStep;
+  reportGenerate: FunnelStep;
+  reportDownload: FunnelStep;
+}
+
+// event_type → funnel key + SQL 里的 COALESCE(uid, device_id) 作"人数"去重口径
+const FUNNEL_EVENTS: { type: EventType; key: keyof ReportFunnel }[] = [
+  { type: 'calculator', key: 'calculator' },
+  { type: 'paywall_view', key: 'paywallView' },
+  { type: 'paywall_confirm', key: 'paywallConfirm' },
+  { type: 'paywall_cancel', key: 'paywallCancel' },
+  { type: 'report_generate', key: 'reportGenerate' },
+  { type: 'report_download', key: 'reportDownload' },
+];
+
+export async function getReportFunnel(): Promise<ReportFunnel> {
+  const empty = (): ReportFunnel => ({
+    calculator: { count: 0, users: 0 },
+    paywallView: { count: 0, users: 0 },
+    paywallConfirm: { count: 0, users: 0 },
+    paywallCancel: { count: 0, users: 0 },
+    reportGenerate: { count: 0, users: 0 },
+    reportDownload: { count: 0, users: 0 },
+  });
+  if (!isMySQLAvailable()) return empty();
+  try {
+    const placeholders = FUNNEL_EVENTS.map(() => '?').join(', ');
+    const rows = await query<{
+      event_type: EventType;
+      count: number;
+      users: number;
+    }>(
+      `SELECT event_type, COUNT(*) AS count,
+              COUNT(DISTINCT COALESCE(uid, device_id)) AS users
+       FROM usage_events
+       WHERE event_type IN (${placeholders})
+       GROUP BY event_type`,
+      FUNNEL_EVENTS.map((e) => e.type)
+    );
+    const byType = new Map(rows.map((r) => [r.event_type, r]));
+    const funnel = empty();
+    for (const { type, key } of FUNNEL_EVENTS) {
+      const r = byType.get(type);
+      funnel[key] = { count: Number(r?.count ?? 0), users: Number(r?.users ?? 0) };
+    }
+    return funnel;
+  } catch (err) {
+    console.error('[usage-events] getReportFunnel failed:', err);
+    return empty();
   }
 }

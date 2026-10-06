@@ -41,7 +41,7 @@
 - [x] 面包多对接：支付回调生成激活码
 - [x] 设备激活：基于 FingerprintJS 的设备标识
 - [x] 使用追踪：对话优先消耗每日免费额度，报告生成与超额对话扣购买次数
-- [x] 管理后台：生成/查询管理端激活码，查询/重新生成订单激活码
+- [x] 管理后台：生成/查询管理端激活码，查询/重新生成订单激活码，报告付费漏斗卡片（`GET /api/admin/funnel`）
 
 ### 激活码规则
 
@@ -76,7 +76,8 @@
 | API | 限制 |
 |-----|------|
 | /api/chat | 20 次/分钟 |
-| /api/report | 5 次/分钟 |
+| /api/report | 5 次/分钟（仅 `confirmPaid: true` 的真实生成计数；402 探测不占额度） |
+| /api/events | 30 次/分钟 |
 | /api/subscription/activate | 10 次/分钟 |
 | /api/subscription/query-codes | 10 次/分钟 |
 | /api/usage | 30 次/分钟 |
@@ -93,7 +94,7 @@
 - `admin_activation_codes`：管理端激活码及绑定记录
 - `conversations`：对话历史（JSON 存储，最多50条）
 - `messages` / `message_reactions` / `saved_messages`：消息索引、点赞、收藏
-- `usage_events`：使用事件（场景浏览/聊天/复制）
+- `usage_events`：使用事件（场景浏览/聊天/复制 + 报告付费漏斗：calculator/paywall_view/paywall_confirm/paywall_cancel/report_generate/report_download）
 - `scenario_stats`：场景统计数据（视图数/聊天数/复制数）
 - `kv_store`：短期持久状态 KV（每日免费对话计数、管理端 Token、deviceId 防伪，key + value + expires_at）
 
@@ -157,10 +158,12 @@
 │   ├── api/
 │   │   ├── admin/
 │   │   │   ├── codes/route.ts        # 管理端激活码生成/查询
+│   │   │   ├── funnel/route.ts       # 报告付费漏斗统计（管理员）
 │   │   │   ├── login/route.ts        # 管理登录
 │   │   │   └── orders/[orderId]/route.ts # 订单激活码管理
 │   │   ├── chat/route.ts              # AI 对话
 │   │   ├── docs/route.ts              # API 文档
+│   │   ├── events/route.ts            # 客户端埋点上报（漏斗事件白名单）
 │   │   ├── report/route.ts            # 维权方案报告（付费，服务端重算）
 │   │   ├── scenarios/                # 场景模板 API
 │   │   ├── subscription/
@@ -186,7 +189,8 @@
 │   ├── db.ts                         # MySQL 连接池
 │   ├── conversations.ts             # 对话历史 MySQL 持久化
 │   ├── subscriptions.ts             # 订阅/激活码 MySQL + 内存缓存
-│   ├── usage-events.ts              # 使用事件追踪 + 场景统计
+│   ├── usage-events.ts              # 使用事件追踪 + 场景统计 + 报告漏斗聚合
+│   ├── analytics-client.ts          # 客户端埋点 trackEvent（fire-and-forget）
 │   ├── mbaodu.ts                    # 面包多 API
 │   ├── models.ts                    # 模型配置
 │   ├── ratelimit.ts                 # 限流 + deviceId 防伪
@@ -267,19 +271,38 @@ Headers: `x-device-id`、`X-User-Id`
 
 `dismissalType` 枚举：`mutual | no-fault-40 | illegal | expired | forced-resign`。
 
-`confirmPaid`：付费用户首次调用置 `false`（默认），后端返回 402 `report_quota_confirm` 并附 `paidRemaining`，前端用 `window.confirm` 二次确认后置 `true` 重发；不传等同于 `false`。
+`confirmPaid`：付费用户首次调用置 `false`（默认，探测请求不计 /api/report 限流），后端返回 402 `report_quota_confirm` 并附 `paidRemaining`；前端弹出自绘确认 Modal（展示剩余额度 N→N-1 与预计回款金额），用户确认后置 `true` 重发（此时才消耗限流额度）；取消不上报生成。不传等同于 `false`。
 
 响应：
 ```json
 {
-  "reply": "## 一、赔偿明细核对 …（五段式报告，页脚含免责声明）",
+  "reply": "## 一、赔偿明细核对 …（五段式报告，正文末尾附免责声明）",
   "computation": { "severanceN": 120000, "total": 128500, "lines": [], "warnings": [] }
 }
 ```
 
-错误：402 `report_quota_confirm`（付费用户需确认消耗 1 次额度，body 含 `paidRemaining`，前端确认后带 `confirmPaid: true` 重发）、403 `login_required`（未登录）、403 `paid_only`（非付费用户）、403 `no_quota`（次数用完）、400 `invalid_input`、429 限流、500 AI 失败（不扣额度）。
+错误：402 `report_quota_confirm`（付费用户需确认消耗 1 次额度，body 含 `paidRemaining`，前端确认后带 `confirmPaid: true` 重发）、403 `login_required`（未登录）、403 `paid_only`（非付费用户）、403 `no_quota`（次数用完）、400 `invalid_input`、429 限流、500 `AI error`（生成失败，不扣额度）、500 `settle_failed`（报告已生成但扣量 DB 异常，body 仍带 `reply`，前端展示报告并提示联系客服补偿）。
 
-副作用：成功后报告入库到 `labor_reports`（uid + comp_json + computation_json + reply + created_at），用户后续可在 `/labor` 历史抽屉找回；落库失败不阻塞返回（与扣量同模式）。
+副作用：成功后报告入库到 `labor_reports`（uid + comp_json + computation_json + reply + created_at），用户后续可在 `/labor` 历史抽屉找回；同时以独立事件 `report_generate` 写入 `usage_events`（不再计入 chat 计数与 `scenario_stats`）。**落库与扣量是两种失败模式**：扣量失败 → 500 `settle_failed`（带 reply，见上）；落库失败 → 200 + `warning` 字段（报告已返回，仅提示历史保存失败），不阻塞主流程。`saveLaborReport` 在未配置 MySQL 时降级为 no-op，配置后遇真实 DB 错误会抛出交由 `/api/report` 转成 warning。
+
+### POST /api/events
+
+客户端埋点上报（报告付费漏斗等）。fire-and-forget，落库失败不阻塞。
+
+Headers: `x-device-id`（必须）、`X-User-Id`（可选）；复用 `/api/usage` 限流档位（30 次/分钟）+ deviceId 防伪。
+
+请求：
+```json
+{ "eventType": "paywall_confirm", "meta": { "city": "北京" } }
+```
+
+`eventType` 白名单（仅客户端可报，服务端事件如 `report_generate` 不在列，防伪造）：`calculator | paywall_view | paywall_confirm | paywall_cancel | report_download`。
+
+响应：204（成功，无 body）。
+
+错误：400 `invalid_event_type` / 缺 eventType / 缺 deviceId、403 `device_id_rejected`、429 限流。
+
+客户端封装：`lib/analytics-client.ts` 的 `trackEvent(eventType, { uid?, meta? })`，异常静默吞掉，绝不影响主流程。
 
 ### GET /api/labor-reports
 
@@ -319,13 +342,14 @@ Headers：`X-User-Id`
 
 ### 客户端：Word 报告生成（`lib/report-docx.ts`）
 
-报告展示页提供"下载 Word"按钮，调用 `markdownToDocxBlob(reply, opts)` 把 AI 输出的五段式 markdown 转成 `.docx` Blob，再通过 `triggerDocxDownload` 触发浏览器下载。
+报告展示页提供"下载 Word"按钮，调用 `markdownToDocxBlob(reply, opts)` 把 AI 输出的五段式 markdown 转成 `.docx` Blob，再通过 `triggerDocxDownload` 触发浏览器下载。`markdownToDocxBlob` 失败（`Packer.toBlob` reject）时按钮捕获异常并给出可见错误提示，不再静默；"复制全文"走 `lib/utils.ts` 的 `copyTextToClipboard`（clipboard API 失败降级 `execCommand`），两者都失败时按钮显示"复制失败"而非假装成功。
 
-- **封面页（section 1）**：独占整页，居中标题"维权方案报告"（22pt 微软雅黑 bold 蓝色 #2E5C8A）+ "生成日期：YYYY-MM-DD" + 可选 "UID：{uid}"，然后分页符
-- **正文（section 2）**：
-  - 页眉左侧"维权方案报告"、右侧生成日期（9pt 微软雅黑灰色）
-  - 页脚居中"第 X 页 / 共 Y 页"（PAGE / NUMPAGES 字段，由 Word/WPS 打开时替换为实际页码）
-  - 正文 11pt 微软雅黑、行距 1.5
+- **单 section + `titlePage: true`**（非双 section，见下方坑 #2）：整个文档只有一个 section，封面页作为首页、正文从第二页开始，靠段落的 `pageBreakBefore` 分隔（非独立 PageBreak，见坑 #3）。
+  - **封面页**（section 首页，titlePage 使首页页眉/页脚独立）：居中标题"维权方案报告"（22pt 微软雅黑 bold 蓝色 #2E5C8A）+ "生成日期：YYYY-MM-DD" + 可选 "UID：{uid}"
+  - **正文**（首段带 `pageBreakBefore`）：
+    - 页眉左侧"维权方案报告"、右侧生成日期（9pt 微软雅黑灰色）
+    - 页脚居中"第 X 页 / 共 Y 页"（PAGE / NUMPAGES 字段，由 Word/WPS 打开时替换为实际页码）
+    - 正文 11pt 微软雅黑、行距 1.5
 - **Markdown 解析（block-by-block）**：
   - `##` → `Heading1`、`###` → `Heading2`、`-` → bullet、`1.` → numbered、`**bold**` → bold 内联
   - 管道表格 `| col1 | col2 |` + 分隔行 `|---|---|` → `<w:tbl>`，表头加粗 + #F5F5F5 底色 + 全边框（single 4pt #999999）
@@ -479,6 +503,27 @@ Headers: `x-device-id`
 ```
 
 > `userSubRemaining` 是绑定该码的 TCB 账号当前订阅的剩余次数（叠加模式下等于账号下所有码的合并剩余）；`totalTimes` 是码本身的总次数。
+
+### GET /api/admin/funnel
+
+报告付费漏斗统计（需管理员 Token，`verifyAdminToken` 守卫）。
+
+响应：
+```json
+{
+  "funnel": {
+    "calculator":     { "count": 0, "users": 0 },
+    "paywallView":    { "count": 0, "users": 0 },
+    "paywallConfirm": { "count": 0, "users": 0 },
+    "paywallCancel":  { "count": 0, "users": 0 },
+    "reportGenerate": { "count": 0, "users": 0 },
+    "reportDownload": { "count": 0, "users": 0 }
+  },
+  "rates": { "confirmToView": 62.5, "generateToConfirm": 80.0, "downloadToGenerate": 50.0 }
+}
+```
+
+`count` 为事件次数，`users` 按 `COALESCE(uid, device_id)` 去重；分母为 0 时对应转化率为 `null`。无 MySQL 时全部降级为 0/`null`，不报错。`/admin` 页面登录态下以"报告付费漏斗"卡片展示。
 
 ### POST /api/subscription/admin/activate
 

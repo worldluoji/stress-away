@@ -8,8 +8,8 @@ import {
 import { checkRateLimit, checkDeviceIdSpoofing, RATE_LIMITS, extractClientInfo } from "@/lib/ratelimit";
 import { getAuthContext } from "@/lib/api-auth";
 import { isPaidUserByUid, getRemainingUsageByUid, consumeUsageByUid } from "@/lib/subscriptions";
-import { incrementChatCount } from "@/lib/usage-events";
-import { sanitizeMarkdown } from "@/lib/sanitize";
+import { recordEvent } from "@/lib/usage-events";
+import { sanitizeMarkdown, stripThinkTags } from "@/lib/sanitize";
 import { saveLaborReport } from "@/lib/labor-reports";
 
 const MAX_NARRATIVE_LENGTH = 600;
@@ -148,26 +148,6 @@ export async function POST(request: NextRequest) {
   try {
     const { deviceId } = extractClientInfo(request);
     const { ip } = extractClientInfo(request, deviceId);
-    const config = RATE_LIMITS.report;
-
-    const rateLimitResult = await checkRateLimit(deviceId, ip, config);
-    if (!rateLimitResult.allowed) {
-      return NextResponse.json(
-        {
-          error: "rate_limit_exceeded",
-          message: "请求过于频繁，请稍后再试",
-          resetAt: rateLimitResult.resetAt,
-        },
-        {
-          status: 429,
-          headers: {
-            "X-RateLimit-Remaining": "0",
-            "X-RateLimit-Reset": rateLimitResult.resetAt.toString(),
-            "Retry-After": Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000).toString(),
-          },
-        }
-      );
-    }
 
     const deviceIdCheck = await checkDeviceIdSpoofing(ip, deviceId);
     if (!deviceIdCheck.allowed) {
@@ -211,6 +191,26 @@ export async function POST(request: NextRequest) {
         { status: 402 }
       );
     }
+    // 限流只计真实生成：402 探测（confirmPaid=false）不占用 5次/60s 额度
+    const rateLimitResult = await checkRateLimit(deviceId, ip, RATE_LIMITS.report);
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        {
+          error: "rate_limit_exceeded",
+          message: "请求过于频繁，请稍后再试",
+          resetAt: rateLimitResult.resetAt,
+        },
+        {
+          status: 429,
+          headers: {
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": rateLimitResult.resetAt.toString(),
+            "Retry-After": Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000).toString(),
+          },
+        }
+      );
+    }
+
     // 第二步前再查一次额度：防御 admin 撤销 / 并发用尽的 race condition
     // 此时已确认用户意图，重查到 0 直接拒绝并要求刷新
     const finalRemaining = await getRemainingUsageByUid(auth.uid);
@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
 
     try {
       await consumeUsageByUid(auth.uid);
-      incrementChatCount("labor-report", auth.uid, deviceId);
+      await recordEvent({ uid: auth.uid, deviceId, eventType: "report_generate" });
     } catch (err) {
       // consumeUsageByUid 现在会对真正的 DB 异常抛错（业务失败仍 return 0）。
       // 这是极少数 edge case（admin 撤销并发 / MySQL 抖动）：AI 已生成、扣额度失败，
@@ -252,7 +252,7 @@ export async function POST(request: NextRequest) {
       // 由 admin 从 console 拿 rawReply 手动补偿。
       console.error("[report] consumeUsageByUid threw (DB error), reply returned for manual compensation:", err);
       const replyOnSettleFail = sanitizeMarkdown(
-        rawReply.replace(/[\s\S]*?<\/think>/gi, "").replace(/<thinking>[\s\S]*?<\/thinking>/gi, "").trim() + DISCLAIMER
+        stripThinkTags(rawReply) + DISCLAIMER
       );
       return NextResponse.json(
         {
@@ -266,10 +266,7 @@ export async function POST(request: NextRequest) {
     }
 
     const reply = sanitizeMarkdown(
-      rawReply
-        .replace(/<think>[\s\S]*?<\/think>/gi, "")
-        .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
-        .trim() + DISCLAIMER
+      stripThinkTags(rawReply) + DISCLAIMER
     );
 
     // 落库：付费用户的报告存为历史，便于刷新/关窗口后找回

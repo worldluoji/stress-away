@@ -41,8 +41,10 @@ describe("callModel 超时保护", () => {
       const fetchMock = makeHangingFetch();
       vi.stubGlobal("fetch", fetchMock);
       const promise = c.call();
+      // 先挂上拒绝处理器，再推进计时器触发 abort，避免拒绝在无人处理的窗口内被判为 unhandled rejection
+      const assertion = expect(promise).rejects.toThrow(/abort|timeout/i);
       await vi.advanceTimersByTimeAsync(c.timeoutMs + 1000);
-      await expect(promise).rejects.toThrow(/abort|timeout/i);
+      await assertion;
       expect(fetchMock.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
     });
   });

@@ -30,30 +30,27 @@ export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProp
   const [viewingMessage, setViewingMessage] = useState<SavedMessage | null>(null);
 
   useEffect(() => {
-    if (uid) fetchSavedMessages();
-  }, [uid]);
-
-  const fetchSavedMessages = async () => {
-    try {
-      const res = await apiFetch('/api/messages/saved', {
-        headers: uid ? { 'X-User-Id': uid } : {},
-      });
-      if (res.status === 401 || !uid) {
-        setError('请先登录');
-        return;
+    if (!uid) return;
+    (async () => {
+      try {
+        const res = await apiFetch('/api/messages/saved', { headers: { 'X-User-Id': uid } });
+        if (res.status === 401) {
+          setError('请先登录');
+          return;
+        }
+        // 即使返回非200也显示空状态，不显示报错
+        const data = await res.json();
+        setMessages(data.messages || []);
+        setError(null);
+      } catch {
+        // 网络错误也显示空状态
+        setMessages([]);
+        setError(null);
+      } finally {
+        setLoading(false);
       }
-      // 即使返回非200也显示空状态，不显示报错
-      const data = await res.json();
-      setMessages(data.messages || []);
-      setError(null);
-    } catch {
-      // 网络错误也显示空状态
-      setMessages([]);
-      setError(null);
-    } finally {
-      setLoading(false);
-    }
-  };
+    })();
+  }, [uid]);
 
   const handleUnsave = async (messageId: string, e: React.MouseEvent) => {
     e.stopPropagation();

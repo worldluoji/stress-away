@@ -61,28 +61,25 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (uid) fetchStats();
-  }, [uid]);
-
-  const fetchStats = async () => {
-    try {
-      const res = await apiFetch('/api/stats', {
-        headers: uid ? { 'X-User-Id': uid } : {},
-      });
-      if (res.status === 401 || !uid) {
-        setError('请先登录');
-        return;
+    if (!uid) return;
+    (async () => {
+      try {
+        const res = await apiFetch('/api/stats', { headers: { 'X-User-Id': uid } });
+        if (res.status === 401) {
+          setError('请先登录');
+          return;
+        }
+        const data = await res.json();
+        setStats(data);
+        setError(null);
+      } catch {
+        setStats({ totalChats: 0, activeDays: 0, scenarios: [], keywords: [], weeklyActivity: [] });
+        setError(null);
+      } finally {
+        setLoading(false);
       }
-      const data = await res.json();
-      setStats(data);
-      setError(null);
-    } catch {
-      setStats({ totalChats: 0, activeDays: 0, scenarios: [], keywords: [], weeklyActivity: [] });
-      setError(null);
-    } finally {
-      setLoading(false);
-    }
-  };
+    })();
+  }, [uid]);
 
   const getScenarioName = (id: string) => SCENARIO_NAMES[id] || id;
 

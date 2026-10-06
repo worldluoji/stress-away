@@ -31,6 +31,12 @@ export function getPool(): mysql.Pool {
       enableKeepAlive: true,
       keepAliveInitialDelay: 0,
     });
+    // MySQL 服务端重启后，池内空闲连接会在下一次心跳时报错；若不注册 error
+    // 监听，该错误会冒泡成 unhandled error 拖垮进程。
+    // mysql2 的 Promise Pool 类型只声明了 'enqueue' 事件，error 事件走 EventEmitter。
+    (_pool as unknown as NodeJS.EventEmitter).on("error", (err: Error) => {
+      console.error("[db] pool error:", err);
+    });
   }
   return _pool;
 }

@@ -4,6 +4,29 @@ import { useState } from 'react';
 import { signInWithPassword, getCurrentUser } from '@/lib/tcb';
 import { apiFetch } from '@/lib/request-api';
 
+interface FunnelStep {
+  count: number;
+  users: number;
+}
+
+interface FunnelData {
+  funnel: Record<string, FunnelStep>;
+  rates: {
+    confirmToView: number | null;
+    generateToConfirm: number | null;
+    downloadToGenerate: number | null;
+  };
+}
+
+const FUNNEL_STEPS: { key: string; label: string }[] = [
+  { key: 'calculator', label: '计算器' },
+  { key: 'paywallView', label: '付费墙曝光' },
+  { key: 'paywallConfirm', label: '确认付费' },
+  { key: 'paywallCancel', label: '取消' },
+  { key: 'reportGenerate', label: '报告生成' },
+  { key: 'reportDownload', label: '报告下载' },
+];
+
 interface AdminCodeInfo {
   code: string;
   createdAt: number;
@@ -28,6 +51,7 @@ export default function AdminPage() {
   const [newCodeTimes, setNewCodeTimes] = useState(50);
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState('');
+  const [funnel, setFunnel] = useState<FunnelData | null>(null);
 
   const handleLogin = async () => {
     setError('');
@@ -58,6 +82,7 @@ export default function AdminPage() {
 
       setIsLoggedIn(true);
       fetchAdminCodes(1);
+      fetchFunnel();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('Invalid username') || msg.includes('wrong password')) {
@@ -89,6 +114,15 @@ export default function AdminPage() {
       setError('网络错误');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchFunnel = async () => {
+    try {
+      const res = await apiFetch('/api/admin/funnel');
+      if (res.ok) setFunnel(await res.json());
+    } catch {
+      // 静默：漏斗缺失不阻塞后台其它操作
     }
   };
 
@@ -217,6 +251,54 @@ export default function AdminPage() {
                 复制
               </button>
             </div>
+          )}
+        </div>
+
+        {/* Report Funnel */}
+        <div className="bg-[--card-bg] rounded-2xl p-5 border border-[var(--card-border)] space-y-4 mb-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-[--foreground]">报告付费漏斗</h3>
+            <button
+              onClick={fetchFunnel}
+              className="px-3 py-1 text-xs bg-[--background-secondary] rounded-lg text-[--foreground]"
+            >
+              刷新
+            </button>
+          </div>
+
+          {!funnel ? (
+            <p className="text-sm text-[--foreground-tertiary] text-center py-4">暂无数据（需配置 MySQL）</p>
+          ) : (
+            <>
+              {(() => {
+                const max = Math.max(...FUNNEL_STEPS.map((s) => funnel.funnel[s.key]?.count ?? 0), 1);
+                return (
+                  <div className="space-y-2">
+                    {FUNNEL_STEPS.map((s) => {
+                      const step = funnel.funnel[s.key] ?? { count: 0, users: 0 };
+                      return (
+                        <div key={s.key} className="flex items-center gap-2">
+                          <span className="text-xs text-[--foreground-secondary] w-20 shrink-0">{s.label}</span>
+                          <div className="flex-1 h-3 bg-[--background-secondary] rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-[#007AFF] rounded-full"
+                              style={{ width: `${(step.count / max) * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-[--foreground] w-12 text-right tabular-nums">{step.count}</span>
+                          <span className="text-xs text-[--foreground-tertiary] w-14 text-right">{step.users} 人</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+              <div className="flex justify-between text-xs text-[--foreground-tertiary] pt-2 border-t border-[var(--card-border)]">
+                <span>曝光→确认 {funnel.rates.confirmToView === null ? '—' : `${funnel.rates.confirmToView}%`}</span>
+                <span>确认→生成 {funnel.rates.generateToConfirm === null ? '—' : `${funnel.rates.generateToConfirm}%`}</span>
+                <span>生成→下载 {funnel.rates.downloadToGenerate === null ? '—' : `${funnel.rates.downloadToGenerate}%`}</span>
+              </div>
+            </>
           )}
         </div>
 

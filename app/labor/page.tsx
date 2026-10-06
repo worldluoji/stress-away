@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { CompInput } from "@/lib/compensation";
 import { CompensationForm } from "@/app/components/CompensationForm";
@@ -16,6 +16,7 @@ import { Section } from "@/app/components/ui/Section";
 import { Badge } from "@/app/components/ui/Badge";
 import { apiFetch } from "@/lib/request-api";
 import { getDeviceId } from "@/lib/utils";
+import { trackEvent } from "@/lib/analytics-client";
 import type { UsageStatus } from "@/lib/subscription";
 import type { LaborReport } from "@/lib/labor-reports";
 
@@ -30,7 +31,15 @@ export default function LaborPage() {
   const [history, setHistory] = useState<LaborReport[]>([]);
   const { user, uid } = useAuth();
 
-  const handleCompChange = useCallback((c: CompInput) => setComp(c), []);
+  const calculatorTracked = useRef(false);
+  const handleCompChange = useCallback((c: CompInput) => {
+    setComp(c);
+    // 免费钩子被使用：首次拿到有效估算结果时上报一次
+    if (!calculatorTracked.current) {
+      calculatorTracked.current = true;
+      trackEvent("calculator", { uid, meta: { city: c.city } });
+    }
+  }, [uid]);
 
   useEffect(() => {
     const init = async () => {

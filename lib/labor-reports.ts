@@ -56,26 +56,24 @@ export async function listLaborReportsByUid(uid: string): Promise<LaborReport[]>
   }
 }
 
+// 真实 DB 错误向上抛出，由调用方（/api/report）转成 warning 提示用户；
+// 未配置 MySQL 时降级为 no-op，不阻塞主流程。
 export async function saveLaborReport(report: LaborReport, uid: string): Promise<void> {
   if (!isMySQLAvailable()) return;
-  try {
-    await execute(
-      `INSERT INTO labor_reports (id, uid, comp_json, intake_answers_json, narrative, computation_json, reply, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        report.id,
-        uid,
-        JSON.stringify(report.comp),
-        JSON.stringify(report.intakeAnswers),
-        report.narrative,
-        JSON.stringify(report.computation),
-        report.reply,
-        report.createdAt,
-      ]
-    );
-  } catch (err) {
-    console.error("[labor-reports] saveLaborReport failed:", err);
-  }
+  await execute(
+    `INSERT INTO labor_reports (id, uid, comp_json, intake_answers_json, narrative, computation_json, reply, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      report.id,
+      uid,
+      JSON.stringify(report.comp),
+      JSON.stringify(report.intakeAnswers),
+      report.narrative,
+      JSON.stringify(report.computation),
+      report.reply,
+      report.createdAt,
+    ]
+  );
 }
 
 export async function getLaborReport(id: string, uid: string): Promise<LaborReport | null> {
