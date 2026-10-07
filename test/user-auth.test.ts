@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 vi.mock("@/lib/db", () => ({
   query: vi.fn(),
   execute: vi.fn(),
+  queryWithLimit: vi.fn(),
   isMySQLAvailable: vi.fn(() => true),
 }));
 
@@ -25,7 +26,7 @@ vi.mock("next/headers", () => ({
   }),
 }));
 
-import { query, execute } from "@/lib/db";
+import { query, execute, queryWithLimit } from "@/lib/db";
 import {
   hashPassword,
   verifyPassword,
@@ -36,6 +37,7 @@ import {
   ensureAdminUser,
   findUserByUsername,
   requireAdmin,
+  listUsers,
   SESSION_COOKIE,
   DUMMY_PASSWORD_HASH,
 } from "@/lib/user-auth";
@@ -52,6 +54,7 @@ beforeEach(() => {
   lastCookieOpts.value = {};
   vi.mocked(query).mockReset();
   vi.mocked(execute).mockReset();
+  vi.mocked(queryWithLimit).mockReset();
   resetLoginRateLimitForTesting();
 });
 
@@ -272,5 +275,27 @@ describe("login-rate-limit — 5 次锁定", () => {
     expect(isLoginLocked("alice")).toBe(true);
     clearLoginFailures("alice");
     expect(isLoginLocked("alice")).toBe(false);
+  });
+});
+
+describe("listUsers — mysql2 LIMIT ? 回归", () => {
+  const rows = [
+    { id: "u2", username: "bob", role: "user" },
+    { id: "u1", username: "alice", role: "admin" },
+  ];
+
+  it("必须走 queryWithLimit 数值内联，绝不向 prepare 协议传 LIMIT ?", async () => {
+    vi.mocked(queryWithLimit).mockResolvedValue(rows);
+    const users = await listUsers();
+    expect(query).not.toHaveBeenCalled();
+    expect(queryWithLimit).toHaveBeenCalledTimes(1);
+    const [sql, limit, offset] = vi.mocked(queryWithLimit).mock.calls[0];
+    expect(sql).not.toContain("LIMIT ?");
+    expect(limit).toBe(200);
+    expect(offset).toBe(0);
+    expect(users).toEqual([
+      { id: "u2", username: "bob", role: "user" },
+      { id: "u1", username: "alice", role: "admin" },
+    ]);
   });
 });

@@ -13,7 +13,7 @@ import {
 } from "node:crypto";
 import { promisify } from "node:util";
 import { cookies } from "next/headers";
-import { query, execute } from "./db";
+import { query, execute, queryWithLimit } from "./db";
 
 const scrypt = promisify(scryptCallback) as (
   password: string,
@@ -241,9 +241,11 @@ export type UserSummary = {
 };
 
 export async function listUsers(): Promise<UserSummary[]> {
-  const rows = await query<UserRow>(
-    "SELECT id, username, role FROM users ORDER BY created_at DESC LIMIT ?",
-    [USER_LIST_LIMIT]
+  // mysql2 prepare 协议不支持 LIMIT ?（ER_WRONG_ARGUMENTS），须走 queryWithLimit 数值内联
+  const rows = await queryWithLimit<UserRow>(
+    "SELECT id, username, role FROM users ORDER BY created_at DESC",
+    USER_LIST_LIMIT,
+    0
   );
   return rows.map((r) => ({
     id: String(r.id),
