@@ -280,3 +280,32 @@ describe("POST /api/report — 埋点事件", () => {
     expect(recordEvent).not.toHaveBeenCalled();
   });
 });
+
+describe("POST /api/report — paywall_block 埋点", () => {
+  const table: { desc: string; setup: () => void; reason: string }[] = [
+    {
+      desc: "登录但未开通 → paid_only",
+      setup: () => (isPaidUserByUid as ReturnType<typeof vi.fn>).mockResolvedValue(false),
+      reason: "paid_only",
+    },
+    {
+      desc: "已开通剩 0 次 → no_quota",
+      setup: () => (getRemainingUsageByUid as ReturnType<typeof vi.fn>).mockResolvedValue(0),
+      reason: "no_quota",
+    },
+  ];
+
+  it.each(table)("$desc → recordEvent(paywall_block)", async ({ setup, reason }) => {
+    setup();
+    const res = await callPOST(makeBody());
+    expect(res.status).toBe(403);
+    expect(recordEvent).toHaveBeenCalledTimes(1);
+    const arg = (recordEvent as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(arg).toMatchObject({ eventType: "paywall_block", uid: "u1", meta: { reason } });
+  });
+
+  it("402 探测（有额度）→ 不记录 paywall_block", async () => {
+    await callPOST(makeBody({ confirmPaid: false }));
+    expect(recordEvent).not.toHaveBeenCalled();
+  });
+});

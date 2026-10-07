@@ -80,7 +80,7 @@ export default function Home() {
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [likedAnimating, setLikedAnimating] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
-  const { user, uid, loading: authLoading, logout } = useAuth();
+  const { user, uid, logout } = useAuth();
 
   const handleLoginSuccess = useCallback(() => {
     // Login succeeded, auth state will update via onAuthStateChange
@@ -106,10 +106,7 @@ export default function Home() {
     }
     try {
       const method = isLiked ? 'DELETE' : 'POST';
-      await apiFetch(`/api/messages/${messageId}/reaction`, {
-        method,
-        headers: uid ? { 'X-User-Id': uid } : {},
-      });
+      await apiFetch(`/api/messages/${messageId}/reaction`, { method });
     } catch {
       // Revert on error
       setLikedIds(prev => {
@@ -140,14 +137,11 @@ export default function Home() {
     });
     try {
       if (isSaved) {
-        await apiFetch(`/api/messages/${messageId}/save`, {
-          method: 'DELETE',
-          headers: uid ? { 'X-User-Id': uid } : {},
-        });
+        await apiFetch(`/api/messages/${messageId}/save`, { method: 'DELETE' });
       } else {
         await apiFetch(`/api/messages/${messageId}/save`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-User-Id': uid || '' },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             conversationId: currentConversationId,
             messageIndex: msgIndex,
@@ -185,9 +179,7 @@ export default function Home() {
 
         // Load conversation history from MySQL (logged-in users only)
         if (uid) {
-          const res = await apiFetch('/api/conversations', {
-            headers: { 'X-User-Id': uid },
-          });
+          const res = await apiFetch('/api/conversations');
           if (res.ok) {
             const data = await res.json();
             setConversationHistory(data.conversations || []);
@@ -208,7 +200,6 @@ export default function Home() {
     const fetchUsage = async () => {
       try {
         const headers: Record<string, string> = { "x-device-id": deviceId };
-        if (uid) headers["x-user-id"] = uid;
         const res = await apiFetch("/api/usage", { headers });
         if (res.ok) {
           const data = await res.json();
@@ -231,7 +222,6 @@ export default function Home() {
     const recheck = async () => {
       if (!deviceId) return;
       const headers: Record<string, string> = { "x-device-id": deviceId };
-      if (uid) headers["x-user-id"] = uid;
       const res = await apiFetch("/api/usage", { headers });
       if (res.ok) {
         const data = await res.json();
@@ -239,7 +229,7 @@ export default function Home() {
       }
     };
     recheck();
-  }, [uid, deviceId]);
+  }, [deviceId]);
 
   const handleCopy = async (content: string, index: number) => {
     try {
@@ -293,10 +283,7 @@ export default function Home() {
   const handleDeleteConversation = (id: string) => {
     const updated = conversationHistory.filter((c) => c.id !== id);
     setConversationHistory(updated);
-    fetch(`/api/conversations/${id}`, {
-      method: 'DELETE',
-      headers: uid ? { 'X-User-Id': uid } : {},
-    });
+    fetch(`/api/conversations/${id}`, { method: 'DELETE' });
     if (currentConversationId === id) {
       setCurrentConversationId(undefined);
     }
@@ -319,7 +306,7 @@ export default function Home() {
         setConversationHistory(updated);
         fetch('/api/conversations', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-User-Id': uid },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(updatedConv),
         });
       }
@@ -335,7 +322,7 @@ export default function Home() {
       setConversationHistory(updated);
       fetch('/api/conversations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-User-Id': uid },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newConv),
       });
       setCurrentConversationId(newConv.id);
@@ -369,7 +356,6 @@ export default function Home() {
       };
       const chatHeaders = {
         "Content-Type": "application/json",
-        "X-User-Id": uid || "",
         "x-device-id": deviceId,
       };
       let res = await apiFetch("/api/chat", {

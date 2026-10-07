@@ -33,7 +33,7 @@ export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProp
     if (!uid) return;
     (async () => {
       try {
-        const res = await apiFetch('/api/messages/saved', { headers: { 'X-User-Id': uid } });
+        const res = await apiFetch('/api/messages/saved');
         if (res.status === 401) {
           setError('请先登录');
           return;
@@ -57,7 +57,6 @@ export function SavedMessagesPanel({ onClose, onSelect }: SavedMessagesPanelProp
     try {
       const res = await apiFetch(`/api/messages/${messageId}/save`, {
         method: 'DELETE',
-        headers: uid ? { 'X-User-Id': uid } : {},
       });
       if (res.ok) {
         setMessages(prev => prev.filter(m => m.messageId !== messageId));

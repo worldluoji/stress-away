@@ -6,7 +6,7 @@ import { recordEvent, CLIENT_EVENT_TYPES, type EventType } from '@/lib/usage-eve
 // 客户端事件上报通道（漏斗埋点）；report_generate 等服务端事件不在白名单，防伪造
 export async function POST(request: NextRequest) {
   try {
-    const { uid, deviceId } = getAuthContext(request);
+    const { uid, deviceId } = await getAuthContext(request);
 
     if (!deviceId) {
       return NextResponse.json({ error: 'Device ID required' }, { status: 400 });

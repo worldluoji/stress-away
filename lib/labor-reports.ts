@@ -57,9 +57,14 @@ export async function listLaborReportsByUid(uid: string): Promise<LaborReport[]>
 }
 
 // 真实 DB 错误向上抛出，由调用方（/api/report）转成 warning 提示用户；
-// 未配置 MySQL 时降级为 no-op，不阻塞主流程。
-export async function saveLaborReport(report: LaborReport, uid: string): Promise<void> {
-  if (!isMySQLAvailable()) return;
+// 未配置 MySQL 时显式返回 'skipped'，调用方据此提示用户自行保存。
+export type SaveLaborReportResult = "saved" | "skipped";
+
+export async function saveLaborReport(
+  report: LaborReport,
+  uid: string
+): Promise<SaveLaborReportResult> {
+  if (!isMySQLAvailable()) return "skipped";
   await execute(
     `INSERT INTO labor_reports (id, uid, comp_json, intake_answers_json, narrative, computation_json, reply, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -74,6 +79,7 @@ export async function saveLaborReport(report: LaborReport, uid: string): Promise
       report.createdAt,
     ]
   );
+  return "saved";
 }
 
 export async function getLaborReport(id: string, uid: string): Promise<LaborReport | null> {

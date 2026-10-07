@@ -174,7 +174,8 @@ const REPORT_SYSTEM_PROMPT = `你是"劳动维权顾问"，为被裁员/欠薪/�
 - 每个部分用 ## 标题分隔
 - 法律条文引用具体条款编号
 - 金额用阿拉伯数字并带"元"
-- 语气专业、克制，不夸大胜诉概率`;
+- 语气专业、克制，不夸大胜诉概率
+- 排版语法仅限：##/### 标题、- 无序列表、1. 有序列表、**粗体**、*斜体*、> 引用块、--- 分割线、| 管道表格 |；禁止图片、代码块、内嵌 HTML（导出 Word 只支持前者）`;
 
 export function buildReportSystemPrompt(): string {
   const scenario = getScenarioById('resignation-negotiation');

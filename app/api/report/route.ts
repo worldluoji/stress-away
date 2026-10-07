@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const auth = getAuthContext(request);
+    const auth = await getAuthContext(request);
     if (!auth.uid) {
       return NextResponse.json(
         { error: "login_required", message: "请登录后生成维权报告" },
@@ -166,6 +166,7 @@ export async function POST(request: NextRequest) {
     }
     const paid = await isPaidUserByUid(auth.uid);
     if (!paid) {
+      await recordEvent({ uid: auth.uid, deviceId, eventType: "paywall_block", meta: { reason: "paid_only" } });
       return NextResponse.json(
         { error: "paid_only", message: "维权报告为付费功能，请使用激活码开通" },
         { status: 403 }
@@ -173,6 +174,7 @@ export async function POST(request: NextRequest) {
     }
     const paidRemaining = await getRemainingUsageByUid(auth.uid);
     if (paidRemaining <= 0) {
+      await recordEvent({ uid: auth.uid, deviceId, eventType: "paywall_block", meta: { reason: "no_quota" } });
       return NextResponse.json(
         { error: "no_quota", message: "次数已用完，请绑定新的激活码" },
         { status: 403 }
@@ -215,6 +217,7 @@ export async function POST(request: NextRequest) {
     // 此时已确认用户意图，重查到 0 直接拒绝并要求刷新
     const finalRemaining = await getRemainingUsageByUid(auth.uid);
     if (finalRemaining <= 0) {
+      await recordEvent({ uid: auth.uid, deviceId, eventType: "paywall_block", meta: { reason: "no_quota" } });
       return NextResponse.json(
         { error: "no_quota", message: "次数已用完，请绑定新的激活码" },
         { status: 403 }
@@ -272,7 +275,7 @@ export async function POST(request: NextRequest) {
     // 落库：付费用户的报告存为历史，便于刷新/关窗口后找回
     let saveWarning: string | undefined;
     try {
-      await saveLaborReport(
+      const saveResult = await saveLaborReport(
         {
           id: crypto.randomUUID(),
           uid: auth.uid,
@@ -285,6 +288,9 @@ export async function POST(request: NextRequest) {
         },
         auth.uid
       );
+      if (saveResult === "skipped") {
+        saveWarning = "历史保存暂不可用，本次报告不会存入历史，请立即下载或复制保存";
+      }
     } catch (err) {
       console.error("[report] saveLaborReport failed:", err);
       saveWarning = "报告已生成但保存到历史失败，刷新页面将无法找回，请复制全文或下载 Word 保存";

@@ -3,7 +3,7 @@ import { query, execute, isMySQLAvailable, queryWithLimit } from './db';
 
 export interface Conversation {
   id: string;
-  uid?: string;         // TCB user ID (if logged in)
+  uid?: string;         // 自建用户 ID（users.id，登录时才有）
   deviceId: string;     // Device fingerprint (fallback)
   title: string;
   scenarioId?: string;

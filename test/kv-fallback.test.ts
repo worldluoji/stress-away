@@ -53,7 +53,7 @@ describe("kv 内存降级 — set/get/del", () => {
 });
 
 describe("kv 内存降级 — incr", () => {
-  const cases: { desc: string; ops: { advanceMs: number }[]; want: number }[] = [
+  const cases: { desc: string; ops: { advanceMs?: number }[]; want: number }[] = [
     { desc: "首次返回 1", ops: [{}], want: 1 },
     { desc: "连续累加", ops: [{}, {}, {}], want: 3 },
     { desc: "过期后重新从 1 开始", ops: [{}, { advanceMs: 1500 }], want: 1 },

@@ -47,7 +47,7 @@ describe("labor-reports — 无 MySQL 环境降级", () => {
     });
   });
 
-  it("saveLaborReport 无 MySQL 时不抛错（no-op）", async () => {
+  it("saveLaborReport 无 MySQL 时返回 skipped 显式告知", async () => {
     const { saveLaborReport } = await import("../lib/labor-reports");
     const report: LaborReport = {
       id: "r1",
@@ -74,7 +74,7 @@ describe("labor-reports — 无 MySQL 环境降级", () => {
       reply: "## 一、赔偿明细核对\n...",
       createdAt: Date.now(),
     };
-    await expect(saveLaborReport(report, "uid-1")).resolves.toBeUndefined();
+    await expect(saveLaborReport(report, "uid-1")).resolves.toBe("skipped");
   });
 
   it("deleteLaborReport 无 MySQL 时不抛错（no-op）", async () => {

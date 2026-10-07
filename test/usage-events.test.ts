@@ -20,11 +20,39 @@ describe("getReportFunnel — 无 MySQL 降级", () => {
     const funnel = await getReportFunnel();
     expect(funnel).toEqual({
       calculator: emptyStep,
+      loginGate: emptyStep,
       paywallView: emptyStep,
+      paywallBlock: emptyStep,
+      activateSuccess: emptyStep,
       paywallConfirm: emptyStep,
       paywallCancel: emptyStep,
       reportGenerate: emptyStep,
       reportDownload: emptyStep,
     });
+  });
+});
+
+describe("recordEvent — 错误显式处理（宪法 3.1）", () => {
+  it("落库失败时 console.error 且不向调用方抛出", async () => {
+    vi.resetModules();
+    vi.doMock("@/lib/db", () => ({
+      query: vi.fn(),
+      execute: vi.fn(() => Promise.reject(new Error("insert failed"))),
+      isMySQLAvailable: vi.fn(() => true),
+    }));
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { recordEvent } = await import("../lib/usage-events");
+      await expect(
+        recordEvent({ deviceId: "d1", eventType: "login_gate" })
+      ).resolves.toBeUndefined();
+      expect(errSpy).toHaveBeenCalledWith(
+        expect.stringContaining("recordEvent"),
+        expect.any(Error)
+      );
+    } finally {
+      errSpy.mockRestore();
+      vi.doUnmock("@/lib/db");
+    }
   });
 });

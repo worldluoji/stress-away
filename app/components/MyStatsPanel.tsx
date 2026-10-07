@@ -64,7 +64,7 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
     if (!uid) return;
     (async () => {
       try {
-        const res = await apiFetch('/api/stats', { headers: { 'X-User-Id': uid } });
+        const res = await apiFetch('/api/stats');
         if (res.status === 401) {
           setError('请先登录');
           return;

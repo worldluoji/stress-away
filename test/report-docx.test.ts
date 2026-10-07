@@ -155,6 +155,72 @@ describe("markdownToDocxBlob — markdown 语法映射", () => {
     expect(emptyRunRe.test(headerRow)).toBe(false);
   });
 
+  describe("扩展语法：引用块 / 分割线 / 斜体", () => {
+    const syntaxCases: {
+      desc: string;
+      input: string;
+      mustContainText: string[];
+      mustNotContainText: string[];
+      xmlMustContain: string;
+    }[] = [
+      {
+        desc: "> 引用块 → 缩进斜体段，裸 > 不出现在文本",
+        input: "> 免责提示\n正文",
+        mustContainText: ["免责提示", "正文"],
+        mustNotContainText: [">"],
+        xmlMustContain: "<w:ind",
+      },
+      {
+        desc: "--- 分割线 → 细横线段落，--- 符号消失",
+        input: "前文\n\n---\n\n后文",
+        mustContainText: ["前文", "后文"],
+        mustNotContainText: ["---"],
+        xmlMustContain: "<w:pBdr>",
+      },
+      {
+        desc: "*斜体* 与 **粗体** 混排，星号消失",
+        input: "这是 **粗** 和 *斜* 混排",
+        mustContainText: ["粗", "斜", "混排"],
+        mustNotContainText: ["*"],
+        xmlMustContain: "<w:i/>",
+      },
+    ];
+
+    syntaxCases.forEach((c) => {
+      it(c.desc, async () => {
+        const blob = await markdownToDocxBlob(c.input);
+        const text = await extractDocText(blob);
+        for (const s of c.mustContainText) expect(text).toContain(s);
+        for (const s of c.mustNotContainText) expect(text).not.toContain(s);
+        const xml = await extractDocXml(blob);
+        expect(xml).toContain(c.xmlMustContain);
+      });
+    });
+
+    it("不支持语法降级：!图片/```代码块/内嵌 HTML → 按正文文本渲染不报错", async () => {
+      const blob = await markdownToDocxBlob("![img](http://x)\n\n```\ncode\n```\n\n<div>html</div>");
+      expect(blob.size).toBeGreaterThan(0);
+      const text = await extractDocText(blob);
+      // 降级为普通段落：内容可辨认，不抛异常即可
+      expect(text).toContain("code");
+    });
+  });
+
+  describe("Mac Word 兼容坑 #2/#3 回归", () => {
+    it("#2：document.xml 有且仅有一个 sectPr（正文不产生多余分节）", async () => {
+      const blob = await markdownToDocxBlob("## 标题\n- 项一\n\n| a | b |\n|---|---|\n| 1 | 2 |");
+      const xml = await extractDocXml(blob);
+      expect((xml.match(/<w:sectPr/g) ?? []).length).toBe(1);
+    });
+
+    it("#3：分页必须用 pageBreakBefore，禁止独立 <w:br w:type=\"page\"/> 段落", async () => {
+      const blob = await markdownToDocxBlob("## 标题\n正文");
+      const xml = await extractDocXml(blob);
+      expect(xml).not.toContain('<w:br w:type="page"');
+      expect(xml).toContain("<w:pageBreakBefore");
+    });
+  });
+
   it("单行带 | 但无分隔行 → 视为段落不渲染表格", async () => {
     // 没有 ≥2 行 + |---|---| 分隔 → 不会触发表格解析
     const blob = await markdownToDocxBlob("| col1 | col2 |");

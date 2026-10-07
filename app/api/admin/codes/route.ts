@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminActivationCode, listAdminActivationCodes, getAdminActivationCode } from '@/lib/subscriptions';
 import { generateActivationCode } from '@/lib/activation-codes';
-import { verifyAdminToken } from '@/app/api/admin/verify';
+import { requireAdmin } from '@/lib/user-auth';
 
 export async function POST(request: NextRequest) {
   try {
-    const authError = await verifyAdminToken(request);
-    if (authError) return authError;
+    if (!(await requireAdmin())) {
+      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+    }
 
     const body = await request.json().catch(() => ({}));
     const times = parseInt(body.times, 10) || 50;
@@ -27,8 +28,9 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const authError = await verifyAdminToken(request);
-    if (authError) return authError;
+    if (!(await requireAdmin())) {
+      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+    }
 
     const { searchParams } = new URL(request.url);
     const code = searchParams.get('code');

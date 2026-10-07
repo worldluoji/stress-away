@@ -17,11 +17,33 @@ export const disallowedElements = [
   "head",
 ];
 
+// 标题锚点 id：与 extractToc 配对，供报告目录导航 scrollIntoView 定位
+export function headingId(text: string): string {
+  return `toc-${text.trim().replace(/\s+/g, "-")}`;
+}
+
+/** 从 markdown 源提取 ## 级目录项 */
+export function extractToc(markdown: string): string[] {
+  const titles: string[] = [];
+  for (const m of markdown.matchAll(/^## (.+)$/gm)) {
+    titles.push(m[1].trim());
+  }
+  return titles;
+}
+
 export const markdownComponents = {
   p: ({ children }: { children?: React.ReactNode }) => <p className="mb-2 last:mb-0">{children}</p>,
-  h2: ({ children }: { children?: React.ReactNode }) => (
-    <h2 className="font-semibold text-[var(--foreground)] mt-4 mb-2 first:mt-0 text-base">{children}</h2>
-  ),
+  h2: ({ children }: { children?: React.ReactNode }) => {
+    const text = typeof children === "string" ? children : "";
+    return (
+      <h2
+        id={text ? headingId(text) : undefined}
+        className="font-semibold text-[var(--foreground)] mt-4 mb-2 first:mt-0 text-base"
+      >
+        {children}
+      </h2>
+    );
+  },
   h3: ({ children }: { children?: React.ReactNode }) => (
     <h3 className="font-semibold text-[var(--foreground)] mt-3 mb-1">{children}</h3>
   ),

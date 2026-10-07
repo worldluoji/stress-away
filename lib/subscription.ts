@@ -1,5 +1,5 @@
 /**
- * Usage quota — TCB user edition
+ * Usage quota — 自建账号版
  *
  * 模型：购买次数（subscriptions.remaining_usage）是"报告货币"；
  * 对话为免费获客漏斗，登录用户每日 CHAT_FREE_PER_DAY 次免费，

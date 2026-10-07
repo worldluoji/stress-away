@@ -29,6 +29,7 @@ export default function LaborPage() {
   const [usage, setUsage] = useState<UsageStatus | null>(null);
   const [deviceId, setDeviceId] = useState<string>("");
   const [history, setHistory] = useState<LaborReport[]>([]);
+  const [historyDegraded, setHistoryDegraded] = useState(false);
   const { user, uid } = useAuth();
 
   const calculatorTracked = useRef(false);
@@ -37,9 +38,9 @@ export default function LaborPage() {
     // 免费钩子被使用：首次拿到有效估算结果时上报一次
     if (!calculatorTracked.current) {
       calculatorTracked.current = true;
-      trackEvent("calculator", { uid, meta: { city: c.city } });
+      trackEvent("calculator", { meta: { city: c.city } });
     }
-  }, [uid]);
+  }, []);
 
   useEffect(() => {
     const init = async () => {
@@ -53,7 +54,6 @@ export default function LaborPage() {
     if (!deviceId) return;
     try {
       const headers: Record<string, string> = { "x-device-id": deviceId };
-      if (uid) headers["x-user-id"] = uid;
       const res = await apiFetch("/api/usage", { headers });
       if (res.ok) {
         const data = await res.json();
@@ -73,14 +73,12 @@ export default function LaborPage() {
   const fetchHistory = useCallback(async () => {
     if (!uid) return;
     try {
-      const headers: Record<string, string> = {
-        "x-device-id": deviceId,
-        "X-User-Id": uid,
-      };
+      const headers: Record<string, string> = { "x-device-id": deviceId };
       const res = await apiFetch("/api/labor-reports", { headers });
       if (res.ok) {
         const data = await res.json();
         setHistory(data.reports ?? []);
+        setHistoryDegraded(!!data.degraded);
       }
     } catch {
       /* ignore */
@@ -92,10 +90,7 @@ export default function LaborPage() {
     try {
       await apiFetch(`/api/labor-reports/${id}`, {
         method: "DELETE",
-        headers: {
-          "x-device-id": deviceId,
-          "X-User-Id": uid,
-        },
+        headers: { "x-device-id": deviceId },
       });
       setHistory((prev) => prev.filter((r) => r.id !== id));
     } catch {
@@ -204,6 +199,7 @@ export default function LaborPage() {
       {showHistory && (
         <LaborHistoryPanel
           reports={history}
+          degraded={historyDegraded}
           onDelete={handleDeleteReport}
           onClose={() => setShowHistory(false)}
         />

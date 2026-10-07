@@ -9,10 +9,11 @@ import {
   getRemainingAttempts,
 } from '@/lib/activation-security';
 import { isValidActivationCode } from '@/lib/activation-codes';
+import { recordEvent } from '@/lib/usage-events';
 
 export async function POST(request: NextRequest) {
   try {
-    const { uid, deviceId } = getAuthContext(request);
+    const { uid, deviceId } = await getAuthContext(request);
 
     if (!deviceId) {
       return NextResponse.json({ error: 'Device ID required' }, { status: 400 });
@@ -87,6 +88,8 @@ export async function POST(request: NextRequest) {
       }
 
       await resetFailedAttemptsAsync(ip, deviceId);
+      // 仅计首次兑换；同码重复兑换走上方短路分支，不在此列（防重复计数）
+      await recordEvent({ uid, deviceId, eventType: "activate_success" });
       return NextResponse.json({
         success: true,
         remainingCodes: consumeResult.remainingCodes,

@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { getDeviceId } from '@/lib/utils';
-import { useAuth } from './LoginModal';
 import { apiFetch } from '@/lib/request-api';
 
 interface Props {
@@ -10,7 +9,6 @@ interface Props {
 }
 
 export function SubscriptionActivate({ onActivated }: Props) {
-  const { uid } = useAuth();
   const [adminCode, setAdminCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +29,6 @@ export function SubscriptionActivate({ onActivated }: Props) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-Id': uid || '',
           'x-device-id': deviceId,
         },
         body: JSON.stringify({

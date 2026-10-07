@@ -7,11 +7,11 @@
 ### 劳动维权（核心付费功能）
 - **赔偿金计算器**（`/labor`，免费无需登录）：依据《劳动合同法》第40/47/87条实时估算 N、2N、代通知金、加班费（150%/200%/300%）、未休年假折算；含高薪双封顶（3×社平、12年）与取整规则，规则由表格驱动单元测试钉死
 - **维权方案报告**（付费，消耗 1 次报告额度）：AI 生成五段式报告——赔偿明细核对、证据清单、仲裁流程时间线（时效1年/受理5日/审期45+15日）、仲裁申请书草稿、风险与谈判策略；金额由服务端重算后注入，防篡改
-- **报告展示**：网页端启用 GFM 表格渲染（remark-gfm），AI 输出的证据清单等管道符表格渲染为带边框的真实表格（窄屏横向滚动）；markdown 渲染配置统一收口在 `app/components/markdown.tsx`，报告面板/历史抽屉/聊天页三处复用
-- **报告复制/下载**：生成后可一键复制全文（raw markdown 入剪贴板），或下载为 Word（.docx）便于提交仲裁或转发律师
-- **报告历史**：付费用户生成的报告自动入库（`labor_reports` 表，最多 50 条）；`/labor` 头部时钟按钮可拉抽屉查看历史，点击行展开全文并复用复制/下载，刷新或关窗口后仍可找回
+- **报告展示**：网页端启用 GFM 表格渲染（remark-gfm），AI 输出的证据清单等管道符表格渲染为带边框的真实表格（窄屏横向滚动）；markdown 渲染配置统一收口在 `app/components/markdown.tsx`，报告面板/历史抽屉/聊天页三处复用；报告卡顶部附「## 级标题」锚点目录（横向滚动 chip 导航，点击平滑滚动定位）
+- **报告复制/下载**：生成后可一键复制全文（raw markdown 入剪贴板），或下载为 Word（.docx）便于提交仲裁或转发律师；导出支持网页同款语法子集——标题/列表/**粗体**/*斜体*/> 引用块/--- 分割线/管道表格（禁图片/代码块/内嵌 HTML）
+- **报告历史**：付费用户生成的报告自动入库（`labor_reports` 表，最多 50 条）；`/labor` 头部时钟按钮可拉抽屉查看历史，点击行展开全文并复用复制/下载，刷新或关窗口后仍可找回；删除走站内二次确认弹窗；MySQL 不可用时生成响应附"历史保存暂不可用"提醒、历史抽屉显示"服务暂不可用"空态（与"暂无历史"区分）
 - **付费明示**：点击生成时弹出自绘确认框，展示「剩余额度 X 次 → 本次后 X-1 次」与「预计回款 ¥…」，用户确认后才真正扣费；AI 失败时不扣；402 探测请求不消耗限流额度
-- **付费漏斗埋点**：计算器 → 付费墙曝光/确认/取消 → 报告生成 → Word 下载，全链路事件写入 `usage_events`，`/admin` 漏斗卡片展示各步次数/人数与转化率
+- **付费漏斗埋点**：计算器 → 登录墙(login_gate) → 付费墙曝光(paywall_view) / 拦截(paywall_block，403 时服务端记录) → 激活成功(activate_success) → 确认/取消 → 报告生成 → Word 下载，全链路事件写入 `usage_events`，`/admin` 漏斗卡片展示各步次数/人数与转化率
 - **社平工资表**：内置 30 个高频城市封顶基数（`lib/social-wage.ts`），每条记录含人社局来源 URL 与生效日期，`WageRecord.isEstimate` 标记是否经人社局核对（默认 `true`，人工核对后改 `false`）；表单下方内嵌"当地社平工资"输入框，默认值显示系统估算，提示用户核对当地人社局公告后覆盖；未收录城市自动回退到所属省份省会数据作为代理；年度人工更新，不做自动 pipeline
 - **免责**：全程标注"AI 生成、不构成律师意见、以仲裁认定为准"
 
@@ -21,23 +21,25 @@
 - **聊天历史**：对话记录持久化存储（MySQL），跨设备同步
 - **历史记录**：保存最多50条历史对话，可切换/删除/继续追问
 
-### 订阅与激活
+### 账号与订阅
+- **自建账号体系**：用户名+密码登录，**无自助注册**，账号由管理员在 `/admin`「账号管理」生成并一次性发放初始密码；会话为 sessions 表（token 仅存 SHA-256）+ httpOnly Cookie（7 天），可随时吊销；已彻底移除腾讯云 TCB 依赖
 - **报告付费墙**：维权报告仅限付费用户生成（403 `paid_only`），购买次数即"报告货币"；计算器免费、话术聊天为免费获客漏斗；付费 SKU 建议 ¥9.9/1次、¥29.9/5次
 - **双渠道激活**：支持面包多订单激活和管理端激活码激活
 - **管理端激活码**：管理员可生成独立激活码，支持闲鱼等平台销售
 - **激活码继承次数**：激活码本身记录剩余次数，换设备激活时自动继承
-- **多码叠加**：每个 TCB 账号可绑定多个管理端激活码，**次数累加**、**到期时间取最晚**（`max(expires_at)`）
+- **多码叠加**：每个账号可绑定多个管理端激活码，**次数累加**、**到期时间取最晚**（`max(expires_at)`）
 - **过期即失效**：订阅到期后剩余次数不可用，需绑定新码才能恢复
 - **免费对话**：登录用户每天 10 次免费对话，不消耗购买次数；超出后付费用户确认消耗 1 次购买额度可继续对话（未付费引导激活）
 - **激活码订阅**：购买次数优先用于生成维权报告，支持 2 个激活码
 - **48小时查询窗口**：购买后48小时内可查询激活码
-- **管理后台**：管理员可生成/查询激活码，查询/重新生成订单激活码，查看报告付费漏斗（`/admin`）
+- **管理后台**：管理员使用 `ADMIN_USERNAME/ADMIN_PASSWORD` 引导出的账号登录（与用户同一套 `/api/auth/login`，按 role 区分），可生成/查询激活码、查询/重新生成订单激活码、创建/重置用户账号、查看报告付费漏斗（`/admin`）
 
 ### 安全保护
 - **限流**：设备 ID + IP 双重限制，防止恶意攻击
 - **激活码防暴力破解**：连续失败5次封禁15分钟
+- **登录防爆破**：按用户名计数，连续失败 5 次锁定 15 分钟（进程内存，用户与管理员共用登录接口）；用户不存在与密码错误响应耗时一致（假哈希走完整 scrypt），防时序枚举
+- **会话安全**：uid 唯一来源是服务端验签的会话 Cookie，API 不再信任任何客户端自报的 `x-user-id` 头；重置密码即时清空该用户全部会话
 - **输入限制**：用户输入最多600字，前端+后端双重校验
-- **管理端设备绑定**：可通过 `ADMIN_ALLOWED_DEVICES` 配置只允许特定设备登录
 
 ### 模型配置
 - 支持 DeepSeek V4 Flash / MiniMax 2.7
@@ -51,8 +53,9 @@
 - **样式**: Tailwind CSS 4
 - **Markdown 渲染**: react-markdown + remark-gfm（GFM 表格）
 - **AI**: DeepSeek / MiniMax API
-- **存储**: MySQL 8.0（生产）/ LocalStorage（测试）
-- **缓存/计数**: 进程内内存（限流、防爆破、订阅读缓存 60s TTL）+ MySQL kv_store（每日免费对话计数、管理端 Token、deviceId 防伪）
+- **存储**: MySQL 8.0（生产，含 users/sessions 账号表）/ LocalStorage（测试）
+- **鉴权**: 自建账号（scrypt 密码哈希 + sessions 表 + httpOnly Cookie，无第三方登录 SDK）
+- **缓存/计数**: 进程内内存（限流、防爆破、订阅读缓存 60s TTL）+ MySQL kv_store（每日免费对话计数、deviceId 防伪）
 - **支付**: 面包多
 - **部署**: Docker (multi-stage, Next.js standalone)
 
@@ -81,7 +84,8 @@ MINIMAX_API_KEY=your_minimax_api_key
 # 面包多（激活码）
 MBAODU_APP_KEY=your_mbaodu_key
 
-# 管理后台密码
+# 管理员初始账号（两者齐备才引导；普通用户账号由管理员在 /admin「账号管理」创建后发放）
+ADMIN_USERNAME=admin
 ADMIN_PASSWORD=your_admin_password
 
 # MySQL（生产）
@@ -127,7 +131,7 @@ pnpm test
 
 ```bash
 cp .env.local.example .env.production
-# 编辑 .env.production，至少要填入 NEXT_PUBLIC_TCB_ENV_ID
+# 编辑 .env.production；若部署在子路径下填入 NEXT_PUBLIC_BASE_PATH（当前唯一构建时变量）
 ```
 
 ### 构建镜像
@@ -157,11 +161,12 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 
 ## 管理后台
 
-访问 `/admin` 输入管理密码后可：
+访问 `/admin`，用 `ADMIN_USERNAME/ADMIN_PASSWORD` 引导的管理员账号登录后（非管理员账号会被拒"当前账号无管理权限"）可：
 - 生成管理端激活码（支持闲鱼等平台销售）
 - 查询指定订单号的当前激活码
 - 重新生成激活码（覆盖旧码）
-- 查看报告付费漏斗（计算器→曝光→确认→生成→下载 各步次数/人数与转化率，数据来自 `usage_events`）
+- 账号管理：创建用户账号（展示一次性初始密码，明文仅此一次）、重置用户密码（即时清空其全部会话强制重新登录）
+- 查看报告付费漏斗（计算器→登录墙→曝光/拦截→激活成功→确认→生成→下载 各步次数/人数与转化率，数据来自 `usage_events`）
 
 ## 文件结构
 
@@ -172,8 +177,12 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 │   │   ├── admin/
 │   │   │   ├── codes/route.ts        # 管理端激活码生成/查询
 │   │   │   ├── funnel/route.ts       # 报告付费漏斗统计（管理员）
-│   │   │   ├── login/route.ts         # 管理登录
+│   │   │   ├── users/route.ts        # 账号管理：建号/重置密码/列表（管理员）
 │   │   │   └── orders/[orderId]/route.ts # 订单激活码管理
+│   │   ├── auth/
+│   │   │   ├── login/route.ts        # 用户名+密码登录（防爆破 + 会话 cookie）
+│   │   │   ├── logout/route.ts       # 登出（清 cookie + 删会话行）
+│   │   │   └── me/route.ts           # 当前登录态（前端 useAuth 数据源）
 │   │   ├── chat/route.ts              # AI 对话
 │   │   ├── events/route.ts            # 客户端埋点上报（事件白名单）
 │   │   ├── report/route.ts            # 维权方案报告（付费，服务端重算金额，落库历史）
@@ -190,7 +199,8 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 │   │   ├── HistoryPanel.tsx           # 历史记录面板
 │   │   ├── ReportPanel.tsx            # 维权报告生成面板
 │   │   ├── LaborHistoryPanel.tsx      # 维权报告历史抽屉
-│   │   ├── markdown.tsx               # 网页端 markdown 渲染共享配置（remark-gfm + 组件样式 + 禁用元素）
+│   │   ├── LoginModal.tsx             # 登录弹窗（用户名+密码，账号由管理员发放）
+│   │   ├── markdown.tsx               # 网页端 markdown 渲染共享配置（remark-gfm + 组件样式 + 禁用元素 + 标题锚点/目录提取）
 │   │   ├── ScenarioCard.tsx           # 场景卡片
 │   │   ├── ScenarioModal.tsx          # 场景详情弹窗
 │   │   └── SubscriptionActivate.tsx   # 激活组件
@@ -214,7 +224,9 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 │   ├── kv.ts                        # MySQL kv_store（无 MySQL 时自动降级内存）
 │   ├── chat-quota.ts                # 对话额度决策纯函数（表格驱动测试）
 │   ├── free-count.ts                # 每日免费对话计数（kv_store 持久化，按 uid）
-│   ├── admin-security.ts            # 管理端 Token + 登录防爆破
+│   ├── user-auth.ts                 # 自建账号：scrypt 哈希/会话 Cookie/建号/管理员引导
+│   ├── api-auth.ts                  # API 身份 chokepoint（uid/role 仅来自验签会话）
+│   ├── login-rate-limit.ts          # 登录失败限流（按用户名 5 次/15 分钟锁定）
 │   ├── scenarios.ts                 # 场景数据
 │   ├── storage.ts                 # LocalStorage（客户端缓存）
 │   └── subscription.ts             # 订阅逻辑（入口）
@@ -223,7 +235,12 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 │   ├── compensation.test.ts           # 赔偿金计算表格驱动测试
 │   ├── report-prompt.test.ts          # 报告 prompt 断言测试
 │   ├── report-docx.test.ts            # 报告 markdown→.docx 转换测试
-│   ├── markdown-render.test.ts        # 网页端 markdown/GFM 表格渲染测试
+│   ├── markdown-render.test.ts        # 网页端 markdown/GFM 表格渲染 + 目录锚点测试
+│   ├── user-auth.test.ts              # scrypt 哈希往返/会话/登录限流表格驱动测试
+│   ├── api-auth.test.ts               # 会话验签身份上下文测试（伪造头无效）
+│   ├── auth-routes.test.ts            # login/logout/me 端点行为测试
+│   ├── admin-users-route.test.ts      # 账号管理端点（建号/重置/权限）测试
+│   ├── activate-route.test.ts         # 激活成功漏斗埋点测试
 │   ├── labor-reports.test.ts          # 报告持久化无 MySQL 降级测试
 │   ├── ttl-map.test.ts                # 进程内 TTL 存储表格驱动测试
 │   └── kv-fallback.test.ts            # kv 无 MySQL 降级测试
@@ -241,7 +258,8 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 | DEEPSEEK_API_KEY | 是 | - | DeepSeek Key |
 | MINIMAX_API_KEY | 是 | - | MiniMax Key |
 | MBAODU_APP_KEY | 是 | - | 面包多 Key |
-| ADMIN_UIDS | 否 | - | 允许的管理端登录的用户uid |
+| ADMIN_USERNAME | 否 | - | 管理员初始用户名（与 ADMIN_PASSWORD 齐备时首次登录幂等引导） |
+| ADMIN_PASSWORD | 否 | - | 管理员初始密码（引导后可在 users 表改密；普通用户账号由管理端创建） |
 | MYSQL_HOST | 生产 | localhost | MySQL 主机 |
 | MYSQL_PORT | 生产 | 3306 | MySQL 端口 |
 | MYSQL_USER | 生产 | - | MySQL 用户名 |

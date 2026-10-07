@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const auth = getAuthContext(request);
+    const auth = await getAuthContext(request);
 
     // Parse body before quota decision (confirmPaid 参与决策)
     const body = await request.json();

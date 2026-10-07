@@ -14,6 +14,7 @@ import {
   Footer,
   SimpleField,
   LevelFormat,
+  BorderStyle,
 } from "docx";
 
 /** 封面元数据：生成日期（默认当前时刻）+ UID（可选）。 */
@@ -24,6 +25,8 @@ export interface ReportDocxOptions {
 
 const CN_FONT = "微软雅黑";
 const BRAND_BLUE = "2E5C8A";
+// 引用块左缩进（twips，约 0.33 英寸），对齐网页 blockquote 的观感
+const BLOCKQUOTE_INDENT = 480;
 
 function formatYMD(d: Date): string {
   const y = d.getFullYear();
@@ -33,8 +36,8 @@ function formatYMD(d: Date): string {
 }
 
 /** 把 AI 生成的 raw markdown 报告转成含封面/页眉/页脚的 .docx Blob。
- *  支持：封面页 + header + 页脚页码、## / ### / - bullet / 1. numbered / **bold**、
- *  管道表格（| col1 | col2 |）。
+ *  支持：封面页 + header + 页脚页码、## / ### / - bullet / 1. numbered /
+ *  **bold** / *italic* / > 引用块 / --- 分割线、管道表格（| col1 | col2 |）。
  *  不支持的：图片、代码块、内嵌 HTML（按正文段落处理，prompt 里不用这些）。 */
 export async function markdownToDocxBlob(
   reply: string,
@@ -220,6 +223,21 @@ function renderLine(line: string, pageBreakBefore = false): Paragraph {
       bullet: { level: 0 },
     });
   }
+  if (line.startsWith("> ")) {
+    return new Paragraph({
+      ...baseOpts,
+      children: toTextRuns(parseInline(line.slice(2)), { italic: true }),
+      indent: { left: BLOCKQUOTE_INDENT },
+    });
+  }
+  if (/^-{3,}$/.test(line.trim())) {
+    return new Paragraph({
+      ...baseOpts,
+      children: [],
+      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: "999999", space: 1 } },
+      spacing: { before: 120, after: 120 },
+    });
+  }
   if (/^\d+\.\s/.test(line)) {
     return new Paragraph({
       ...baseOpts,
@@ -289,27 +307,39 @@ function renderTable(lines: string[]): Table {
   });
 }
 
-/** 解析 **bold** 内联语法，返回 { text, bold } 纯数据。调用方各自包 TextRun。 */
+/** 解析 **bold** / *italic* 内联语法，返回纯数据。调用方各自包 TextRun。 */
 interface InlineRun {
   text: string;
   bold: boolean;
+  italic: boolean;
 }
 function parseInline(text: string): InlineRun[] {
   const runs: InlineRun[] = [];
-  const re = /\*\*([^*]+)\*\*/g;
+  // 粗体分支在前：**x** 优先于 *x* 匹配
+  const re = /\*\*([^*]+)\*\*|\*([^*]+)\*/g;
   let lastIdx = 0;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
-    if (m.index > lastIdx) runs.push({ text: text.slice(lastIdx, m.index), bold: false });
-    runs.push({ text: m[1], bold: true });
+    if (m.index > lastIdx) runs.push({ text: text.slice(lastIdx, m.index), bold: false, italic: false });
+    if (m[1] !== undefined) runs.push({ text: m[1], bold: true, italic: false });
+    else runs.push({ text: m[2], bold: false, italic: true });
     lastIdx = m.index + m[0].length;
   }
-  if (lastIdx < text.length) runs.push({ text: text.slice(lastIdx), bold: false });
-  return runs.length > 0 ? runs : [{ text, bold: false }];
+  if (lastIdx < text.length) runs.push({ text: text.slice(lastIdx), bold: false, italic: false });
+  return runs.length > 0 ? runs : [{ text, bold: false, italic: false }];
 }
 
-function toTextRuns(inlines: InlineRun[], overrides: Partial<{ bold: boolean }> = {}): TextRun[] {
-  return inlines.map((r) => new TextRun({ text: r.text, bold: r.bold || overrides.bold }));
+function toTextRuns(
+  inlines: InlineRun[],
+  overrides: Partial<{ bold: boolean; italic: boolean }> = {}
+): TextRun[] {
+  return inlines.map((r) =>
+    new TextRun({
+      text: r.text,
+      bold: r.bold || overrides.bold,
+      italics: r.italic || overrides.italic,
+    })
+  );
 }
 
 /** 触发浏览器下载 */

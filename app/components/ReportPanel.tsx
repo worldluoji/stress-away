@@ -16,7 +16,7 @@ import { Modal } from "./ui/Modal";
 import { Card } from "./ui/Card";
 import { Icon } from "./ui/Icon";
 import { markdownToDocxBlob, triggerDocxDownload } from "@/lib/report-docx";
-import { remarkPlugins, markdownComponents, disallowedElements } from "./markdown";
+import { remarkPlugins, markdownComponents, disallowedElements, extractToc, headingId } from "./markdown";
 
 const MAX_NARRATIVE_LENGTH = 600;
 
@@ -53,6 +53,7 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
   const [copyState, setCopyState] = useState<"copied" | "failed" | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [pendingConfirm, setPendingConfirm] = useState<{ paidRemaining: number } | null>(null);
+  const toc = report ? extractToc(report) : [];
 
   async function postReport(confirmPaid: boolean): Promise<Response> {
     const deviceId = await getDeviceId();
@@ -60,7 +61,6 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-User-Id": uid ?? "",
         "x-device-id": deviceId,
       },
       body: JSON.stringify({ comp, intakeAnswers: answers, narrative, confirmPaid }),
@@ -78,6 +78,7 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
     }
     if (!uid) {
       setGate("login");
+      trackEvent("login_gate");
       return;
     }
     setGate("none");
@@ -92,7 +93,7 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
       if (r1.status === 402) {
         const data = await r1.json();
         setPendingConfirm({ paidRemaining: data.paidRemaining });
-        trackEvent("paywall_view", { uid });
+        trackEvent("paywall_view");
         return;
       }
       await handleResult(r1);
@@ -124,7 +125,7 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
 
   async function runGeneration() {
     setPendingConfirm(null);
-    trackEvent("paywall_confirm", { uid });
+    trackEvent("paywall_confirm");
     setLoading(true);
     try {
       // confirmPaid=true 真实生成；后端 finalRemaining 防御 race
@@ -137,7 +138,7 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
   }
 
   function handleCancelConfirm() {
-    if (pendingConfirm) trackEvent("paywall_cancel", { uid });
+    if (pendingConfirm) trackEvent("paywall_cancel");
     setPendingConfirm(null);
   }
 
@@ -160,7 +161,7 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
     try {
       const blob = await markdownToDocxBlob(rawReply, { uid: uid ?? undefined });
       triggerDocxDownload(blob, `维权方案报告_${new Date().toISOString().slice(0, 10)}`);
-      trackEvent("report_download", { uid });
+      trackEvent("report_download");
     } catch (err) {
       console.error("[report] docx download failed:", err);
       setError("Word 生成失败，请稍后重试");
@@ -294,6 +295,21 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
               </Button>
             </div>
           </div>
+          {toc.length > 1 && (
+            <nav aria-label="报告目录" className="flex gap-1.5 overflow-x-auto pb-3">
+              {toc.map((t) => (
+                <button
+                  key={t}
+                  onClick={() =>
+                    document.getElementById(headingId(t))?.scrollIntoView({ behavior: "smooth", block: "start" })
+                  }
+                  className="shrink-0 px-2.5 py-1 rounded-full text-xs bg-[var(--background-secondary)] text-[var(--foreground-secondary)] hover:text-[var(--foreground)] transition-colors"
+                >
+                  {t}
+                </button>
+              ))}
+            </nav>
+          )}
           <ReactMarkdown
             remarkPlugins={remarkPlugins}
             disallowedElements={disallowedElements}

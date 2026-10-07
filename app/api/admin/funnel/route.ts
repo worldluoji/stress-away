@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getReportFunnel } from '@/lib/usage-events';
-import { verifyAdminToken } from '@/app/api/admin/verify';
+import { requireAdmin } from '@/lib/user-auth';
 
 function rate(numerator: number, denominator: number): number | null {
   if (denominator <= 0) return null;
   return Math.round((numerator / denominator) * 1000) / 10;
 }
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const authError = await verifyAdminToken(request);
-    if (authError) return authError;
+    if (!(await requireAdmin())) {
+      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+    }
 
     const funnel = await getReportFunnel();
     return NextResponse.json({

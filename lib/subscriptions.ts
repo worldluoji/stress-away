@@ -1,7 +1,7 @@
 /**
- * stress-away Subscriptions & Admin Activation Codes (TCB User Edition)
+ * stress-away Subscriptions & Admin Activation Codes
  *
- * 订阅主键: uid (TCB 用户 ID)
+ * 订阅主键: uid (自建用户 ID，users.id)
  * Admin 激活码: 单码单用户，绑定 uid
  */
 
@@ -187,19 +187,6 @@ export async function consumeUsageByUid(uid: string): Promise<number> {
   } catch (err) {
     console.error('[consumeUsageByUid] failed:', err);
     throw err;
-  }
-}
-
-export async function refundUsageByUid(uid: string): Promise<void> {
-  if (!isMySQLAvailable()) return;
-  try {
-    await execute(
-      'UPDATE subscriptions SET remaining_usage = remaining_usage + 1 WHERE uid = ? AND status = ?',
-      [uid, 'active']
-    );
-    await cacheDel(SUB_CACHE_KEY(uid));
-  } catch (err) {
-    console.error('[refundUsageByUid] failed:', err);
   }
 }
 

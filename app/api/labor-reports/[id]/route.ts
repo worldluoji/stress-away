@@ -7,7 +7,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { uid } = getAuthContext(request);
+    const { uid } = await getAuthContext(request);
     if (!uid) {
       return NextResponse.json({ error: "login_required" }, { status: 401 });
     }
@@ -28,7 +28,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { uid } = getAuthContext(request);
+    const { uid } = await getAuthContext(request);
     if (!uid) {
       return NextResponse.json({ error: "login_required" }, { status: 401 });
     }

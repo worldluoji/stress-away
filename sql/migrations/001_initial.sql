@@ -6,6 +6,28 @@
 CREATE DATABASE IF NOT EXISTS stress_away;
 USE stress_away;
 
+-- Users (自建账号：管理员发放，用户名+密码；id 为 uuid，即全站 uid)
+CREATE TABLE IF NOT EXISTS users (
+  id VARCHAR(64) PRIMARY KEY,                 -- crypto.randomUUID()，业务表 uid 列引用它
+  username VARCHAR(32) NOT NULL,
+  -- 格式 v1:<salt-hex>:<hash-hex>，Node crypto.scrypt 派生
+  password_hash VARCHAR(255) NOT NULL,
+  role ENUM('admin', 'user') NOT NULL DEFAULT 'user',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_username (username)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Sessions (服务端会话：只存 token 的 SHA-256，DB 泄露不等于会话泄露)
+CREATE TABLE IF NOT EXISTS sessions (
+  token_hash CHAR(64) PRIMARY KEY,
+  user_id VARCHAR(64) NOT NULL,
+  expires_at DATETIME NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_sessions_user (user_id),
+  CONSTRAINT fk_sessions_user FOREIGN KEY (user_id)
+    REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Subscriptions (uid-based, multi-code stacking)
 CREATE TABLE IF NOT EXISTS subscriptions (
   uid VARCHAR(64) PRIMARY KEY,
@@ -61,7 +83,8 @@ CREATE TABLE IF NOT EXISTS usage_events (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   device_id VARCHAR(64),
   uid VARCHAR(64),
-  event_type ENUM('chat', 'scenario_view', 'copy', 'activate', 'free_consume') NOT NULL,
+  -- VARCHAR 而非 ENUM：事件类型会持续新增，ENUM 每次都要改表且静默丢弃未列值
+  event_type VARCHAR(32) NOT NULL,
   scenario_id VARCHAR(32),
   meta TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
