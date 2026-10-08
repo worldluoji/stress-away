@@ -278,10 +278,10 @@ describe("login-rate-limit — 5 次锁定", () => {
   });
 });
 
-describe("listUsers — mysql2 LIMIT ? 回归", () => {
+describe("listUsers — mysql2 LIMIT ? 回归 + usage 联查", () => {
   const rows = [
-    { id: "u2", username: "bob", role: "user" },
-    { id: "u1", username: "alice", role: "admin" },
+    { id: "u2", username: "bob", role: "user", remaining_usage: 3, total_usage: 8 },
+    { id: "u1", username: "alice", role: "admin", remaining_usage: 0, total_usage: 0 },
   ];
 
   it("必须走 queryWithLimit 数值内联，绝不向 prepare 协议传 LIMIT ?", async () => {
@@ -291,11 +291,12 @@ describe("listUsers — mysql2 LIMIT ? 回归", () => {
     expect(queryWithLimit).toHaveBeenCalledTimes(1);
     const [sql, limit, offset] = vi.mocked(queryWithLimit).mock.calls[0];
     expect(sql).not.toContain("LIMIT ?");
+    expect(sql).toContain("LEFT JOIN subscriptions");
     expect(limit).toBe(200);
     expect(offset).toBe(0);
     expect(users).toEqual([
-      { id: "u2", username: "bob", role: "user" },
-      { id: "u1", username: "alice", role: "admin" },
+      { id: "u2", username: "bob", role: "user", remainingUsage: 3, totalUsage: 8 },
+      { id: "u1", username: "alice", role: "admin", remainingUsage: 0, totalUsage: 0 },
     ]);
   });
 });

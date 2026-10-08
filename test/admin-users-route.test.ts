@@ -6,6 +6,11 @@ vi.mock("@/lib/user-auth", () => ({
   createUser: vi.fn(),
   generateInitialPassword: vi.fn(() => "jk mn qw ef".replace(/ /g, "") + "-2345-6789-abcd"),
   adminResetPassword: vi.fn(),
+  userExists: vi.fn(),
+}));
+
+vi.mock("@/lib/subscriptions", () => ({
+  grantUsageByUid: vi.fn(),
 }));
 
 import { GET, POST, PATCH } from "@/app/api/admin/users/route";
@@ -15,7 +20,9 @@ import {
   createUser,
   generateInitialPassword,
   adminResetPassword,
+  userExists,
 } from "@/lib/user-auth";
+import { grantUsageByUid } from "@/lib/subscriptions";
 
 const ADMIN = { id: "a1", username: "root", role: "admin" as const };
 const NORMAL_USER = { id: "u2", username: "bob", role: "user" as const };
@@ -35,6 +42,8 @@ beforeEach(() => {
   vi.mocked(generateInitialPassword).mockReturnValue(GENERATED);
   vi.mocked(createUser).mockResolvedValue("u9");
   vi.mocked(listUsers).mockResolvedValue([]);
+  vi.mocked(userExists).mockResolvedValue(true);
+  vi.mocked(grantUsageByUid).mockResolvedValue(8);
 });
 
 describe("POST /api/admin/users — 建号", () => {
@@ -76,17 +85,82 @@ describe("POST /api/admin/users — 建号", () => {
     expect((await res.json()).error).toBe(error);
   });
 
-  it("成功 → 一次性明文密码 + role 固定 user", async () => {
+  it("成功 → 一次性明文密码 + role 固定 user；不传 times 不发放", async () => {
     const res = await POST(jsonReq({ username: " alice " }));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ id: "u9", username: "alice", password: GENERATED });
+    expect(await res.json()).toEqual({ id: "u9", username: "alice", password: GENERATED, remaining: 0 });
     expect(createUser).toHaveBeenCalledWith("alice", GENERATED, "user");
+    expect(grantUsageByUid).not.toHaveBeenCalled();
   });
 
   it("明文密码只在响应出现一次（入库的是哈希）", async () => {
     await POST(jsonReq({ username: "alice" }));
     const passedToCreate = vi.mocked(createUser).mock.calls[0];
     expect(passedToCreate[1]).toBe(GENERATED); // 交给 createUser 哈希后入库
+  });
+});
+
+describe("POST /api/admin/users — 建号带初始次数", () => {
+  const badTimes: unknown[] = [0, -3, 1.5, 1000, "5", true];
+  for (const t of badTimes) {
+    it(`times=${JSON.stringify(t)} → 400，且不建号`, async () => {
+      const res = await POST(jsonReq({ username: "alice", times: t }));
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toBe("invalid_times");
+      expect(createUser).not.toHaveBeenCalled();
+    });
+  }
+
+  it("成功 → 建号后 grant 并回读剩余", async () => {
+    vi.mocked(grantUsageByUid).mockResolvedValueOnce(5);
+    const res = await POST(jsonReq({ username: "alice", times: 5 }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ id: "u9", username: "alice", password: GENERATED, remaining: 5 });
+    expect(grantUsageByUid).toHaveBeenCalledWith("u9", 5);
+  });
+
+  it("grant 失败 → 500 grant_failed（账号已建，显式报错不静默）", async () => {
+    vi.mocked(grantUsageByUid).mockRejectedValueOnce(new Error("db down"));
+    const res = await POST(jsonReq({ username: "alice", times: 5 }));
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toBe("grant_failed");
+    expect(createUser).toHaveBeenCalledWith("alice", GENERATED, "user");
+  });
+});
+
+describe("PATCH /api/admin/users — 追加次数", () => {
+  const badAddTimes: unknown[] = [0, -3, 1.5, 1000, "3"];
+  for (const t of badAddTimes) {
+    it(`addTimes=${JSON.stringify(t)} → 400，且不发放`, async () => {
+      const res = await PATCH(jsonReq({ userId: "u9", addTimes: t }, "PATCH"));
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toBe("invalid_times");
+      expect(grantUsageByUid).not.toHaveBeenCalled();
+    });
+  }
+
+  it("成功 → 返回 userId + 发放后剩余", async () => {
+    vi.mocked(grantUsageByUid).mockResolvedValueOnce(7);
+    const res = await PATCH(jsonReq({ userId: "u9", addTimes: 3 }, "PATCH"));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ userId: "u9", remaining: 7 });
+    expect(grantUsageByUid).toHaveBeenCalledWith("u9", 3);
+    expect(adminResetPassword).not.toHaveBeenCalled();
+  });
+
+  it("用户不存在 → 404，绝不发放（防孤儿订阅行）", async () => {
+    vi.mocked(userExists).mockResolvedValueOnce(false);
+    const res = await PATCH(jsonReq({ userId: "u404", addTimes: 3 }, "PATCH"));
+    expect(res.status).toBe(404);
+    expect((await res.json()).error).toBe("user_not_found");
+    expect(grantUsageByUid).not.toHaveBeenCalled();
+  });
+
+  it("grant 异常 → 500 server_error", async () => {
+    vi.mocked(grantUsageByUid).mockRejectedValueOnce(new Error("db down"));
+    const res = await PATCH(jsonReq({ userId: "u9", addTimes: 3 }, "PATCH"));
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toBe("server_error");
   });
 });
 
@@ -142,8 +216,8 @@ describe("GET /api/admin/users — 账号列表", () => {
     expect(res.status).toBe(401);
   });
 
-  it("成功 → users 数组透传", async () => {
-    const rows = [{ id: "u9", username: "alice", role: "user" as const }];
+  it("成功 → users 数组透传（含 usage 字段）", async () => {
+    const rows = [{ id: "u9", username: "alice", role: "user" as const, remainingUsage: 3, totalUsage: 8 }];
     vi.mocked(listUsers).mockResolvedValue(rows);
     const res = await GET();
     expect(res.status).toBe(200);

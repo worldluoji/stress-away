@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
     if (!paid) {
       await recordEvent({ uid: auth.uid, deviceId, eventType: "paywall_block", meta: { reason: "paid_only" } });
       return NextResponse.json(
-        { error: "paid_only", message: "维权报告为付费功能，请使用激活码开通" },
+        { error: "paid_only", message: "维权报告为付费功能，次数由管理员发放，点击「如何购买」查看购买方式" },
         { status: 403 }
       );
     }
@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
     if (paidRemaining <= 0) {
       await recordEvent({ uid: auth.uid, deviceId, eventType: "paywall_block", meta: { reason: "no_quota" } });
       return NextResponse.json(
-        { error: "no_quota", message: "次数已用完，请绑定新的激活码" },
+        { error: "no_quota", message: "报告次数已用完，点击「如何购买」查看购买方式" },
         { status: 403 }
       );
     }
@@ -219,7 +219,7 @@ export async function POST(request: NextRequest) {
     if (finalRemaining <= 0) {
       await recordEvent({ uid: auth.uid, deviceId, eventType: "paywall_block", meta: { reason: "no_quota" } });
       return NextResponse.json(
-        { error: "no_quota", message: "次数已用完，请绑定新的激活码" },
+        { error: "no_quota", message: "报告次数已用完，点击「如何购买」查看购买方式" },
         { status: 403 }
       );
     }

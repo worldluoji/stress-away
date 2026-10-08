@@ -7,7 +7,7 @@ import type { ChatMessage } from "@/lib/models";
 import { generateMessageId } from "@/lib/models";
 import { generateConversationId, generateTitle, type Conversation } from "@/lib/storage";
 import { getDeviceId } from "@/lib/utils";
-import { SubscriptionActivate } from "./components/SubscriptionActivate";
+import { PurchaseGuide } from "./components/ui/PurchaseGuide";
 import { remarkPlugins, markdownComponents, disallowedElements } from "./components/markdown";
 import dynamic from 'next/dynamic';
 const LoginModal = dynamic(() => import('./components/LoginModal').then(m => ({ default: m.LoginModal })), { ssr: false });
@@ -59,7 +59,7 @@ export default function Home() {
   const [error, setError] = useState("");
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [usage, setUsage] = useState<UsageStatus | null>(null);
-  const [showActivate, setShowActivate] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   const [deviceId, setDeviceId] = useState<string>("");
   const [isInitializing, setIsInitializing] = useState(true);
 
@@ -75,7 +75,6 @@ export default function Home() {
   const [showSaved, setShowSaved] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showStats, setShowStats] = useState(false);
-  const [activateKey, setActivateKey] = useState(0);
   const [shareContent, setShareContent] = useState('');
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [likedAnimating, setLikedAnimating] = useState<string | null>(null);
@@ -217,20 +216,6 @@ export default function Home() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  const handleActivated = useCallback(() => {
-    setShowActivate(false);
-    const recheck = async () => {
-      if (!deviceId) return;
-      const headers: Record<string, string> = { "x-device-id": deviceId };
-      const res = await apiFetch("/api/usage", { headers });
-      if (res.ok) {
-        const data = await res.json();
-        setUsage(data);
-      }
-    };
-    recheck();
-  }, [deviceId]);
-
   const handleCopy = async (content: string, index: number) => {
     try {
       await navigator.clipboard.writeText(content);
@@ -337,7 +322,7 @@ export default function Home() {
       if (!uid) {
         setShowLogin(true);
       } else {
-        setShowActivate(true);
+        setShowGuide(true);
       }
       return;
     }
@@ -483,9 +468,9 @@ export default function Home() {
                 <Button
                   size="sm"
                   variant="primary"
-                  onClick={() => { setActivateKey((k) => k + 1); setShowActivate(true); }}
+                  onClick={() => setShowGuide(true)}
                 >
-                  {usage.isPaid ? '叠加' : '升级'}
+                  购买次数
                 </Button>
               )}
             </div>
@@ -537,17 +522,9 @@ export default function Home() {
         <MyStatsPanel onClose={() => setShowStats(false)} />
       )}
 
-      {/* Activation Modal */}
-      <Modal
-        open={showActivate}
-        onClose={() => setShowActivate(false)}
-        title="激活订阅"
-        size="md"
-        hideCloseButton
-      >
-        <div className="relative">
-          <SubscriptionActivate key={activateKey} onActivated={handleActivated} />
-        </div>
+      {/* Purchase Guide Modal */}
+      <Modal open={showGuide} onClose={() => setShowGuide(false)} title="如何购买" size="md">
+        <PurchaseGuide />
       </Modal>
 
       {/* Chat Area */}

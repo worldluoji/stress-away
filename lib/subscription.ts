@@ -1,16 +1,14 @@
 /**
- * Usage quota — 自建账号版
+ * Usage quota — 自建账号版（管理端发放制）
  *
- * 模型：购买次数（subscriptions.remaining_usage）是"报告货币"；
+ * 模型：报告次数（subscriptions.remaining_usage）是"报告货币"，由管理员发放、永久有效；
  * 对话为免费获客漏斗，登录用户每日 CHAT_FREE_PER_DAY 次免费，
  * 超出后付费用户确认消耗 1 次购买次数继续对话。
  */
 
 import {
-  isPaidUserByUid,
-  getRemainingUsageByUid,
+  getSubscriptionByUid,
   consumeUsageByUid,
-  TOTAL_USAGE,
 } from './subscriptions';
 import { getFreeCount, incrementFreeCount } from './free-count';
 import { CHAT_FREE_PER_DAY, decideChatAction, type ChatAction } from './chat-quota';
@@ -19,6 +17,7 @@ export interface UsageStatus {
   allowed: boolean;
   remaining: number;
   isPaid: boolean;
+  /** 累计发放次数 */
   total: number;
   chatFreeRemaining: number;
   chatFreeTotal: number;
@@ -41,14 +40,15 @@ export async function checkUsage(uid: string | null): Promise<UsageStatus> {
 
   const freeUsed = await getFreeCount(uid);
   const chatFreeRemaining = Math.max(0, chatFreeTotal - freeUsed);
-  const isPaid = await isPaidUserByUid(uid);
-  const remaining = isPaid ? await getRemainingUsageByUid(uid) : 0;
+  // 单次读订阅（60s 缓存）即可推出全部额度状态
+  const sub = await getSubscriptionByUid(uid);
+  const remaining = sub?.remainingUsage ?? 0;
 
   return {
     allowed: chatFreeRemaining > 0 || remaining > 0,
     remaining,
-    isPaid,
-    total: isPaid ? TOTAL_USAGE : 0,
+    isPaid: remaining > 0,
+    total: sub?.totalUsage ?? 0,
     chatFreeRemaining,
     chatFreeTotal,
   };
@@ -67,8 +67,9 @@ export async function checkChatQuota(uid: string | null, confirmPaid: boolean): 
   let isPaid = false;
   let paidRemaining = 0;
   if (uid && freeUsed >= CHAT_FREE_PER_DAY) {
-    isPaid = await isPaidUserByUid(uid);
-    if (isPaid) paidRemaining = await getRemainingUsageByUid(uid);
+    const sub = await getSubscriptionByUid(uid);
+    paidRemaining = sub?.remainingUsage ?? 0;
+    isPaid = paidRemaining > 0;
   }
 
   const action = decideChatAction({

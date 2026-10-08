@@ -52,7 +52,7 @@ describe("POST /api/events（表格驱动）", () => {
     { desc: "伪造 report_generate → 400 不落库", body: { eventType: "report_generate" }, wantStatus: 400, wantRecorded: false },
     { desc: "伪造 chat → 400（非客户端白名单）", body: { eventType: "chat" }, wantStatus: 400, wantRecorded: false },
     { desc: "伪造 paywall_block → 400（服务端埋点，客户端不可报）", body: { eventType: "paywall_block" }, wantStatus: 400, wantRecorded: false },
-    { desc: "伪造 activate_success → 400（服务端埋点，客户端不可报）", body: { eventType: "activate_success" }, wantStatus: 400, wantRecorded: false },
+    { desc: "已退役 activate_success → 400（不在任何事件枚举）", body: { eventType: "activate_success" }, wantStatus: 400, wantRecorded: false },
     { desc: "未知 eventType → 400", body: { eventType: "whatever" }, wantStatus: 400, wantRecorded: false },
     { desc: "缺 eventType → 400", body: {}, wantStatus: 400, wantRecorded: false },
     { desc: "缺 deviceId → 400 不落库", body: { eventType: "paywall_view" }, deviceId: null, wantStatus: 400, wantRecorded: false },

@@ -2,9 +2,9 @@
  * Usage Events & Scenario Stats
  *
  * Track user behavior for analytics:
- * - event_type: chat | scenario_view | copy | activate | free_consume
+ * - event_type: chat | scenario_view | copy | free_consume
  *   | calculator | paywall_view | paywall_confirm | paywall_cancel | report_generate | report_download
- *   | login_gate(客户端) | paywall_block(服务端) | activate_success(服务端)
+ *   | login_gate(客户端) | paywall_block(服务端)
  * - scenario_stats: aggregated counters per scenario
  */
 
@@ -14,7 +14,6 @@ export type EventType =
   | 'chat'
   | 'scenario_view'
   | 'copy'
-  | 'activate'
   | 'free_consume'
   | 'calculator'
   | 'paywall_view'
@@ -23,8 +22,7 @@ export type EventType =
   | 'report_generate'
   | 'report_download'
   | 'login_gate'
-  | 'paywall_block'
-  | 'activate_success';
+  | 'paywall_block';
 
 // 客户端可上报的事件白名单（report_generate/paywall_block 等服务端事件不在此列，防伪造）
 export const CLIENT_EVENT_TYPES: EventType[] = [
@@ -209,7 +207,6 @@ export interface ReportFunnel {
   loginGate: FunnelStep;
   paywallView: FunnelStep;
   paywallBlock: FunnelStep;
-  activateSuccess: FunnelStep;
   paywallConfirm: FunnelStep;
   paywallCancel: FunnelStep;
   reportGenerate: FunnelStep;
@@ -222,7 +219,6 @@ const FUNNEL_EVENTS: { type: EventType; key: keyof ReportFunnel }[] = [
   { type: 'login_gate', key: 'loginGate' },
   { type: 'paywall_view', key: 'paywallView' },
   { type: 'paywall_block', key: 'paywallBlock' },
-  { type: 'activate_success', key: 'activateSuccess' },
   { type: 'paywall_confirm', key: 'paywallConfirm' },
   { type: 'paywall_cancel', key: 'paywallCancel' },
   { type: 'report_generate', key: 'reportGenerate' },
@@ -235,7 +231,6 @@ export async function getReportFunnel(): Promise<ReportFunnel> {
     loginGate: { count: 0, users: 0 },
     paywallView: { count: 0, users: 0 },
     paywallBlock: { count: 0, users: 0 },
-    activateSuccess: { count: 0, users: 0 },
     paywallConfirm: { count: 0, users: 0 },
     paywallCancel: { count: 0, users: 0 },
     reportGenerate: { count: 0, users: 0 },

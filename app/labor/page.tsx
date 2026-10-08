@@ -5,13 +5,11 @@ import Link from "next/link";
 import type { CompInput } from "@/lib/compensation";
 import { CompensationForm } from "@/app/components/CompensationForm";
 import { ReportPanel } from "@/app/components/ReportPanel";
-import { SubscriptionActivate } from "@/app/components/SubscriptionActivate";
 import { LaborHistoryPanel } from "@/app/components/LaborHistoryPanel";
 import dynamic from "next/dynamic";
 const LoginModal = dynamic(() => import("@/app/components/LoginModal").then(m => ({ default: m.LoginModal })), { ssr: false });
 import { useAuth } from "@/app/components/LoginModal";
 import { Icon } from "@/app/components/ui/Icon";
-import { Modal } from "@/app/components/ui/Modal";
 import { Section } from "@/app/components/ui/Section";
 import { Badge } from "@/app/components/ui/Badge";
 import { apiFetch } from "@/lib/request-api";
@@ -22,10 +20,8 @@ import type { LaborReport } from "@/lib/labor-reports";
 
 export default function LaborPage() {
   const [comp, setComp] = useState<CompInput | null>(null);
-  const [showActivate, setShowActivate] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [activateKey, setActivateKey] = useState(0);
   const [usage, setUsage] = useState<UsageStatus | null>(null);
   const [deviceId, setDeviceId] = useState<string>("");
   const [history, setHistory] = useState<LaborReport[]>([]);
@@ -130,7 +126,7 @@ export default function LaborPage() {
                   {usage.remaining} 份报告
                 </>
               ) : (
-                <>免费登录后可生成报告</>
+                <>报告次数由管理员发放</>
               )}
             </Badge>
           )}
@@ -171,7 +167,6 @@ export default function LaborPage() {
             <ReportPanel
               comp={comp}
               uid={uid}
-              onRequireActivate={() => { setActivateKey(k => k + 1); setShowActivate(true); }}
               onRequireLogin={() => setShowLogin(true)}
               onUsageChanged={() => { fetchUsage(); fetchHistory(); }}
             />
@@ -179,20 +174,10 @@ export default function LaborPage() {
 
           <footer className="text-center text-xs text-[var(--foreground-tertiary)] pb-4">
             各地封顶基数见计算器结果页「数据来源」，实际权益以劳动仲裁委员会/法院认定为准。
-            {user ? "" : " 维权报告需登录并绑定激活码。"}
+            {user ? "" : " 维权报告次数由管理员发放，需登录使用。"}
           </footer>
         </div>
       </main>
-
-      <Modal
-        open={showActivate}
-        onClose={() => setShowActivate(false)}
-        title="激活订阅"
-        size="md"
-        hideCloseButton
-      >
-        <SubscriptionActivate key={activateKey} onActivated={() => { setShowActivate(false); fetchUsage(); }} />
-      </Modal>
 
       <LoginModal isOpen={showLogin} onClose={() => setShowLogin(false)} onSuccess={() => setShowLogin(false)} />
 

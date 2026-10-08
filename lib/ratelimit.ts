@@ -57,7 +57,6 @@ export function extractClientInfo(request: Request, fallbackDeviceId: string = '
 // Predefined rate limit configs
 export const RATE_LIMITS = {
   chat: { windowMs: 60000, maxRequests: 20 } as RateLimitConfig,
-  activate: { windowMs: 60000, maxRequests: 10 } as RateLimitConfig,
   usage: { windowMs: 60000, maxRequests: 30 } as RateLimitConfig,
   report: { windowMs: 60000, maxRequests: 5 } as RateLimitConfig,
 };

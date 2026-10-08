@@ -106,6 +106,8 @@ interface UserRow {
   username: string;
   role: string;
   password_hash?: string;
+  remaining_usage?: number | null;
+  total_usage?: number | null;
 }
 
 function rowToSessionUser(row: UserRow): SessionUser {
@@ -238,12 +240,29 @@ export type UserSummary = {
   id: string;
   username: string;
   role: UserRole;
+  /** 剩余报告次数（subscriptions，无记录为 0） */
+  remainingUsage: number;
+  /** 累计发放次数 */
+  totalUsage: number;
 };
+
+export async function userExists(userId: string): Promise<boolean> {
+  const rows = await query<{ id: string }>(
+    "SELECT id FROM users WHERE id = ? LIMIT 1",
+    [userId]
+  );
+  return rows.length > 0;
+}
 
 export async function listUsers(): Promise<UserSummary[]> {
   // mysql2 prepare 协议不支持 LIMIT ?（ER_WRONG_ARGUMENTS），须走 queryWithLimit 数值内联
   const rows = await queryWithLimit<UserRow>(
-    "SELECT id, username, role FROM users ORDER BY created_at DESC",
+    `SELECT u.id, u.username, u.role,
+            COALESCE(s.remaining_usage, 0) AS remaining_usage,
+            COALESCE(s.total_usage, 0) AS total_usage
+       FROM users u
+       LEFT JOIN subscriptions s ON s.uid = u.id
+      ORDER BY u.created_at DESC`,
     USER_LIST_LIMIT,
     0
   );
@@ -251,5 +270,7 @@ export async function listUsers(): Promise<UserSummary[]> {
     id: String(r.id),
     username: String(r.username),
     role: r.role === "admin" ? "admin" : "user",
+    remainingUsage: Number(r.remaining_usage ?? 0),
+    totalUsage: Number(r.total_usage ?? 0),
   }));
 }

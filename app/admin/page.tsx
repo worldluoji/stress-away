@@ -8,11 +8,15 @@ interface UserSummary {
   id: string;
   username: string;
   role: 'admin' | 'user';
+  remainingUsage: number;
+  totalUsage: number;
 }
 
 const CREATE_ERRORS: Record<string, string> = {
   invalid_username: '用户名不合法（1-32 个字符）',
   username_taken: '该用户名已存在',
+  invalid_times: '次数须为 1-999 的整数',
+  grant_failed: '账号已创建成功，但次数发放失败，请在列表中对该账号追加次数',
   unauthorized: '登录已过期，请重新登录',
 };
 
@@ -35,23 +39,11 @@ const FUNNEL_STEPS: { key: string; label: string }[] = [
   { key: 'loginGate', label: '登录墙' },
   { key: 'paywallView', label: '付费墙曝光' },
   { key: 'paywallBlock', label: '额度不足拦截' },
-  { key: 'activateSuccess', label: '激活成功' },
   { key: 'paywallConfirm', label: '确认付费' },
   { key: 'paywallCancel', label: '取消' },
   { key: 'reportGenerate', label: '报告生成' },
   { key: 'reportDownload', label: '报告下载' },
 ];
-
-interface AdminCodeInfo {
-  code: string;
-  createdAt: number;
-  expiresAt: number;
-  totalTimes: number;
-  userSubRemaining?: number;
-  used: boolean;
-  deviceId?: string;
-  activationTime?: number;
-}
 
 export default function AdminPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -60,17 +52,13 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const [adminCodes, setAdminCodes] = useState<AdminCodeInfo[]>([]);
-  const [adminCodePage, setAdminCodePage] = useState(1);
-  const [adminCodeTotal, setAdminCodeTotal] = useState(0);
-  const [newCodeTimes, setNewCodeTimes] = useState(50);
-  const [generatedCode, setGeneratedCode] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState('');
   const [funnel, setFunnel] = useState<FunnelData | null>(null);
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [newUsername, setNewUsername] = useState('');
+  const [newUserTimes, setNewUserTimes] = useState('');
   const [createdAccount, setCreatedAccount] = useState<{ username: string; password: string } | null>(null);
   const [resetPasswords, setResetPasswords] = useState<Record<string, string>>({});
+  const [addTimesInput, setAddTimesInput] = useState<Record<string, string>>({});
 
   const handleLogin = async () => {
     setError('');
@@ -92,7 +80,6 @@ export default function AdminPage() {
         return;
       }
       setIsLoggedIn(true);
-      fetchAdminCodes(1);
       fetchFunnel();
       fetchUsers();
     } catch {
@@ -110,26 +97,6 @@ export default function AdminPage() {
     }
     setIsLoggedIn(false);
     setPassword('');
-  };
-
-  const fetchAdminCodes = async (page: number) => {
-    setError('');
-    setLoading(true);
-    try {
-      const res = await apiFetch(`/api/admin/codes?page=${page}&limit=20`);
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || '获取失败');
-        return;
-      }
-      setAdminCodes(data.codes || []);
-      setAdminCodePage(data.page);
-      setAdminCodeTotal(data.total);
-    } catch {
-      setError('网络错误');
-    } finally {
-      setLoading(false);
-    }
   };
 
   const fetchFunnel = async () => {
@@ -153,6 +120,12 @@ export default function AdminPage() {
     }
   };
 
+  const parseTimesInput = (raw: string): number | null => {
+    if (!raw.trim()) return null;
+    const n = Number(raw);
+    return Number.isInteger(n) && n >= 1 && n <= 999 ? n : null;
+  };
+
   const handleCreateAccount = async () => {
     setError('');
     setCreatedAccount(null);
@@ -160,12 +133,17 @@ export default function AdminPage() {
       setError('请输入用户名');
       return;
     }
+    const times = parseTimesInput(newUserTimes);
+    if (newUserTimes.trim() && times === null) {
+      setError('初始次数须为 1-999 的整数');
+      return;
+    }
     setLoading(true);
     try {
       const res = await apiFetch('/api/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: newUsername.trim() }),
+        body: JSON.stringify({ username: newUsername.trim(), ...(times !== null ? { times } : {}) }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -174,6 +152,7 @@ export default function AdminPage() {
       }
       setCreatedAccount({ username: data.username, password: data.password });
       setNewUsername('');
+      setNewUserTimes('');
       fetchUsers();
     } catch {
       setError('网络错误');
@@ -201,29 +180,32 @@ export default function AdminPage() {
     }
   };
 
-  const handleGenerateCode = async () => {
+  const handleAddTimes = async (userId: string) => {
     setError('');
-    setSuccessMsg('');
-    setGeneratedCode(null);
-    setLoading(true);
+    const addTimes = parseTimesInput(addTimesInput[userId] ?? '');
+    if (addTimes === null) {
+      setError('追加次数须为 1-999 的整数');
+      return;
+    }
     try {
-      const res = await apiFetch('/api/admin/codes', {
-        method: 'POST',
+      const res = await apiFetch('/api/admin/users', {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ times: newCodeTimes }),
+        body: JSON.stringify({ userId, addTimes }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error || '生成失败');
+        setError(
+          data.error === 'user_not_found'
+            ? '该账号不存在，请刷新列表'
+            : CREATE_ERRORS[data.error] || '发放失败'
+        );
         return;
       }
-      setGeneratedCode(data.code);
-      setSuccessMsg('激活码已生成');
-      fetchAdminCodes(adminCodePage);
+      setAddTimesInput((prev) => ({ ...prev, [userId]: '' }));
+      fetchUsers();
     } catch {
       setError('网络错误');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -235,7 +217,6 @@ export default function AdminPage() {
           const me = await res.json();
           if (me.role === 'admin') {
             setIsLoggedIn(true);
-            fetchAdminCodes(1);
             fetchFunnel();
             fetchUsers();
           }
@@ -320,46 +301,14 @@ export default function AdminPage() {
           </button>
         </div>
 
-        {/* Generate New Code */}
-        <div className="bg-[--card-bg] rounded-2xl p-5 border border-[var(--card-border)] space-y-4 mb-4">
-          <h3 className="text-sm font-medium text-[--foreground]">生成新激活码</h3>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              value={newCodeTimes}
-              onChange={(e) => setNewCodeTimes(parseInt(e.target.value, 10) || 50)}
-              min={1}
-              max={200}
-              className="w-24 px-3 py-2 bg-[--background-secondary] rounded-xl text-[--foreground] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
-            />
-            <span className="text-sm text-[--foreground-tertiary] self-center">次</span>
-            <button
-              onClick={handleGenerateCode}
-              disabled={loading}
-              className="flex-1 py-2.5 bg-[#007AFF] text-white rounded-xl text-sm font-medium disabled:opacity-40 disabled:active:scale-100 transition-all active:scale-[0.98]"
-            >
-              {loading ? '生成中...' : '生成'}
-            </button>
-          </div>
-          {generatedCode && (
-            <div className="bg-[#34C759]/10 rounded-xl p-3 flex items-center justify-between">
-              <div>
-                <span className="font-mono text-lg tracking-wider text-[--foreground]">{generatedCode}</span>
-                <p className="text-xs text-[--foreground-tertiary] mt-1">有效期30天，可复制给用户</p>
-              </div>
-              <button
-                onClick={() => navigator.clipboard.writeText(generatedCode)}
-                className="text-[#007AFF] text-sm font-medium"
-              >
-                复制
-              </button>
-            </div>
-          )}
-        </div>
-
         {/* Account Management */}
         <div className="bg-[--card-bg] rounded-2xl p-5 border border-[var(--card-border)] space-y-4 mb-4">
           <h3 className="text-sm font-medium text-[--foreground]">账号管理</h3>
+          {error && (
+            <div className="bg-[#FF3B30]/10 text-[#FF3B30] px-4 py-3 rounded-xl text-sm">
+              {error}
+            </div>
+          )}
           <div className="flex gap-2">
             <input
               type="text"
@@ -368,12 +317,22 @@ export default function AdminPage() {
               onKeyDown={(e) => e.key === 'Enter' && handleCreateAccount()}
               placeholder="新用户用户名"
               maxLength={32}
-              className="flex-1 px-3 py-2 bg-[--background-secondary] rounded-xl text-[--foreground] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
+              className="min-w-0 flex-1 px-3 py-2 bg-[--background-secondary] rounded-xl text-[--foreground] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
+            />
+            <input
+              type="number"
+              value={newUserTimes}
+              onChange={(e) => setNewUserTimes(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleCreateAccount()}
+              placeholder="初始次数"
+              min={1}
+              max={999}
+              className="w-20 px-3 py-2 bg-[--background-secondary] rounded-xl text-[--foreground] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
             />
             <button
               onClick={handleCreateAccount}
               disabled={loading || !newUsername.trim()}
-              className="px-4 py-2.5 bg-[#007AFF] text-white rounded-xl text-sm font-medium disabled:opacity-40 disabled:active:scale-100 transition-all active:scale-[0.98]"
+              className="px-4 py-2.5 bg-[#007AFF] text-white rounded-xl text-sm font-medium disabled:opacity-40 disabled:active:scale-100 transition-all active:scale-[0.98] shrink-0"
             >
               创建账号
             </button>
@@ -401,24 +360,52 @@ export default function AdminPage() {
               {users.map((u) => (
                 <div
                   key={u.id}
-                  className="bg-[--background-secondary] rounded-xl p-3 flex items-center justify-between gap-2"
+                  className="bg-[--background-secondary] rounded-xl p-3 space-y-2"
                 >
-                  <div className="min-w-0 flex items-center gap-2">
-                    <span className="text-sm text-[--foreground] truncate">{u.username}</span>
-                    {u.role === 'admin' && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-[#007AFF]/10 text-[#007AFF] shrink-0">管理员</span>
-                    )}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex items-center gap-2">
+                      <span className="text-sm text-[--foreground] truncate">{u.username}</span>
+                      {u.role === 'admin' && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-[#007AFF]/10 text-[#007AFF] shrink-0">管理员</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {resetPasswords[u.id] && (
+                        <span className="font-mono text-xs text-[#34C759]">{resetPasswords[u.id]}</span>
+                      )}
+                      <button
+                        onClick={() => handleResetPassword(u.id)}
+                        className="px-2.5 py-1 text-xs bg-[--card-bg] rounded-lg text-[--foreground-secondary] border border-[var(--card-border)]"
+                      >
+                        重置密码
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {resetPasswords[u.id] && (
-                      <span className="font-mono text-xs text-[#34C759]">{resetPasswords[u.id]}</span>
-                    )}
-                    <button
-                      onClick={() => handleResetPassword(u.id)}
-                      className="px-2.5 py-1 text-xs bg-[--card-bg] rounded-lg text-[--foreground-secondary] border border-[var(--card-border)]"
-                    >
-                      重置密码
-                    </button>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-[--foreground-tertiary]">
+                      剩余 {u.remainingUsage} 次 · 累计发放 {u.totalUsage}
+                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <input
+                        type="number"
+                        value={addTimesInput[u.id] ?? ''}
+                        onChange={(e) =>
+                          setAddTimesInput((prev) => ({ ...prev, [u.id]: e.target.value }))
+                        }
+                        onKeyDown={(e) => e.key === 'Enter' && handleAddTimes(u.id)}
+                        placeholder="+N"
+                        min={1}
+                        max={999}
+                        className="w-16 px-2 py-1 bg-[--card-bg] rounded-lg text-[--foreground] text-xs border border-[var(--card-border)] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
+                      />
+                      <button
+                        onClick={() => handleAddTimes(u.id)}
+                        disabled={loading}
+                        className="px-2.5 py-1 text-xs bg-[#007AFF] text-white rounded-lg font-medium disabled:opacity-40"
+                      >
+                        加次数
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -427,7 +414,7 @@ export default function AdminPage() {
         </div>
 
         {/* Report Funnel */}
-        <div className="bg-[--card-bg] rounded-2xl p-5 border border-[var(--card-border)] space-y-4 mb-4">
+        <div className="bg-[--card-bg] rounded-2xl p-5 border border-[var(--card-border)] space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium text-[--foreground]">报告付费漏斗</h3>
             <button
@@ -474,85 +461,6 @@ export default function AdminPage() {
           )}
         </div>
 
-        {/* Admin Codes List */}
-        <div className="bg-[--card-bg] rounded-2xl p-5 border border-[var(--card-border)] space-y-4">
-          <h3 className="text-sm font-medium text-[--foreground]">激活码列表</h3>
-
-          {error && (
-            <div className="bg-[#FF3B30]/10 text-[#FF3B30] px-4 py-3 rounded-xl text-sm">
-              {error}
-            </div>
-          )}
-          {successMsg && (
-            <div className="bg-[#34C759]/10 text-[#34C759] px-4 py-3 rounded-xl text-sm">
-              {successMsg}
-            </div>
-          )}
-
-          {adminCodes.length === 0 && !loading ? (
-            <p className="text-sm text-[--foreground-tertiary] text-center py-4">暂无激活码</p>
-          ) : (
-            <div className="space-y-2">
-              {adminCodes.map((code) => (
-                <div
-                  key={code.code}
-                  className="bg-[--background-secondary] rounded-xl p-3 space-y-1"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-sm tracking-wider text-[--foreground]">
-                      {code.code}
-                    </span>
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                        code.used
-                          ? 'bg-[#007AFF]/10 text-[#007AFF]'
-                          : 'bg-[#34C759]/10 text-[#34C759]'
-                      }`}
-                    >
-                      {code.used ? '已使用' : '未使用'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-[--foreground-tertiary]">
-                    <span>码额度 {code.totalTimes} 次{code.userSubRemaining !== undefined && ` · 账号剩余 ${code.userSubRemaining}`}</span>
-                    <span>过期 {new Date(code.expiresAt).toLocaleDateString('zh-CN')}</span>
-                  </div>
-                  {code.deviceId && (
-                    <div className="text-xs text-[--foreground-tertiary]">
-                      设备: {code.deviceId.slice(0, 8)}...
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {adminCodeTotal > 0 && (
-            <div className="flex items-center justify-between pt-2">
-              <span className="text-xs text-[--foreground-tertiary]">
-                共 {adminCodeTotal} 个
-              </span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => fetchAdminCodes(adminCodePage - 1)}
-                  disabled={adminCodePage <= 1}
-                  className="px-3 py-1 text-xs bg-[--background-secondary] rounded-lg text-[--foreground] disabled:opacity-40"
-                >
-                  上一页
-                </button>
-                <span className="px-3 py-1 text-xs text-[--foreground-tertiary]">
-                  第 {adminCodePage} 页
-                </span>
-                <button
-                  onClick={() => fetchAdminCodes(adminCodePage + 1)}
-                  disabled={adminCodePage * 20 >= adminCodeTotal}
-                  className="px-3 py-1 text-xs bg-[--background-secondary] rounded-lg text-[--foreground] disabled:opacity-40"
-                >
-                  下一页
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );

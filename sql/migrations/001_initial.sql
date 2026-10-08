@@ -1,7 +1,8 @@
 -- stress-away MySQL Schema (全量最终态)
 -- Run this against your MySQL 8.0 database
 -- 本文件由历史迁移 001~005 合并而来（uid 化改造、reactions 表、
--- mbaodu 清理、多码叠加），旧增量迁移文件已删除，演进过程见 git 历史。
+-- mbaodu 清理、多码叠加、激活码退役改管理端发放制），
+-- 旧增量迁移文件已删除，演进过程见 git 历史。
 
 CREATE DATABASE IF NOT EXISTS stress_away;
 USE stress_away;
@@ -28,38 +29,15 @@ CREATE TABLE IF NOT EXISTS sessions (
     REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Subscriptions (uid-based, multi-code stacking)
+-- Subscriptions (uid-based, 管理端发放制：remaining_usage > 0 即付费，无有效期)
 CREATE TABLE IF NOT EXISTS subscriptions (
   uid VARCHAR(64) PRIMARY KEY,
   device_id VARCHAR(64),                     -- current device, nullable
-  status ENUM('active', 'inactive') NOT NULL DEFAULT 'inactive',
-  source ENUM('mbaodu', 'admin') NOT NULL,   -- 'mbaodu' kept for legacy rows only
-  total_usage INT NOT NULL DEFAULT 100,      -- fixed at 100 per claim
+  total_usage INT NOT NULL DEFAULT 0,        -- 累计发放次数
   remaining_usage INT NOT NULL DEFAULT 0,
-  claimed_at BIGINT,                         -- when user claimed the order
-  activation_code VARCHAR(32) COMMENT '最近一次绑定的管理端激活码（叠加模式下不代表唯一码）',
-  expires_at BIGINT COMMENT '订阅到期时间 = MAX(所有绑定 admin_activation_codes.expires_at)',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_device (device_id),
-  INDEX idx_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- Admin-generated activation codes (single-use; one uid may bind multiple rows)
-CREATE TABLE IF NOT EXISTS admin_activation_codes (
-  id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  code VARCHAR(32) NOT NULL UNIQUE,
-  created_at BIGINT NOT NULL,
-  expires_at BIGINT NOT NULL,
-  total_times INT NOT NULL DEFAULT 50,
-  used BOOLEAN NOT NULL DEFAULT FALSE,
-  device_id VARCHAR(64),
-  uid VARCHAR(64),                           -- NULL = device-bound (old flow)
-  activation_time BIGINT,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_device (device_id),
-  INDEX idx_expires (expires_at),
-  INDEX idx_uid_used (uid, used)
+  INDEX idx_device (device_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Conversation history

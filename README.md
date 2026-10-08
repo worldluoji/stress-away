@@ -11,7 +11,7 @@
 - **报告复制/下载**：生成后可一键复制全文（raw markdown 入剪贴板），或下载为 Word（.docx）便于提交仲裁或转发律师；导出支持网页同款语法子集——标题/列表/**粗体**/*斜体*/> 引用块/--- 分割线/管道表格（禁图片/代码块/内嵌 HTML）
 - **报告历史**：付费用户生成的报告自动入库（`labor_reports` 表，最多 50 条）；`/labor` 头部时钟按钮可拉抽屉查看历史，点击行展开全文并复用复制/下载，刷新或关窗口后仍可找回；删除走站内二次确认弹窗；MySQL 不可用时生成响应附"历史保存暂不可用"提醒、历史抽屉显示"服务暂不可用"空态（与"暂无历史"区分）
 - **付费明示**：点击生成时弹出自绘确认框，展示「剩余额度 X 次 → 本次后 X-1 次」与「预计回款 ¥…」，用户确认后才真正扣费；AI 失败时不扣；402 探测请求不消耗限流额度
-- **付费漏斗埋点**：计算器 → 登录墙(login_gate) → 付费墙曝光(paywall_view) / 拦截(paywall_block，403 时服务端记录) → 激活成功(activate_success) → 确认/取消 → 报告生成 → Word 下载，全链路事件写入 `usage_events`，`/admin` 漏斗卡片展示各步次数/人数与转化率
+- **付费漏斗埋点**：计算器 → 登录墙(login_gate) → 付费墙曝光(paywall_view) / 拦截(paywall_block，403 时服务端记录) → 确认/取消 → 报告生成 → Word 下载，全链路事件写入 `usage_events`，`/admin` 漏斗卡片展示各步次数/人数与转化率
 - **社平工资表**：内置 30 个高频城市封顶基数（`lib/social-wage.ts`），每条记录含人社局来源 URL 与生效日期，`WageRecord.isEstimate` 标记是否经人社局核对（默认 `true`，人工核对后改 `false`）；表单下方内嵌"当地社平工资"输入框，默认值显示系统估算，提示用户核对当地人社局公告后覆盖；未收录城市自动回退到所属省份省会数据作为代理；年度人工更新，不做自动 pipeline
 - **免责**：全程标注"AI 生成、不构成律师意见、以仲裁认定为准"
 
@@ -23,20 +23,15 @@
 
 ### 账号与订阅
 - **自建账号体系**：用户名+密码登录，**无自助注册**，账号由管理员在 `/admin`「账号管理」生成并一次性发放初始密码；会话为 sessions 表（token 仅存 SHA-256）+ httpOnly Cookie（7 天），可随时吊销；已彻底移除腾讯云 TCB 依赖
-- **报告付费墙**：维权报告仅限付费用户生成（403 `paid_only`），购买次数即"报告货币"；计算器免费、话术聊天为免费获客漏斗；付费 SKU 建议 ¥9.9/1次、¥29.9/5次
-- **双渠道激活**：支持面包多订单激活和管理端激活码激活
-- **管理端激活码**：管理员可生成独立激活码，支持闲鱼等平台销售
-- **激活码继承次数**：激活码本身记录剩余次数，换设备激活时自动继承
-- **多码叠加**：每个账号可绑定多个管理端激活码，**次数累加**、**到期时间取最晚**（`max(expires_at)`）
-- **过期即失效**：订阅到期后剩余次数不可用，需绑定新码才能恢复
-- **免费对话**：登录用户每天 10 次免费对话，不消耗购买次数；超出后付费用户确认消耗 1 次购买额度可继续对话（未付费引导激活）
-- **激活码订阅**：购买次数优先用于生成维权报告，支持 2 个激活码
-- **48小时查询窗口**：购买后48小时内可查询激活码
-- **管理后台**：管理员使用 `ADMIN_USERNAME/ADMIN_PASSWORD` 引导出的账号登录（与用户同一套 `/api/auth/login`，按 role 区分），可生成/查询激活码、查询/重新生成订单激活码、创建/重置用户账号、查看报告付费漏斗（`/admin`）
+- **报告付费墙**：维权报告仅限付费用户生成（403 `paid_only`），购买次数即"报告货币"；计算器免费、话术聊天为免费获客漏斗
+- **管理端发放制**：报告次数由管理员在 `/admin`「账号管理」直接发放——建号时可写入初始次数，存量账号可随时增量追加（`+N` 累加）；**激活码/面包多体系已全部退役**
+- **次数永久有效**：无有效期、无过期概念，付费判定即 `remaining_usage > 0`；`total_usage` 记录累计发放
+- **免费对话**：登录用户每天 10 次免费对话，不消耗购买次数；超出后付费用户确认消耗 1 次购买额度可继续对话（未付费引导"如何购买"）
+- **购买指引**：用户命中未付费/无额度时弹出「如何购买」指引卡（添加管理员微信购买，无自助输入框）
+- **管理后台**：管理员使用 `ADMIN_USERNAME/ADMIN_PASSWORD` 引导出的账号登录（与用户同一套 `/api/auth/login`，按 role 区分），可创建/重置用户账号、发放/追加报告次数、查看账号剩余额度、查看报告付费漏斗（`/admin`）
 
 ### 安全保护
 - **限流**：设备 ID + IP 双重限制，防止恶意攻击
-- **激活码防暴力破解**：连续失败5次封禁15分钟
 - **登录防爆破**：按用户名计数，连续失败 5 次锁定 15 分钟（进程内存，用户与管理员共用登录接口）；用户不存在与密码错误响应耗时一致（假哈希走完整 scrypt），防时序枚举
 - **会话安全**：uid 唯一来源是服务端验签的会话 Cookie，API 不再信任任何客户端自报的 `x-user-id` 头；重置密码即时清空该用户全部会话
 - **输入限制**：用户输入最多600字，前端+后端双重校验
@@ -56,7 +51,7 @@
 - **存储**: MySQL 8.0（生产，含 users/sessions 账号表）/ LocalStorage（测试）
 - **鉴权**: 自建账号（scrypt 密码哈希 + sessions 表 + httpOnly Cookie，无第三方登录 SDK）
 - **缓存/计数**: 进程内内存（限流、防爆破、订阅读缓存 60s TTL）+ MySQL kv_store（每日免费对话计数、deviceId 防伪）
-- **支付**: 面包多
+- **变现**: 管理端发放制（管理员给用户账号加报告次数，无自助支付/激活码）
 - **部署**: Docker (multi-stage, Next.js standalone)
 
 ## 快速开始
@@ -80,9 +75,6 @@ cp .env.local.example .env.local
 DEFAULT_MODEL=deepseek
 DEEPSEEK_API_KEY=your_deepseek_api_key
 MINIMAX_API_KEY=your_minimax_api_key
-
-# 面包多（激活码）
-MBAODU_APP_KEY=your_mbaodu_key
 
 # 管理员初始账号（两者齐备才引导；普通用户账号由管理员在 /admin「账号管理」创建后发放）
 ADMIN_USERNAME=admin
@@ -162,11 +154,9 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 ## 管理后台
 
 访问 `/admin`，用 `ADMIN_USERNAME/ADMIN_PASSWORD` 引导的管理员账号登录后（非管理员账号会被拒"当前账号无管理权限"）可：
-- 生成管理端激活码（支持闲鱼等平台销售）
-- 查询指定订单号的当前激活码
-- 重新生成激活码（覆盖旧码）
-- 账号管理：创建用户账号（展示一次性初始密码，明文仅此一次）、重置用户密码（即时清空其全部会话强制重新登录）
-- 查看报告付费漏斗（计算器→登录墙→曝光/拦截→激活成功→确认→生成→下载 各步次数/人数与转化率，数据来自 `usage_events`）
+- 账号管理：创建用户账号（可选写入初始报告次数，展示一次性初始密码、明文仅此一次）、重置用户密码（即时清空其全部会话强制重新登录）
+- 发放次数：每个账号行「+N」内联追加报告次数（累加、永久有效），列表显示「剩余 X 次 / 累计发放 Y」
+- 查看报告付费漏斗（计算器→登录墙→曝光/拦截→确认→生成→下载 各步次数/人数与转化率，数据来自 `usage_events`）
 
 ## 文件结构
 
@@ -175,10 +165,8 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 │   ├── admin/page.tsx                 # 管理后台页面
 │   ├── api/
 │   │   ├── admin/
-│   │   │   ├── codes/route.ts        # 管理端激活码生成/查询
 │   │   │   ├── funnel/route.ts       # 报告付费漏斗统计（管理员）
-│   │   │   ├── users/route.ts        # 账号管理：建号/重置密码/列表（管理员）
-│   │   │   └── orders/[orderId]/route.ts # 订单激活码管理
+│   │   │   └── users/route.ts        # 账号管理：建号/发放次数/重置密码/列表（管理员）
 │   │   ├── auth/
 │   │   │   ├── login/route.ts        # 用户名+密码登录（防爆破 + 会话 cookie）
 │   │   │   ├── logout/route.ts       # 登出（清 cookie + 删会话行）
@@ -188,11 +176,6 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 │   │   ├── report/route.ts            # 维权方案报告（付费，服务端重算金额，落库历史）
 │   │   ├── labor-reports/             # 维权报告历史列表/单条/删除
 │   │   ├── scenarios/                 # 场景模板
-│   │   ├── subscription/              # 订阅与激活
-│   │   │   ├── admin/activate/       # 管理端激活码激活
-│   │   │   ├── callback/              # 面包多回调
-│   │   │   ├── mbaodu/activate/       # 激活设备
-│   │   │   └── query-codes/           # 查询激活码
 │   │   └── usage/                     # 额度查询（GET）
 │   ├── components/
 │   │   ├── CompensationForm.tsx       # 赔偿金计算器表单（客户端实时估算）
@@ -203,21 +186,19 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 │   │   ├── markdown.tsx               # 网页端 markdown 渲染共享配置（remark-gfm + 组件样式 + 禁用元素 + 标题锚点/目录提取）
 │   │   ├── ScenarioCard.tsx           # 场景卡片
 │   │   ├── ScenarioModal.tsx          # 场景详情弹窗
-│   │   └── SubscriptionActivate.tsx   # 激活组件
+│   │   └── ui/PurchaseGuide.tsx       # 「如何购买」指引卡（微信号展示，无自助输入）
 │   ├── labor/page.tsx                 # 劳动维权主页
 │   └── page.tsx                       # 主页
 ├── lib/
-│   ├── activation-security.ts         # 激活码防暴力破解
 │   ├── compensation.ts               # 赔偿金计算纯函数（第40/47/87条，表格驱动测试）
 │   ├── social-wage.ts                # 城市社平工资封顶表（带时效标注）
 │   ├── db.ts                         # MySQL 连接池
 │   ├── conversations.ts               # 对话历史 MySQL 持久化
-│   ├── subscriptions.ts              # 订阅/激活码 MySQL + 内存缓存
+│   ├── subscriptions.ts              # 订阅额度 MySQL（发放/消耗）+ 内存缓存
 │   ├── report-docx.ts                # 报告 markdown → .docx Blob + 下载触发
 │   ├── labor-reports.ts              # 维权方案报告持久化（uid-scoped）
 │   ├── usage-events.ts               # 使用事件追踪 + 场景统计 + 报告漏斗聚合
 │   ├── analytics-client.ts           # 客户端埋点 trackEvent（fire-and-forget）
-│   ├── mbaodu.ts                    # 面包多 API
 │   ├── models.ts                    # 模型配置
 │   ├── ratelimit.ts                 # 限流 + deviceId 防伪
 │   ├── ttl-map.ts                   # 进程内 TTL 存储（限流/防爆破/订阅读缓存）
@@ -239,8 +220,8 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 │   ├── user-auth.test.ts              # scrypt 哈希往返/会话/登录限流表格驱动测试
 │   ├── api-auth.test.ts               # 会话验签身份上下文测试（伪造头无效）
 │   ├── auth-routes.test.ts            # login/logout/me 端点行为测试
-│   ├── admin-users-route.test.ts      # 账号管理端点（建号/重置/权限）测试
-│   ├── activate-route.test.ts         # 激活成功漏斗埋点测试
+│   ├── admin-users-route.test.ts      # 账号管理端点（建号/发放次数/重置/权限）测试
+│   ├── subscriptions.test.ts          # 发放/消耗额度 MySQL 层表格驱动测试（mock db）
 │   ├── labor-reports.test.ts          # 报告持久化无 MySQL 降级测试
 │   ├── ttl-map.test.ts                # 进程内 TTL 存储表格驱动测试
 │   └── kv-fallback.test.ts            # kv 无 MySQL 降级测试
@@ -257,7 +238,6 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 | DEFAULT_MODEL | 是 | deepseek | 模型 |
 | DEEPSEEK_API_KEY | 是 | - | DeepSeek Key |
 | MINIMAX_API_KEY | 是 | - | MiniMax Key |
-| MBAODU_APP_KEY | 是 | - | 面包多 Key |
 | ADMIN_USERNAME | 否 | - | 管理员初始用户名（与 ADMIN_PASSWORD 齐备时首次登录幂等引导） |
 | ADMIN_PASSWORD | 否 | - | 管理员初始密码（引导后可在 users 表改密；普通用户账号由管理端创建） |
 | MYSQL_HOST | 生产 | localhost | MySQL 主机 |

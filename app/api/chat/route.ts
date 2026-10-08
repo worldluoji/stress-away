@@ -145,8 +145,8 @@ export async function POST(request: NextRequest) {
     if (quota.action.startsWith('blocked_')) {
       const errorMap: Record<string, { code: string; message: string }> = {
         blocked_not_logged_in: { code: 'login_required', message: '请登录后使用' },
-        blocked_not_paid: { code: 'free_exhausted', message: '今日免费对话已用完，激活码开通后可继续对话并生成维权报告' },
-        blocked_paid_exhausted: { code: 'no_quota', message: '购买次数已用完，请绑定新的激活码' },
+        blocked_not_paid: { code: 'free_exhausted', message: '今日免费对话已用完，购买报告次数后可继续对话并生成维权报告' },
+        blocked_paid_exhausted: { code: 'no_quota', message: '购买次数已用完，请购买后继续' },
       };
       const err = errorMap[quota.action];
       return NextResponse.json({ error: err.code, message: err.message }, { status: 403 });

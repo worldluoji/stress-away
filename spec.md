@@ -14,7 +14,7 @@
 - **AI**: DeepSeek V4 Flash / MiniMax 2.7
 - **存储**: MySQL 8.0（账号/会话/订阅/对话/事件/kv_store）+ 进程内内存（限流/防爆破/订阅读缓存）+ LocalStorage（客户端缓存）
 - **账号体系**: 自建（scrypt 密码哈希 + sessions 表 + httpOnly Cookie），无第三方登录 SDK、无 JWT
-- **支付**: 面包多
+- **变现**: 管理端发放制（管理员给用户账号加报告次数，无自助支付/激活码/面包多）
 - **测试**: Vitest（表格驱动单元测试，`pnpm test`）
 - **部署**: Docker (multi-stage, Next.js standalone, node:22-alpine)
 
@@ -39,39 +39,28 @@
 - [x] 自建账号体系：用户名+密码，**无自助注册**，账号由管理员在 `/admin`「账号管理」创建并一次性发放初始密码（`xxxx-xxxx-xxxx` 去易混淆字符）；详见「账号与会话」章节
 - [x] 管理员账号幂等引导：`ADMIN_USERNAME/ADMIN_PASSWORD` 齐备时首次登录自动建号/升格，登录后走同一套 `/api/auth/login`（按 role 区分入口）
 
-### 订阅与激活
-- [x] 免费对话：登录用户每天 10 次免费对话（按 uid 计数，不消耗购买次数）；超出后付费用户确认消耗 1 次购买额度可继续对话（402 → `confirmPaid` 重发），未付费用户 403 引导激活
-- [x] 激活码订阅：购买次数优先用于生成维权报告（默认每码 50 次），2 个激活码
-- [x] 管理端激活码：管理员生成独立激活码，支持闲鱼等平台销售
-- [x] 面包多对接：支付回调生成激活码
-- [x] 设备激活：基于 FingerprintJS 的设备标识
+### 订阅与额度发放（管理端发放制）
+- [x] 免费对话：登录用户每天 10 次免费对话（按 uid 计数，不消耗购买次数）；超出后付费用户确认消耗 1 次购买额度可继续对话（402 → `confirmPaid` 重发），未付费用户 403 引导「如何购买」
+- [x] 购买指引：命中未付费/无额度时弹「如何购买」指引卡（展示管理员微信号，线下收款后由管理员在后台加次数；**无自助激活码输入框**）
+- [x] 设备标识：基于 FingerprintJS 的设备 ID（限流/deviceId 防伪维度）
 - [x] 使用追踪：对话优先消耗每日免费额度，报告生成与超额对话扣购买次数
-- [x] 管理后台：生成/查询管理端激活码，查询/重新生成订单激活码，账号管理（建号/重置密码/列表），报告付费漏斗卡片（`GET /api/admin/funnel`）
+- [x] 管理后台：账号管理（建号可写入初始次数 / +N 追加次数 / 列表显示剩余与累计发放 / 重置密码），报告付费漏斗卡片（`GET /api/admin/funnel`）
 
-### 激活码规则
+### 次数发放模型（管理端发放制，替代激活码）
 
-**激活码结构：**
-- 每个管理端激活码从生成时刻起有效期 30 天，含固定次数（默认 50，可定制）
-- 格式：`XXXX-XXXX-XXXX-XX`（带 Mod 97 校验位）
-- 旧的"每订单 2 个码"语义已被清理（见 migration 004），仅保留管理端单码
+**核心语义：**
+- 报告次数（`subscriptions.remaining_usage`）即"报告货币"，由管理员在 `/admin`「账号管理」直接发放，**永久有效、无过期概念**
+- 付费判定 = `remaining_usage > 0`（`isPaidUserByUid` 单条件）
+- 激活码体系（生成码/兑换码/多码叠加/30 天过期/订单码）已整体退役，`admin_activation_codes` 表删除
 
-**多码叠加规则（管理端激活码，自建账号模式）：**
-- 一个账号可绑定**多个**管理端激活码，叠加规则：
-  - **额度叠加**：`remaining_usage += new_code.total_times`，`total_usage += new_code.total_times`
-  - **时间叠加**：`expires_at = max(current_expires_at, new_code_expires_at)`（取所有绑定码中最晚到期时间）
-  - **同码重复绑定**：幂等返回当前订阅状态，不重复扣减
-  - **订阅过期后绑新码**：不继承过期前剩余次数（已失效），以新码 `total_times` 起步
-- **设备 ID**：首次绑定的 `device_id` 在该 uid 后续叠加中保留（`COALESCE`），避免设备混乱
-- **单码单用户约束保留**：码一旦绑定给某 uid，其他 uid 尝试绑定同一码返回 `code_already_used`
+**发放（`grantUsageByUid(uid, addTimes)`）：**
+- 单条原子 upsert：`INSERT … ON DUPLICATE KEY UPDATE total_usage += addTimes, remaining_usage += addTimes`，回读发放后剩余并失效 60s 读缓存
+- `addTimes` 必须为 1–999 的整数（`MIN/MAX_GRANT_TIMES`），越界/非整数/无 MySQL/DB 异常一律 **throw**——发放是资金相关操作，绝不静默成功
+- 入口两个：建号时随 `POST { username, times }` 写初始次数；存量账号经 `PATCH { userId, addTimes }` 增量追加（先验 `userExists` 再发放，避免 upsert 给不存在 uid 留孤儿订阅行）
 
-**过期语义：**
-- 当 `now > subscriptions.expires_at` 时，订阅视为失效
-- `isPaidUserByUid` / `consumeUsageByUid` 会拒绝该订阅，剩余次数不可用
-- 用户必须绑定新码才能恢复（绑定时不携带过期前剩余次数）
-
-**数据层映射：**
-- `subscriptions.activation_code` = 最近一次绑定的码（叠加模式下不代表唯一）
-- `subscriptions.expires_at` = 所有绑定码 `expires_at` 的最大值
+**消耗（`consumeUsageByUid(uid)`）：**
+- 事务 `SELECT … FOR UPDATE` → `remaining_usage -= 1`，契约不变：业务失败（无记录/用尽）返 0，真实 DB/事务异常 throw（report `settle_failed` 链路依赖此区分）
+- 旧数据脏列（`status`/`expires_at` 等）不再读取——历史行按 `remaining_usage` 照常扣减
 
 ### 限流规则
 
@@ -83,10 +72,7 @@
 | /api/chat | 20 次/分钟 |
 | /api/report | 5 次/分钟（仅 `confirmPaid: true` 的真实生成计数；402 探测不占额度） |
 | /api/events | 30 次/分钟 |
-| /api/subscription/activate | 10 次/分钟 |
-| /api/subscription/query-codes | 10 次/分钟 |
 | /api/usage | 30 次/分钟 |
-| /api/subscription/callback | 5 次/分钟 |
 
 **限流响应：**
 - HTTP 429 状态码
@@ -96,16 +82,15 @@
 
 **MySQL 8.0（持久化）**
 - `users` / `sessions`：自建账号与会话（见「账号与会话」章节；sessions 只存 token 的 SHA-256）
-- `subscriptions`：订阅状态（uid 主键）、设备绑定、剩余次数
-- `admin_activation_codes`：管理端激活码及绑定记录
+- `subscriptions`：订阅额度（uid 主键、device_id、`total_usage` 累计发放、`remaining_usage` 剩余），次数永久有效
 - `conversations`：对话历史（JSON 存储，最多50条）
 - `messages` / `message_reactions` / `saved_messages`：消息索引、点赞、收藏
-- `usage_events`：使用事件（场景浏览/聊天/复制 + 报告付费漏斗：calculator/login_gate/paywall_view/paywall_block/activate_success/paywall_confirm/paywall_cancel/report_generate/report_download）。`event_type` 列为 **VARCHAR(32) 而非 ENUM**——ENUM 会把新增事件名静默丢弃导致漏斗数据丢失，事件类型只可增不可减
+- `usage_events`：使用事件（场景浏览/聊天/复制 + 报告付费漏斗：calculator/login_gate/paywall_view/paywall_block/paywall_confirm/paywall_cancel/report_generate/report_download）。`event_type` 列为 **VARCHAR(32) 而非 ENUM**——ENUM 会把新增事件名静默丢弃导致漏斗数据丢失，事件类型只可增不可减（已删 `activate`/`activate_success`，历史行保留不影响聚合）
 - `scenario_stats`：场景统计数据（视图数/聊天数/复制数）
 - `kv_store`：短期持久状态 KV（每日免费对话计数、deviceId 防伪，key + value + expires_at）
 
 **高频/短期状态（内存 + MySQL kv_store 混合）**
-- 限流计数 / 登录与激活码防爆破计数：进程内 TtlMap（秒~分钟级 TTL，重启丢失可接受）
+- 限流计数 / 登录防爆破计数：进程内 TtlMap（秒~分钟级 TTL，重启丢失可接受）
 - 对话每日免费计数（按 uid）：kv_store `kvIncr` 原子自增（跨天 TTL，必须持久，防止重启清零被薅）
 - deviceId 防伪记录：kv_store（1小时 TTL）
 - 订阅状态读缓存：进程内内存（60秒 TTL，MySQL 为 source of truth）
@@ -144,17 +129,6 @@
 - 进程内存 TtlMap，重启即失效、多实例各自独立——已接受的权衡（无 Redis），兜底靠 scrypt 慢哈希 + 发放制账号
 - 超 1000 个跟踪键时惰性清扫过期条目，防用户名随机化撑爆内存
 
-### 激活码防暴力破解
-
-- 连续 5 次失败，封禁 15 分钟
-- 激活成功后自动重置失败计数
-- 返回 `remainingAttempts` 提示剩余次数
-
-### 48小时查询窗口
-
-- 购买后48小时内可查询激活码
-- 超过48小时无法查询，返回 HTTP 403
-
 ### 输入限制
 
 - 用户输入框限制 600 字
@@ -180,10 +154,8 @@
 │   ├── admin/page.tsx                 # 管理后台
 │   ├── api/
 │   │   ├── admin/
-│   │   │   ├── codes/route.ts        # 管理端激活码生成/查询
 │   │   │   ├── funnel/route.ts       # 报告付费漏斗统计（管理员）
-│   │   │   ├── users/route.ts        # 账号管理：建号/重置密码/列表（管理员）
-│   │   │   └── orders/[orderId]/route.ts # 订单激活码管理
+│   │   │   └── users/route.ts        # 账号管理：建号/发放次数/重置密码/列表（管理员）
 │   │   ├── auth/
 │   │   │   ├── login/route.ts        # 统一登录（防爆破/防枚举 + 会话 cookie）
 │   │   │   ├── logout/route.ts       # 登出
@@ -194,35 +166,28 @@
 │   │   ├── labor-reports/             # 维权报告历史列表/单条/删除
 │   │   ├── report/route.ts            # 维权方案报告（付费，服务端重算）
 │   │   ├── scenarios/                # 场景模板 API
-│   │   ├── subscription/
-│   │   │   ├── admin/activate/       # 管理端激活码激活
-│   │   │   ├── callback/             # 面包多回调
-│   │   │   ├── mbaodu/activate/      # 激活设备
-│   │   │   └── query-codes/          # 查询激活码
 │   │   └── usage/                    # 额度查询（GET）
 │   ├── components/
 │   │   ├── CompensationForm.tsx       # 赔偿金计算器表单
 │   │   ├── HistoryPanel.tsx           # 历史记录面板
 │   │   ├── LaborHistoryPanel.tsx      # 维权报告历史抽屉（降级空态/删除二次确认）
 │   │   ├── LoginModal.tsx             # 登录弹窗 + useAuth（数据源 /api/auth/me）
-│   │   ├── ReportPanel.tsx            # 维权报告生成面板（含目录 chip 导航）
+│   │   ├── ReportPanel.tsx            # 维权报告生成面板（含目录 chip 导航 + 自管「如何购买」指引）
 │   │   ├── markdown.tsx               # 网页端 markdown 渲染共享配置（remark-gfm + 组件样式 + 禁用元素 + 标题锚点/目录提取）
 │   │   ├── ScenarioCard.tsx          # 场景卡片
 │   │   ├── ScenarioModal.tsx          # 场景详情弹窗
-│   │   └── SubscriptionActivate.tsx  # 激活组件
+│   │   └── ui/PurchaseGuide.tsx       # 「如何购买」指引卡（微信号展示，无自助输入）
 │   ├── docs/page.tsx                 # API 文档页
 │   ├── labor/page.tsx                # 劳动维权主页
 │   └── page.tsx                      # 主页
 ├── lib/
-│   ├── activation-security.ts         # 激活码防暴力破解
 │   ├── compensation.ts               # 赔偿金计算纯函数（第40/47/87条）
 │   ├── social-wage.ts                # 城市社平工资封顶表
 │   ├── db.ts                         # MySQL 连接池
 │   ├── conversations.ts             # 对话历史 MySQL 持久化
-│   ├── subscriptions.ts             # 订阅/激活码 MySQL + 内存缓存
+│   ├── subscriptions.ts             # 订阅额度 MySQL（发放 grantUsageByUid / 消耗）+ 内存缓存
 │   ├── usage-events.ts              # 使用事件追踪 + 场景统计 + 报告漏斗聚合
 │   ├── analytics-client.ts          # 客户端埋点 trackEvent（fire-and-forget）
-│   ├── mbaodu.ts                    # 面包多 API
 │   ├── models.ts                    # 模型配置
 │   ├── ratelimit.ts                 # 限流 + deviceId 防伪
 │   ├── ttl-map.ts                   # 进程内 TTL 存储（限流/防爆破/订阅读缓存）
@@ -247,8 +212,8 @@
 │   ├── user-auth.test.ts            # scrypt/会话/登录限流表格驱动测试
 │   ├── auth-routes.test.ts          # login/logout/me 端点测试
 │   ├── api-auth.test.ts             # 会话验签身份上下文测试
-│   ├── admin-users-route.test.ts    # 账号管理端点测试
-│   ├── activate-route.test.ts       # activate_success 埋点测试
+│   ├── admin-users-route.test.ts    # 账号管理端点测试（建号带 times/追加 addTimes/usage 列表）
+│   ├── subscriptions.test.ts        # 发放/消耗额度 MySQL 层表格驱动测试（mock db）
 │   ├── report-docx.test.ts          # docx 转换/语法子集/Mac 坑回归测试
 │   ├── labor-reports.test.ts        # 报告持久化降级（skipped）测试
 │   └── report-prompt.test.ts        # 报告 prompt 断言测试
@@ -260,13 +225,13 @@
 
 ### GET /api/usage
 
-查询当前用户的额度状态（购买次数 = 报告货币；对话另有每日免费额度）。
+查询当前用户的额度状态（购买次数 = 报告货币，管理端发放、永久有效；对话另有每日免费额度）。
 
 Headers: `x-device-id` + 会话 Cookie（uid 取自验签会话；未登录 `uid=null`，返回未付费视角）
 
-响应：
+响应（`total` = 累计发放次数，`remaining` = 当前剩余）：
 ```json
-{ "allowed": true, "remaining": 5, "isPaid": true, "total": 100, "chatFreeRemaining": 8, "chatFreeTotal": 10 }
+{ "allowed": true, "remaining": 5, "isPaid": true, "total": 8, "chatFreeRemaining": 8, "chatFreeTotal": 10 }
 ```
 
 ### POST /api/chat
@@ -341,7 +306,7 @@ Headers: `x-device-id`（必须）+ 会话 Cookie（可选，uid 取自验签会
 { "eventType": "paywall_confirm", "meta": { "city": "北京" } }
 ```
 
-`eventType` 白名单（仅客户端可报，服务端事件如 `report_generate/paywall_block/activate_success` 不在列，防伪造）：`calculator | paywall_view | paywall_confirm | paywall_cancel | report_download | login_gate`。
+`eventType` 白名单（仅客户端可报，服务端事件如 `report_generate/paywall_block` 不在列，防伪造；已退役的 `activate/activate_success` 不在枚举内 → 客户端上报一律 400）：`calculator | paywall_view | paywall_confirm | paywall_cancel | report_download | login_gate`。
 
 响应：204（成功，无 body）。
 
@@ -444,45 +409,6 @@ Mac Word 对 docx 库输出比 Pages/WPS 严格得多，会因各种 OOXML schem
 - 砍 document.xml body 长度二分定位问题段
 - 关键搜索：`grep -oE '<w:r><w:rPr>[^<]*</w:rPr></w:r>'`（空 run）、`<w:numId w:val="[^"]*"`（numId 必须是数字）、`<w:[a-z]+ w:type="[^"]*"` 计数（first/default 配对）、`<w:t[^/]*/>`（空文本）
 
-### POST /api/subscription/query-codes
-
-查询激活码。
-
-请求：`{ "order_id": "MB123456" }`
-
-响应：
-```json
-{
-  "success": true,
-  "codes": [
-    { "code": "AB****YZ", "used": false },
-    { "code": "CD****WX", "used": false }
-  ]
-}
-```
-
-### POST /api/subscription/mbaodu/activate
-
-激活设备。
-
-Headers: `x-device-id`
-
-请求：
-```json
-{ "order_id": "MB123456", "activation_code": "ABCD-1234-EFGH-56" }
-```
-
-响应：
-```json
-{ "success": true, "remaining_codes": 1 }
-```
-
-### POST /api/subscription/callback
-
-面包多支付回调（面包多服务器调用）。
-
-请求：`{ "order_id": "MB123456", "state": 1 }`
-
 ### POST /api/auth/login
 
 统一登录（用户与管理端共用；旧的 `POST /api/admin/login` 密码/设备白名单一套已删除）。
@@ -507,85 +433,10 @@ Headers: `x-device-id`
 
 账号管理（`requireAdmin()` 守卫；非登录 401，登录但非 admin 403 `not_admin`）。
 
-- `GET`：`{ "users": [{ id, username, role }] }`（最多 200 条）
-- `POST { username }`：建普通用户号，`createUser` 生成随机初始密码（`xxxx-xxxx-xxxx`），**明文仅在响应中出现一次** `{ id, username, password }`；用户名重复 409 `username_taken`、非法 400
+- `GET`：`{ "users": [{ id, username, role, remainingUsage, totalUsage }] }`（最多 200 条；LEFT JOIN subscriptions，无发放记录 COALESCE 为 0）
+- `POST { username, times? }`：建普通用户号，`createUser` 生成随机初始密码（`xxxx-xxxx-xxxx`），**明文仅在响应中出现一次** `{ id, username, password, remaining }`；可选 `times`（1–999 整数）建号后 `grantUsageByUid` 发放初始次数；用户名重复 409 `username_taken`、username/times 非法 400（`invalid_username`/`invalid_times`）；建号成功但发放失败 → 500 `grant_failed`（账号已存在，管理员可对同账号重试 +N 追加）
+- `PATCH { userId, addTimes }`：追加次数 → 先 `userExists` 校验（防孤儿订阅行）再 `grantUsageByUid`，返回 `{ userId, remaining }`；addTimes 非法 400 `invalid_times`、用户不存在 404 `user_not_found`
 - `PATCH { userId }`：重置密码 → 返回新一次性明文 `{ userId, password }`，并清空该用户全部 sessions（强制重登）；用户不存在 404 `user_not_found`
-
-### GET /api/admin/orders/{orderId}
-
-查询订单激活码（需管理员会话）。
-
-响应：
-```json
-{
-  "orderId": "MB123456",
-  "codes": [
-    { "code": "ABCD-1234-EFGH-56", "used": false }
-  ]
-}
-```
-
-### POST /api/admin/orders/{orderId}
-
-重新生成激活码（覆盖旧码）。
-
-响应：
-```json
-{
-  "orderId": "MB123456",
-  "success": true,
-  "codes": [
-    { "code": "NEW1-ABCD-EFGH-12", "used": false },
-    { "code": "NEW2-IJKL-MNOP-34", "used": false }
-  ]
-}
-```
-
-### POST /api/admin/codes
-
-生成管理端激活码（需管理员会话）。
-
-请求：`{ "times": 50 }`（可选，默认50）
-
-响应：
-```json
-{
-  "code": "ABCD-1234-EFGH-56",
-  "expiresAt": 1751395200000,
-  "totalTimes": 50
-}
-```
-
-### GET /api/admin/codes
-
-查询管理端激活码列表（需管理员会话）。
-
-查询参数：`?page=1&limit=20` 或 `?code=ABCD-1234-EFGH-56`
-
-响应（列表）：
-```json
-{
-  "codes": [...],
-  "total": 100,
-  "page": 1
-}
-```
-
-响应（单个）：
-```json
-{
-  "code": "ABCD-1234-EFGH-56",
-  "createdAt": 1751212800000,
-  "expiresAt": 1751395200000,
-  "totalTimes": 50,
-  "userSubRemaining": 45,
-  "used": true,
-  "deviceId": "xxx",
-  "activationTime": 1751300000000
-}
-```
-
-> `userSubRemaining` 是绑定该码的账号当前订阅的剩余次数（叠加模式下等于账号下所有码的合并剩余）；`totalTimes` 是码本身的总次数。
 
 ### GET /api/admin/funnel
 
@@ -599,7 +450,6 @@ Headers: `x-device-id`
     "loginGate":       { "count": 0, "users": 0 },
     "paywallView":     { "count": 0, "users": 0 },
     "paywallBlock":    { "count": 0, "users": 0 },
-    "activateSuccess": { "count": 0, "users": 0 },
     "paywallConfirm":  { "count": 0, "users": 0 },
     "paywallCancel":   { "count": 0, "users": 0 },
     "reportGenerate":  { "count": 0, "users": 0 },
@@ -611,31 +461,6 @@ Headers: `x-device-id`
 
 `count` 为事件次数，`users` 按 `COALESCE(uid, device_id)` 去重；分母为 0 时对应转化率为 `null`。无 MySQL 时全部降级为 0/`null`，不报错。`/admin` 页面登录态下以"报告付费漏斗"卡片展示。
 
-### POST /api/subscription/admin/activate
-
-使用管理端激活码激活/叠加到自建账号。
-
-Headers: `x-device-id` + 已登录会话 Cookie
-
-请求：
-```json
-{ "code": "ABCD-1234-EFGH-56" }
-```
-
-响应：
-```json
-{ "success": true, "remainingCodes": 150, "expiresAt": 1753219200000 }
-```
-
-**多码叠加语义：**
-- `remainingCodes` 为账号叠加后的总剩余次数（包含已绑定的所有码）
-- `expiresAt` 为所有绑定码中最晚的过期时间
-- 同码重复绑定：幂等返回当前订阅，不重复扣减
-- 订阅过期后绑新码：从新码 `totalTimes` 起步，不继承过期前余额
-- 其他 uid 尝试绑同一码：返回 `invalid_code`（含 `code_already_used` 内部错误码）
-
-**漏斗记账**：兑换成功时**服务端**记录 `activate_success`（uid 取自会话）；同码重复兑换的幂等短路路径不重复计数。
-
 ## 环境变量
 
 | 变量名 | 必需 | 默认值 | 说明 |
@@ -643,7 +468,6 @@ Headers: `x-device-id` + 已登录会话 Cookie
 | DEFAULT_MODEL | 是 | deepseek | 模型 |
 | DEEPSEEK_API_KEY | 是 | - | DeepSeek Key |
 | MINIMAX_API_KEY | 是 | - | MiniMax Key |
-| MBAODU_APP_KEY | 是 | - | 面包多 Key |
 | ADMIN_USERNAME | 生产建议 | - | 管理员初始用户名（与 ADMIN_PASSWORD 齐备时登录幂等引导；缺失则无管理员入口） |
 | ADMIN_PASSWORD | 生产建议 | - | 管理员初始密码（普通用户账号由管理端创建发放，不走环境变量） |
 | MYSQL_HOST | 生产 | localhost | MySQL 主机 |

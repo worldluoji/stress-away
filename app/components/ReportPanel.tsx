@@ -13,6 +13,7 @@ import { Spinner } from "./ui/Spinner";
 import { ErrorBanner } from "./ui/ErrorBanner";
 import { EmptyState } from "./ui/EmptyState";
 import { Modal } from "./ui/Modal";
+import { PurchaseGuide } from "./ui/PurchaseGuide";
 import { Card } from "./ui/Card";
 import { Icon } from "./ui/Icon";
 import { markdownToDocxBlob, triggerDocxDownload } from "@/lib/report-docx";
@@ -36,19 +37,19 @@ const INTAKE_QUESTIONS: { id: string; question: string; options: string[] }[] = 
 interface Props {
   comp: CompInput | null;
   uid: string | null;
-  onRequireActivate: () => void;
   onRequireLogin: () => void;
   onUsageChanged?: () => void;
 }
 
-export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUsageChanged }: Props) {
+export function ReportPanel({ comp, uid, onRequireLogin, onUsageChanged }: Props) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [narrative, setNarrative] = useState("");
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState("");
   const [rawReply, setRawReply] = useState("");
   const [warning, setWarning] = useState("");
-  const [gate, setGate] = useState<"none" | "login" | "activate">("none");
+  const [gate, setGate] = useState<"none" | "login" | "purchase">("none");
+  const [showGuide, setShowGuide] = useState(false);
   const [error, setError] = useState("");
   const [copyState, setCopyState] = useState<"copied" | "failed" | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -144,8 +145,8 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
 
   function handleErrorResponse(res: Response, data: { error?: string; message?: string }) {
     if (res.status === 403 && data.error === "login_required") setGate("login");
-    else if (res.status === 403 && data.error === "paid_only") setGate("activate");
-    else if (res.status === 403 && data.error === "no_quota") setGate("activate");
+    else if (res.status === 403 && data.error === "paid_only") setGate("purchase");
+    else if (res.status === 403 && data.error === "no_quota") setGate("purchase");
     setError(data.message || "生成失败，请稍后再试");
   }
 
@@ -238,10 +239,14 @@ export function ReportPanel({ comp, uid, onRequireActivate, onRequireLogin, onUs
       {error && (
         <ErrorBanner
           message={error}
-          onAction={gate === "activate" ? onRequireActivate : gate === "login" ? onRequireLogin : undefined}
-          actionLabel={gate === "login" ? "去登录" : "去激活"}
+          onAction={gate === "purchase" ? () => setShowGuide(true) : gate === "login" ? onRequireLogin : undefined}
+          actionLabel={gate === "login" ? "去登录" : "如何购买"}
         />
       )}
+
+      <Modal open={showGuide} onClose={() => setShowGuide(false)} title="如何购买" size="md">
+        <PurchaseGuide />
+      </Modal>
 
       {loading ? (
         <div className="relative w-full py-4 rounded-2xl bg-[var(--card-bg)] border border-[var(--color-brand)]/30 text-center overflow-hidden shadow-[var(--shadow-subtle)]">
