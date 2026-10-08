@@ -6,6 +6,8 @@ vi.mock("@/lib/db", () => ({
   execute: vi.fn(),
   queryWithLimit: vi.fn(),
   isMySQLAvailable: vi.fn(() => true),
+  withTransaction: vi.fn((fn: (conn: unknown) => Promise<unknown>) => fn({})),
+  txExecute: vi.fn(),
 }));
 
 const { cookieJar, lastCookieOpts } = vi.hoisted(() => ({
@@ -26,7 +28,7 @@ vi.mock("next/headers", () => ({
   }),
 }));
 
-import { query, execute, queryWithLimit } from "@/lib/db";
+import { query, execute, queryWithLimit, withTransaction, txExecute } from "@/lib/db";
 import {
   hashPassword,
   verifyPassword,
@@ -38,6 +40,9 @@ import {
   findUserByUsername,
   requireAdmin,
   listUsers,
+  getUserById,
+  setUserStatus,
+  deleteUserCascade,
   SESSION_COOKIE,
   DUMMY_PASSWORD_HASH,
 } from "@/lib/user-auth";
@@ -140,15 +145,27 @@ describe("createSession / getCurrentUser / destroySession — 会话生命周期
     expect(query).not.toHaveBeenCalled();
   });
 
-  it("getCurrentUser：cookie 有效 → 返回会话用户", async () => {
+  it("getCurrentUser：cookie 有效 → 返回会话用户（SQL 必须过滤禁用号）", async () => {
     await createSession("user-1");
     vi.mocked(query).mockResolvedValueOnce([
-      { id: "user-1", username: "alice", role: "user" },
+      { id: "user-1", username: "alice", role: "user", status: "active" },
     ]);
     const user = await getCurrentUser();
-    expect(user).toEqual({ id: "user-1", username: "alice", role: "user" });
-    const params = vi.mocked(query).mock.calls[0][1];
+    expect(user).toEqual({
+      id: "user-1",
+      username: "alice",
+      role: "user",
+      status: "active",
+    });
+    const [sql, params] = vi.mocked(query).mock.calls[0];
+    expect(String(sql)).toContain("u.status = 'active'");
     expect(String(params![0])).toHaveLength(64);
+  });
+
+  it("getCurrentUser：禁用号即使会话行残留 → 查不到 → null（防御纵深）", async () => {
+    cookieJar.set(SESSION_COOKIE, "tok");
+    vi.mocked(query).mockResolvedValueOnce([]);
+    await expect(getCurrentUser()).resolves.toBe(null);
   });
 
   it("getCurrentUser：查库无行（过期/撤销）→ null", async () => {
@@ -188,16 +205,17 @@ describe("requireAdmin", () => {
   it("role=user → null；role=admin → 用户", async () => {
     cookieJar.set(SESSION_COOKIE, "tok");
     vi.mocked(query).mockResolvedValueOnce([
-      { id: "u2", username: "bob", role: "user" },
+      { id: "u2", username: "bob", role: "user", status: "active" },
     ]);
     await expect(requireAdmin()).resolves.toBe(null);
     vi.mocked(query).mockResolvedValueOnce([
-      { id: "u1", username: "alice", role: "admin" },
+      { id: "u1", username: "alice", role: "admin", status: "active" },
     ]);
     await expect(requireAdmin()).resolves.toEqual({
       id: "u1",
       username: "alice",
       role: "admin",
+      status: "active",
     });
   });
 });
@@ -256,14 +274,79 @@ describe("ensureAdminUser — 环境变量幂等引导", () => {
 });
 
 describe("findUserByUsername", () => {
-  it("命中 → 含 passwordHash；未命中 → null", async () => {
+  it("命中 → 含 passwordHash 与 status；未命中 → null", async () => {
     vi.mocked(query).mockResolvedValueOnce([
-      { id: "u1", username: "alice", role: "user", password_hash: "v1:x:y" },
+      { id: "u1", username: "alice", role: "user", password_hash: "v1:x:y", status: "disabled" },
     ]);
     const u = await findUserByUsername("alice");
-    expect(u).toMatchObject({ id: "u1", username: "alice", passwordHash: "v1:x:y" });
+    expect(u).toMatchObject({
+      id: "u1",
+      username: "alice",
+      passwordHash: "v1:x:y",
+      status: "disabled",
+    });
     vi.mocked(query).mockResolvedValueOnce([]);
     await expect(findUserByUsername("ghost")).resolves.toBe(null);
+  });
+});
+
+describe("getUserById / setUserStatus / deleteUserCascade — 账号生命周期", () => {
+  it("getUserById：命中 → 含 role/status；未命中 → null", async () => {
+    vi.mocked(query).mockResolvedValueOnce([
+      { id: "u1", username: "alice", role: "admin", status: "active" },
+    ]);
+    await expect(getUserById("u1")).resolves.toEqual({
+      id: "u1",
+      username: "alice",
+      role: "admin",
+      status: "active",
+    });
+    vi.mocked(query).mockResolvedValueOnce([]);
+    await expect(getUserById("ghost")).resolves.toBe(null);
+  });
+
+  it("setUserStatus disabled：UPDATE + 立即清该用户全部会话", async () => {
+    vi.mocked(execute).mockResolvedValue({ affectedRows: 1 } as never);
+    const r = await setUserStatus("u2", "disabled");
+    expect(r).toEqual({ ok: true, status: "disabled" });
+    const calls = vi.mocked(execute).mock.calls;
+    expect(String(calls[0][0])).toContain("UPDATE users SET status");
+    expect(calls[0][1]).toEqual(expect.arrayContaining(["disabled", "u2"]));
+    expect(String(calls[1][0])).toContain("DELETE FROM sessions WHERE user_id");
+  });
+
+  it("setUserStatus active：只 UPDATE，不清会话", async () => {
+    vi.mocked(execute).mockResolvedValue({ affectedRows: 1 } as never);
+    const r = await setUserStatus("u2", "active");
+    expect(r).toEqual({ ok: true, status: "active" });
+    expect(vi.mocked(execute)).toHaveBeenCalledTimes(1);
+  });
+
+  it("setUserStatus 目标不存在（affectedRows=0）→ user_not_found", async () => {
+    vi.mocked(execute).mockResolvedValue({ affectedRows: 0 } as never);
+    await expect(setUserStatus("ghost", "disabled")).resolves.toEqual({
+      ok: false,
+      reason: "user_not_found",
+    });
+  });
+
+  it("deleteUserCascade：事务内逐表清理，messages 先于 conversations，绝不碰 usage_events", async () => {
+    await deleteUserCascade("u9");
+    expect(withTransaction).toHaveBeenCalledTimes(1);
+    const sqls = vi.mocked(txExecute).mock.calls.map((c) => String(c[1]));
+    const joined = sqls.join("\n");
+    expect(joined).toContain("DELETE m FROM messages");
+    expect(joined).toContain("conversations");
+    expect(joined).toContain("message_reactions");
+    expect(joined).toContain("saved_messages");
+    expect(joined).toContain("labor_reports");
+    expect(joined).toContain("subscriptions");
+    expect(joined).toContain("DELETE FROM sessions");
+    expect(joined).toMatch(/DELETE FROM users WHERE id/);
+    expect(joined).not.toContain("usage_events");
+    expect(sqls.findIndex((s) => s.includes("DELETE m FROM messages"))).toBeLessThan(
+      sqls.findIndex((s) => /DELETE FROM conversations/.test(s))
+    );
   });
 });
 
@@ -280,8 +363,8 @@ describe("login-rate-limit — 5 次锁定", () => {
 
 describe("listUsers — mysql2 LIMIT ? 回归 + usage 联查", () => {
   const rows = [
-    { id: "u2", username: "bob", role: "user", remaining_usage: 3, total_usage: 8 },
-    { id: "u1", username: "alice", role: "admin", remaining_usage: 0, total_usage: 0 },
+    { id: "u2", username: "bob", role: "user", status: "disabled", remaining_usage: 3, total_usage: 8 },
+    { id: "u1", username: "alice", role: "admin", status: "active", remaining_usage: 0, total_usage: 0 },
   ];
 
   it("必须走 queryWithLimit 数值内联，绝不向 prepare 协议传 LIMIT ?", async () => {
@@ -292,11 +375,12 @@ describe("listUsers — mysql2 LIMIT ? 回归 + usage 联查", () => {
     const [sql, limit, offset] = vi.mocked(queryWithLimit).mock.calls[0];
     expect(sql).not.toContain("LIMIT ?");
     expect(sql).toContain("LEFT JOIN subscriptions");
+    expect(sql).toContain("u.status");
     expect(limit).toBe(200);
     expect(offset).toBe(0);
     expect(users).toEqual([
-      { id: "u2", username: "bob", role: "user", remainingUsage: 3, totalUsage: 8 },
-      { id: "u1", username: "alice", role: "admin", remainingUsage: 0, totalUsage: 0 },
+      { id: "u2", username: "bob", role: "user", status: "disabled", remainingUsage: 3, totalUsage: 8 },
+      { id: "u1", username: "alice", role: "admin", status: "active", remainingUsage: 0, totalUsage: 0 },
     ]);
   });
 });

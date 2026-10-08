@@ -17,7 +17,7 @@ beforeEach(() => {
 
 const cases: {
   desc: string;
-  user: { id: string; username: string; role: "admin" | "user" } | null;
+  user: { id: string; username: string; role: "admin" | "user"; status: "active" | "disabled" } | null;
   deviceId?: string;
   want: { uid: string | null; deviceId: string | null; role: string | null; isLoggedIn: boolean };
 }[] = [
@@ -29,13 +29,13 @@ const cases: {
   },
   {
     desc: "有效会话 → uid/role 来自用户表",
-    user: { id: "u-42", username: "alice", role: "user" },
+    user: { id: "u-42", username: "alice", role: "user", status: "active" },
     deviceId: "d1",
     want: { uid: "u-42", deviceId: "d1", role: "user", isLoggedIn: true },
   },
   {
     desc: "admin 会话",
-    user: { id: "adm", username: "root", role: "admin" },
+    user: { id: "adm", username: "root", role: "admin", status: "active" },
     want: { uid: "adm", deviceId: null, role: "admin", isLoggedIn: true },
   },
   {

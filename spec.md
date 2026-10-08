@@ -44,7 +44,7 @@
 - [x] 购买指引：命中未付费/无额度时弹「如何购买」指引卡（展示管理员微信号，线下收款后由管理员在后台加次数；**无自助激活码输入框**）
 - [x] 设备标识：基于 FingerprintJS 的设备 ID（限流/deviceId 防伪维度）
 - [x] 使用追踪：对话优先消耗每日免费额度，报告生成与超额对话扣购买次数
-- [x] 管理后台：账号管理（建号可写入初始次数 / +N 追加次数 / 列表显示剩余与累计发放 / 重置密码），报告付费漏斗卡片（`GET /api/admin/funnel`）
+- [x] 管理后台：账号管理（建号可写入初始次数 / +N 追加次数 / 列表显示剩余与累计发放 / 重置密码 / 禁用-启用（软删除）/ 硬删除带二次确认弹窗，管理员账号本身不可禁用或删除），报告付费漏斗卡片（`GET /api/admin/funnel`）
 
 ### 次数发放模型（管理端发放制，替代激活码）
 
@@ -89,6 +89,8 @@
 - `scenario_stats`：场景统计数据（视图数/聊天数/复制数）
 - `kv_store`：短期持久状态 KV（每日免费对话计数、deviceId 防伪，key + value + expires_at）
 
+**迁移约定**：`001_initial.sql` 为合并基线（最终态，仅全新安装执行，`CREATE TABLE IF NOT EXISTS` 不会改动已建表）；基线之后的表结构变更一律以 `002_*.sql` 起编号新增增量文件，已部署环境按编号顺序执行增量（如 `002_add_users_status.sql`：users.status 列 + event_type ENUM→VARCHAR 漂移补丁）。
+
 **高频/短期状态（内存 + MySQL kv_store 混合）**
 - 限流计数 / 登录防爆破计数：进程内 TtlMap（秒~分钟级 TTL，重启丢失可接受）
 - 对话每日免费计数（按 uid）：kv_store `kvIncr` 原子自增（跨天 TTL，必须持久，防止重启清零被薅）
@@ -109,8 +111,14 @@
 **账号（users 表）：**
 - `id VARCHAR(64)` 主键 = `crypto.randomUUID()`，即全站业务语义中的 `uid`（subscriptions/labor_reports/conversations 等表的 uid 列直接引用，无需迁移）
 - `username VARCHAR(32)` UNIQUE；`password_hash VARCHAR(255)` 格式 `v1:<salt-hex>:<scrypt-hex>`（scrypt keylen 64，salt 16 字节随机）
-- `role ENUM('admin','user')`；**无自助注册**，账号只能由管理员经 `/api/admin/users` 创建
+- `role ENUM('admin','user')`；`status VARCHAR(16) NOT NULL DEFAULT 'active'`（`active|disabled`，取值由代码常量 `VALID_STATUSES` 约束——沿用 event_type 教训不用 ENUM）；**无自助注册**，账号只能由管理员经 `/api/admin/users` 创建
 - 管理员引导：`ensureAdminUser()` 在登录时幂等执行——`ADMIN_USERNAME/ADMIN_PASSWORD` 齐备且账号不存在则建 admin；已存在但 role 非 admin 则升格
+
+**账号生命周期（禁用/启用/硬删除，仅管理员操作）：**
+- **软删除=禁用**：`setUserStatus(userId, 'disabled')` 改 status + 即时 `DELETE FROM sessions`（强制下线）；可随时启用恢复（额度/内容数据原样保留）
+- 禁用拦截双防线：① 登录路由在**密码验证通过后**才检查 disabled → 403 `account_disabled`（提前检查会让禁用号成为用户名枚举 oracle，破坏时序防枚举设计）；② `getCurrentUser` 会话 SQL 带 `AND u.status = 'active'`（会话行残留也即刻失效）
+- **硬删除**：`deleteUserCascade` 在单一事务内连带清除 messages（经 conversations JOIN）→ conversations → message_reactions → saved_messages → labor_reports → subscriptions → sessions → users；**usage_events 保留**（匿名化聚合输入，漏斗统计需要历史连续性）；事务失败 throw→500，无半删状态、可安全重试
+- admin 角色账号不可禁用/不可删除（API 校验目标 role → 403 `admin_protected`；UI 对 admin 行不渲染按钮）
 
 **会话（sessions 表 + Cookie）：**
 - token = `randomBytes(32)`，库中只存 SHA-256（`token_hash CHAR(64)` 主键），明文仅存在于 Cookie；有效期 7 天
@@ -155,7 +163,7 @@
 │   ├── api/
 │   │   ├── admin/
 │   │   │   ├── funnel/route.ts       # 报告付费漏斗统计（管理员）
-│   │   │   └── users/route.ts        # 账号管理：建号/发放次数/重置密码/列表（管理员）
+│   │   │   └── users/route.ts        # 账号管理：建号/发放次数/重置密码/禁用启用/硬删除/列表（管理员）
 │   │   ├── auth/
 │   │   │   ├── login/route.ts        # 统一登录（防爆破/防枚举 + 会话 cookie）
 │   │   │   ├── logout/route.ts       # 登出
@@ -194,7 +202,7 @@
 │   ├── kv.ts                        # MySQL kv_store（无 MySQL 时自动降级内存）
 │   ├── chat-quota.ts               # 对话额度决策纯函数（CHAT_FREE_PER_DAY）
 │   ├── free-count.ts                # 每日免费对话次数（kv_store 持久化，按 uid）
-│   ├── user-auth.ts                 # 自建账号：scrypt 哈希/会话/建号/管理员引导
+│   ├── user-auth.ts                 # 自建账号：scrypt 哈希/会话/建号/管理员引导/禁用启用/硬删级联
 │   ├── api-auth.ts                  # API 身份 chokepoint（uid/role 仅来自验签会话）
 │   ├── login-rate-limit.ts          # 登录失败限流（按用户名 5 次/15 分钟）
 │   ├── report-docx.ts               # 报告 markdown → .docx（Mac Word 兼容子集）
@@ -204,7 +212,8 @@
 │   └── subscription.ts             # 订阅逻辑（入口）
 ├── sql/
 │   └── migrations/
-│       └── 001_initial.sql         # MySQL 全量最终态建表语句
+│       ├── 001_initial.sql         # MySQL 全量最终态建表语句（合并基线，仅全新安装）
+│       └── 002_add_users_status.sql # 增量：users.status 账号生命周期列 + event_type 漂移补丁（存量库执行）
 ├── test/
 │   ├── chat-quota.test.ts           # 对话额度决策表格驱动测试
 │   ├── compensation.test.ts         # 赔偿金计算表格驱动测试
@@ -212,7 +221,7 @@
 │   ├── user-auth.test.ts            # scrypt/会话/登录限流表格驱动测试
 │   ├── auth-routes.test.ts          # login/logout/me 端点测试
 │   ├── api-auth.test.ts             # 会话验签身份上下文测试
-│   ├── admin-users-route.test.ts    # 账号管理端点测试（建号带 times/追加 addTimes/usage 列表）
+│   ├── admin-users-route.test.ts    # 账号管理端点测试（建号带 times/追加 addTimes/禁用启用/硬删除/usage 列表）
 │   ├── subscriptions.test.ts        # 发放/消耗额度 MySQL 层表格驱动测试（mock db）
 │   ├── report-docx.test.ts          # docx 转换/语法子集/Mac 坑回归测试
 │   ├── labor-reports.test.ts        # 报告持久化降级（skipped）测试
@@ -417,7 +426,7 @@ Mac Word 对 docx 库输出比 Pages/WPS 严格得多，会因各种 OOXML schem
 
 响应：成功 Set-Cookie `session`（httpOnly/lax/secure-prod/7d）+ `{ "ok": true, "username", "role" }`，前端按 `role` 决定跳转（admin→`/admin`）。
 
-错误：400 `missing_credentials`、401 `invalid_credentials`（用户不存在与密码错同形，防枚举）、429 `too_many_attempts`（按用户名 5 次/15 分钟）、500 `server_error`。登录成功路径顺带执行 `ensureAdminUser()` 幂等引导管理员。
+错误：400 `missing_credentials`、401 `invalid_credentials`（用户不存在与密码错同形，防枚举）、403 `account_disabled`（**仅在密码验证通过后**返回——提前检查会让禁用号成为枚举 oracle）、429 `too_many_attempts`（按用户名 5 次/15 分钟）、500 `server_error`。登录成功路径顺带执行 `ensureAdminUser()` 幂等引导管理员。
 
 ### POST /api/auth/logout
 
@@ -429,14 +438,16 @@ Mac Word 对 docx 库输出比 Pages/WPS 严格得多，会因各种 OOXML schem
 
 响应：200 `{ "uid", "username", "role" }`；无有效会话 401 `unauthorized`。
 
-### /api/admin/users（GET/POST/PATCH，需 admin 会话）
+### /api/admin/users（GET/POST/PATCH/DELETE，需 admin 会话）
 
 账号管理（`requireAdmin()` 守卫；非登录 401，登录但非 admin 403 `not_admin`）。
 
-- `GET`：`{ "users": [{ id, username, role, remainingUsage, totalUsage }] }`（最多 200 条；LEFT JOIN subscriptions，无发放记录 COALESCE 为 0）
+- `GET`：`{ "users": [{ id, username, role, status, remainingUsage, totalUsage }] }`（最多 200 条，**含已禁用账号**——管理端需要看到它们才能启用/删除；LEFT JOIN subscriptions，无发放记录 COALESCE 为 0）
 - `POST { username, times? }`：建普通用户号，`createUser` 生成随机初始密码（`xxxx-xxxx-xxxx`），**明文仅在响应中出现一次** `{ id, username, password, remaining }`；可选 `times`（1–999 整数）建号后 `grantUsageByUid` 发放初始次数；用户名重复 409 `username_taken`、username/times 非法 400（`invalid_username`/`invalid_times`）；建号成功但发放失败 → 500 `grant_failed`（账号已存在，管理员可对同账号重试 +N 追加）
+- `PATCH { userId, status }`：禁用（软删除）/启用 → status 仅 `active|disabled`（非法 400 `invalid_status`）；先 `getUserById` 校验：不存在 404、目标 `role==='admin'` 403 `admin_protected`；禁用走 `setUserStatus`（改 status + 即时清该用户全部会话），返回 `{ userId, status }`。与 addTimes/重置密码分支互斥，status 优先级最高
 - `PATCH { userId, addTimes }`：追加次数 → 先 `userExists` 校验（防孤儿订阅行）再 `grantUsageByUid`，返回 `{ userId, remaining }`；addTimes 非法 400 `invalid_times`、用户不存在 404 `user_not_found`
 - `PATCH { userId }`：重置密码 → 返回新一次性明文 `{ userId, password }`，并清空该用户全部 sessions（强制重登）；用户不存在 404 `user_not_found`
+- `DELETE { userId }`：硬删除 → 同 404/403 `admin_protected` 前置校验后 `deleteUserCascade` 事务连带清除内容数据（messages/conversations/message_reactions/saved_messages/labor_reports/subscriptions/sessions），**usage_events 保留**；成功返 `{ deleted: userId }`；事务失败 500（无半删状态，可重试）
 
 ### GET /api/admin/funnel
 

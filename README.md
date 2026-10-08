@@ -28,7 +28,8 @@
 - **次数永久有效**：无有效期、无过期概念，付费判定即 `remaining_usage > 0`；`total_usage` 记录累计发放
 - **免费对话**：登录用户每天 10 次免费对话，不消耗购买次数；超出后付费用户确认消耗 1 次购买额度可继续对话（未付费引导"如何购买"）
 - **购买指引**：用户命中未付费/无额度时弹出「如何购买」指引卡（添加管理员微信购买，无自助输入框）
-- **管理后台**：管理员使用 `ADMIN_USERNAME/ADMIN_PASSWORD` 引导出的账号登录（与用户同一套 `/api/auth/login`，按 role 区分），可创建/重置用户账号、发放/追加报告次数、查看账号剩余额度、查看报告付费漏斗（`/admin`）
+- **账号生命周期**：非管理员账号可在 `/admin`「账号管理」中**禁用（软删除）**——禁用后登录返回 403「账号已被禁用」且现有会话即刻全部失效，可随时启用恢复（额度与内容数据原样保留）；或**硬删除**（站内二次确认弹窗）——事务内连带清除该账号的对话/报告/收藏/点赞/额度/会话，埋点事件保留以维持漏斗统计连续性；管理员账号本身不可禁用/不可删除
+- **管理后台**：管理员使用 `ADMIN_USERNAME/ADMIN_PASSWORD` 引导出的账号登录（与用户同一套 `/api/auth/login`，按 role 区分），可创建/重置用户账号、发放/追加报告次数、禁用/启用/硬删除账号、查看账号剩余额度、查看报告付费漏斗（`/admin`）
 
 ### 安全保护
 - **限流**：设备 ID + IP 双重限制，防止恶意攻击
@@ -95,10 +96,16 @@ CHAT_FREE_PER_DAY=10
 
 ### 4. 初始化数据库
 
-执行全量建表脚本（历史迁移已合并至单一文件，可重复执行）：
+全新安装执行全量建表脚本（历史迁移已合并至基线文件，可重复执行）：
 
 ```bash
 mysql -u root -p < sql/migrations/001_initial.sql
+```
+
+已部署的存量库**不要**重跑 001（`CREATE TABLE IF NOT EXISTS` 不会改动已建好的表），按编号顺序执行基线之后的增量文件：
+
+```bash
+mysql -u root -p stress_away < sql/migrations/002_add_users_status.sql
 ```
 
 ### 5. 启动
@@ -155,7 +162,9 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 
 访问 `/admin`，用 `ADMIN_USERNAME/ADMIN_PASSWORD` 引导的管理员账号登录后（非管理员账号会被拒"当前账号无管理权限"）可：
 - 账号管理：创建用户账号（可选写入初始报告次数，展示一次性初始密码、明文仅此一次）、重置用户密码（即时清空其全部会话强制重新登录）
-- 发放次数：每个账号行「+N」内联追加报告次数（累加、永久有效），列表显示「剩余 X 次 / 累计发放 Y」
+- 发放次数：每个账号行「+N」内联追加报告次数（累加、永久有效），列表显示「剩余 X 次 / 累计发放 Y」（含已禁用账号，显示「已禁用」徽标）
+- 禁用/启用：非管理员账号行内「禁用」即软删除（登录 403、会话即刻清空），可随时「启用」恢复；管理员行不显示该按钮
+- 硬删除：非管理员账号行内「删除」弹二次确认窗，确认后事务连带清除其对话/报告/收藏/额度/会话（埋点保留），不可恢复
 - 查看报告付费漏斗（计算器→登录墙→曝光/拦截→确认→生成→下载 各步次数/人数与转化率，数据来自 `usage_events`）
 
 ## 文件结构
@@ -166,7 +175,7 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 │   ├── api/
 │   │   ├── admin/
 │   │   │   ├── funnel/route.ts       # 报告付费漏斗统计（管理员）
-│   │   │   └── users/route.ts        # 账号管理：建号/发放次数/重置密码/列表（管理员）
+│   │   │   └── users/route.ts        # 账号管理：建号/发放次数/重置密码/禁用启用/硬删除/列表（管理员）
 │   │   ├── auth/
 │   │   │   ├── login/route.ts        # 用户名+密码登录（防爆破 + 会话 cookie）
 │   │   │   ├── logout/route.ts       # 登出（清 cookie + 删会话行）
@@ -205,7 +214,7 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 │   ├── kv.ts                        # MySQL kv_store（无 MySQL 时自动降级内存）
 │   ├── chat-quota.ts                # 对话额度决策纯函数（表格驱动测试）
 │   ├── free-count.ts                # 每日免费对话计数（kv_store 持久化，按 uid）
-│   ├── user-auth.ts                 # 自建账号：scrypt 哈希/会话 Cookie/建号/管理员引导
+│   ├── user-auth.ts                 # 自建账号：scrypt 哈希/会话 Cookie/建号/管理员引导/禁用启用/硬删级联
 │   ├── api-auth.ts                  # API 身份 chokepoint（uid/role 仅来自验签会话）
 │   ├── login-rate-limit.ts          # 登录失败限流（按用户名 5 次/15 分钟锁定）
 │   ├── scenarios.ts                 # 场景数据
@@ -217,17 +226,18 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 │   ├── report-prompt.test.ts          # 报告 prompt 断言测试
 │   ├── report-docx.test.ts            # 报告 markdown→.docx 转换测试
 │   ├── markdown-render.test.ts        # 网页端 markdown/GFM 表格渲染 + 目录锚点测试
-│   ├── user-auth.test.ts              # scrypt 哈希往返/会话/登录限流表格驱动测试
+│   ├── user-auth.test.ts              # scrypt 哈希往返/会话/登录限流/账号生命周期表格驱动测试
 │   ├── api-auth.test.ts               # 会话验签身份上下文测试（伪造头无效）
 │   ├── auth-routes.test.ts            # login/logout/me 端点行为测试
-│   ├── admin-users-route.test.ts      # 账号管理端点（建号/发放次数/重置/权限）测试
+│   ├── admin-users-route.test.ts      # 账号管理端点（建号/发放次数/重置/禁用启用/硬删除/权限）测试
 │   ├── subscriptions.test.ts          # 发放/消耗额度 MySQL 层表格驱动测试（mock db）
 │   ├── labor-reports.test.ts          # 报告持久化无 MySQL 降级测试
 │   ├── ttl-map.test.ts                # 进程内 TTL 存储表格驱动测试
 │   └── kv-fallback.test.ts            # kv 无 MySQL 降级测试
 ├── sql/
 │   └── migrations/
-│       └── 001_initial.sql         # MySQL 全量最终态建表语句
+│       ├── 001_initial.sql         # MySQL 全量最终态建表语句（合并基线，仅全新安装）
+│       └── 002_add_users_status.sql # 增量：users.status 账号生命周期列 + event_type 漂移补丁（存量库执行）
 └── spec.md                            # 详细规格文档
 ```
 

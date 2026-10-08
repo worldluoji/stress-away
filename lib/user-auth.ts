@@ -13,7 +13,7 @@ import {
 } from "node:crypto";
 import { promisify } from "node:util";
 import { cookies } from "next/headers";
-import { query, execute, queryWithLimit } from "./db";
+import { query, execute, queryWithLimit, withTransaction, txExecute } from "./db";
 
 const scrypt = promisify(scryptCallback) as (
   password: string,
@@ -71,11 +71,13 @@ export function generateInitialPassword(): string {
 }
 
 export type UserRole = "admin" | "user";
+export type UserStatus = "active" | "disabled";
 
 export type SessionUser = {
   id: string;
   username: string;
   role: UserRole;
+  status: UserStatus;
 };
 
 function hashToken(token: string): string {
@@ -105,6 +107,7 @@ interface UserRow {
   id: string;
   username: string;
   role: string;
+  status?: string;
   password_hash?: string;
   remaining_usage?: number | null;
   total_usage?: number | null;
@@ -115,6 +118,7 @@ function rowToSessionUser(row: UserRow): SessionUser {
     id: String(row.id),
     username: String(row.username),
     role: row.role === "admin" ? "admin" : "user",
+    status: row.status === "disabled" ? "disabled" : "active",
   };
 }
 
@@ -123,10 +127,11 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   const token = store.get(SESSION_COOKIE)?.value;
   if (!token) return null;
   const rows = await query<UserRow>(
-    `SELECT u.id, u.username, u.role
+    `SELECT u.id, u.username, u.role, u.status
        FROM sessions s
        JOIN users u ON u.id = s.user_id
       WHERE s.token_hash = ? AND s.expires_at > NOW()
+        AND u.status = 'active'
       LIMIT 1`,
     [hashToken(token)]
   );
@@ -147,7 +152,7 @@ export async function findUserByUsername(
   username: string
 ): Promise<(SessionUser & { passwordHash: string }) | null> {
   const rows = await query<UserRow>(
-    "SELECT id, username, role, password_hash FROM users WHERE username = ? LIMIT 1",
+    "SELECT id, username, role, status, password_hash FROM users WHERE username = ? LIMIT 1",
     [username]
   );
   if (rows.length === 0) return null;
@@ -240,6 +245,7 @@ export type UserSummary = {
   id: string;
   username: string;
   role: UserRole;
+  status: UserStatus;
   /** 剩余报告次数（subscriptions，无记录为 0） */
   remainingUsage: number;
   /** 累计发放次数 */
@@ -254,10 +260,79 @@ export async function userExists(userId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+export type UserDetail = {
+  id: string;
+  username: string;
+  role: UserRole;
+  status: UserStatus;
+};
+
+export async function getUserById(userId: string): Promise<UserDetail | null> {
+  const rows = await query<UserRow>(
+    "SELECT id, username, role, status FROM users WHERE id = ? LIMIT 1",
+    [userId]
+  );
+  if (rows.length === 0) return null;
+  const row = rows[0];
+  return {
+    id: String(row.id),
+    username: String(row.username),
+    role: row.role === "admin" ? "admin" : "user",
+    status: row.status === "disabled" ? "disabled" : "active",
+  };
+}
+
+export type SetUserStatusResult =
+  | { ok: true; status: UserStatus }
+  | { ok: false; reason: "user_not_found" };
+
+/**
+ * 禁用（软删除）/启用账号。禁用即刻清光该用户全部会话——强制下线；
+ * getCurrentUser 的 status 过滤是会话行残留时的第二道防线。
+ */
+export async function setUserStatus(
+  userId: string,
+  status: UserStatus
+): Promise<SetUserStatusResult> {
+  const upd = await execute("UPDATE users SET status = ? WHERE id = ?", [
+    status,
+    userId,
+  ]);
+  if (!upd || upd.affectedRows === 0) return { ok: false, reason: "user_not_found" };
+  if (status === "disabled") {
+    await execute("DELETE FROM sessions WHERE user_id = ?", [userId]);
+  }
+  return { ok: true, status };
+}
+
+/**
+ * 硬删除账号：事务内连带清理内容数据（对话/消息/收藏/点赞/报告/额度/会话），
+ * usage_events 保留（匿名化聚合输入，漏斗统计需要历史连续性）。
+ * DB 错误直接 throw，由调用方转 500——删一半绝不可接受。
+ */
+export async function deleteUserCascade(userId: string): Promise<void> {
+  await withTransaction(async (conn) => {
+    await txExecute(
+      conn,
+      `DELETE m FROM messages m
+         JOIN conversations c ON c.id = m.conversation_id
+        WHERE c.uid = ?`,
+      [userId]
+    );
+    await txExecute(conn, "DELETE FROM conversations WHERE uid = ?", [userId]);
+    await txExecute(conn, "DELETE FROM message_reactions WHERE uid = ?", [userId]);
+    await txExecute(conn, "DELETE FROM saved_messages WHERE uid = ?", [userId]);
+    await txExecute(conn, "DELETE FROM labor_reports WHERE uid = ?", [userId]);
+    await txExecute(conn, "DELETE FROM subscriptions WHERE uid = ?", [userId]);
+    await txExecute(conn, "DELETE FROM sessions WHERE user_id = ?", [userId]);
+    await txExecute(conn, "DELETE FROM users WHERE id = ?", [userId]);
+  });
+}
+
 export async function listUsers(): Promise<UserSummary[]> {
   // mysql2 prepare 协议不支持 LIMIT ?（ER_WRONG_ARGUMENTS），须走 queryWithLimit 数值内联
   const rows = await queryWithLimit<UserRow>(
-    `SELECT u.id, u.username, u.role,
+    `SELECT u.id, u.username, u.role, u.status,
             COALESCE(s.remaining_usage, 0) AS remaining_usage,
             COALESCE(s.total_usage, 0) AS total_usage
        FROM users u
@@ -270,6 +345,7 @@ export async function listUsers(): Promise<UserSummary[]> {
     id: String(r.id),
     username: String(r.username),
     role: r.role === "admin" ? "admin" : "user",
+    status: r.status === "disabled" ? "disabled" : "active",
     remainingUsage: Number(r.remaining_usage ?? 0),
     totalUsage: Number(r.total_usage ?? 0),
   }));

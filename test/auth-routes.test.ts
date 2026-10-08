@@ -69,13 +69,18 @@ describe("POST /api/auth/login", () => {
       status: 401, error: "invalid_credentials" },
     { desc: "密码错误 → 401", body: { username: "alice", password: "bad" },
       setup: () => {
-        vi.mocked(findUserByUsername).mockResolvedValue({ id: "u1", username: "alice", role: "user", passwordHash: "v1:s:h" });
+        vi.mocked(findUserByUsername).mockResolvedValue({ id: "u1", username: "alice", role: "user", status: "active", passwordHash: "v1:s:h" });
         vi.mocked(verifyPassword).mockResolvedValue(false);
       },
       status: 401, error: "invalid_credentials" },
     { desc: "锁定中 → 429", body: { username: "alice", password: "p" },
       setup: () => vi.mocked(isLoginLocked).mockReturnValue(true),
       status: 429, error: "too_many_attempts" },
+    { desc: "禁用号 + 密码正确 → 403 account_disabled", body: { username: "alice", password: "p" },
+      setup: () => vi.mocked(findUserByUsername).mockResolvedValue(
+        { id: "u1", username: "alice", role: "user", status: "disabled", passwordHash: "v1:s:h" }
+      ),
+      status: 403, error: "account_disabled" },
   ];
 
   it.each(table)("$desc", async ({ body, setup, status, error }) => {
@@ -104,15 +109,30 @@ describe("POST /api/auth/login", () => {
     await login(jsonReq({ username: "ghost", password: "p" }) as never);
     expect(recordLoginFailure).toHaveBeenCalledWith("ghost");
 
-    vi.mocked(findUserByUsername).mockResolvedValue({ id: "u1", username: "alice", role: "user", passwordHash: "v1:s:h" });
+    vi.mocked(findUserByUsername).mockResolvedValue({ id: "u1", username: "alice", role: "user", status: "active", passwordHash: "v1:s:h" });
     const res = await login(jsonReq({ username: " alice ", password: "p" }) as never);
     expect(res.status).toBe(200);
     expect(clearLoginFailures).toHaveBeenCalledWith("alice");
     expect(createSession).toHaveBeenCalledWith("u1");
   });
 
+  it("禁用检查置于验密之后：密码错仍 401 invalid_credentials；密码对才 403 且不建会话", async () => {
+    vi.mocked(findUserByUsername).mockResolvedValue(
+      { id: "u1", username: "alice", role: "user", status: "disabled", passwordHash: "v1:s:h" }
+    );
+    vi.mocked(verifyPassword).mockResolvedValueOnce(false);
+    const wrong = await login(jsonReq({ username: "alice", password: "bad" }) as never);
+    expect(wrong.status).toBe(401);
+    expect((await wrong.json()).error).toBe("invalid_credentials");
+
+    const res = await login(jsonReq({ username: "alice", password: "p" }) as never);
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe("account_disabled");
+    expect(createSession).not.toHaveBeenCalled();
+  });
+
   it("成功 → Set-Cookie + {ok,username,role}", async () => {
-    vi.mocked(findUserByUsername).mockResolvedValue({ id: "u1", username: "alice", role: "admin", passwordHash: "v1:s:h" });
+    vi.mocked(findUserByUsername).mockResolvedValue({ id: "u1", username: "alice", role: "admin", status: "active", passwordHash: "v1:s:h" });
     const res = await login(jsonReq({ username: "alice", password: "p" }) as never);
     expect(res.status).toBe(200);
     const data = await res.json();
@@ -140,7 +160,7 @@ describe("GET /api/auth/me", () => {
   });
 
   it("已登录 → {uid, username, role}", async () => {
-    vi.mocked(getCurrentUser).mockResolvedValue({ id: "u1", username: "alice", role: "user" });
+    vi.mocked(getCurrentUser).mockResolvedValue({ id: "u1", username: "alice", role: "user", status: "active" });
     const res = await me();
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ uid: "u1", username: "alice", role: "user" });

@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { LOGIN_ERROR_MESSAGES } from '@/app/components/LoginModal';
+import { Modal } from '@/app/components/ui/Modal';
 import { apiFetch } from '@/lib/request-api';
 
 interface UserSummary {
   id: string;
   username: string;
   role: 'admin' | 'user';
+  status: 'active' | 'disabled';
   remainingUsage: number;
   totalUsage: number;
 }
@@ -17,6 +19,7 @@ const CREATE_ERRORS: Record<string, string> = {
   username_taken: '该用户名已存在',
   invalid_times: '次数须为 1-999 的整数',
   grant_failed: '账号已创建成功，但次数发放失败，请在列表中对该账号追加次数',
+  admin_protected: '管理员账号不可禁用或删除',
   unauthorized: '登录已过期，请重新登录',
 };
 
@@ -59,6 +62,7 @@ export default function AdminPage() {
   const [createdAccount, setCreatedAccount] = useState<{ username: string; password: string } | null>(null);
   const [resetPasswords, setResetPasswords] = useState<Record<string, string>>({});
   const [addTimesInput, setAddTimesInput] = useState<Record<string, string>>({});
+  const [pendingDeleteUser, setPendingDeleteUser] = useState<UserSummary | null>(null);
 
   const handleLogin = async () => {
     setError('');
@@ -175,6 +179,53 @@ export default function AdminPage() {
         return;
       }
       setResetPasswords((prev) => ({ ...prev, [userId]: data.password }));
+    } catch {
+      setError('网络错误');
+    }
+  };
+
+  const handleToggleStatus = async (u: UserSummary) => {
+    setError('');
+    const status = u.status === 'disabled' ? 'active' : 'disabled';
+    try {
+      const res = await apiFetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: u.id, status }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(
+          data.error === 'user_not_found'
+            ? '该账号不存在，请刷新列表'
+            : CREATE_ERRORS[data.error] || '操作失败'
+        );
+        return;
+      }
+      fetchUsers();
+    } catch {
+      setError('网络错误');
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    setError('');
+    try {
+      const res = await apiFetch('/api/admin/users', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(
+          data.error === 'user_not_found'
+            ? '该账号不存在，请刷新列表'
+            : CREATE_ERRORS[data.error] || '删除失败'
+        );
+        return;
+      }
+      fetchUsers();
     } catch {
       setError('网络错误');
     }
@@ -368,6 +419,9 @@ export default function AdminPage() {
                       {u.role === 'admin' && (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-[#007AFF]/10 text-[#007AFF] shrink-0">管理员</span>
                       )}
+                      {u.role !== 'admin' && u.status === 'disabled' && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-[#FF3B30]/10 text-[#FF3B30] shrink-0">已禁用</span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {resetPasswords[u.id] && (
@@ -379,6 +433,22 @@ export default function AdminPage() {
                       >
                         重置密码
                       </button>
+                      {u.role !== 'admin' && (
+                        <>
+                          <button
+                            onClick={() => handleToggleStatus(u)}
+                            className="px-2.5 py-1 text-xs bg-[--card-bg] rounded-lg text-[--foreground-secondary] border border-[var(--card-border)]"
+                          >
+                            {u.status === 'disabled' ? '启用' : '禁用'}
+                          </button>
+                          <button
+                            onClick={() => setPendingDeleteUser(u)}
+                            className="px-2.5 py-1 text-xs bg-[--card-bg] rounded-lg text-[#FF3B30] border border-[#FF3B30]/30"
+                          >
+                            删除
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center justify-between gap-2">
@@ -461,6 +531,35 @@ export default function AdminPage() {
           )}
         </div>
 
+        <Modal
+          open={pendingDeleteUser !== null}
+          onClose={() => setPendingDeleteUser(null)}
+          title="删除账号"
+          size="sm"
+        >
+          <div className="px-5 pb-5">
+            <p className="text-sm text-[--foreground-secondary] mb-4">
+              确定要删除账号「{pendingDeleteUser?.username}」吗？其对话历史、报告与剩余额度将一并清除，此操作不可恢复。
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPendingDeleteUser(null)}
+                className="flex-1 py-3 bg-[--background-secondary] rounded-xl text-sm font-medium text-[--foreground]"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => {
+                  if (pendingDeleteUser) handleDeleteUser(pendingDeleteUser.id);
+                  setPendingDeleteUser(null);
+                }}
+                className="flex-1 py-3 bg-[#FF3B30] text-white rounded-xl text-sm font-medium"
+              >
+                删除
+              </button>
+            </div>
+          </div>
+        </Modal>
       </div>
     </div>
   );

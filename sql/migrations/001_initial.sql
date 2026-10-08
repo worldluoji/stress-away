@@ -3,6 +3,9 @@
 -- 本文件由历史迁移 001~005 合并而来（uid 化改造、reactions 表、
 -- mbaodu 清理、多码叠加、激活码退役改管理端发放制），
 -- 旧增量迁移文件已删除，演进过程见 git 历史。
+-- 约定：本文件为合并基线（最终态，仅全新安装执行）；
+-- 基线之后的表结构变更一律以 002_*.sql 起编号新增增量文件，
+-- 已部署环境按编号顺序执行增量，不回头改 001。
 
 CREATE DATABASE IF NOT EXISTS stress_away;
 USE stress_away;
@@ -14,6 +17,8 @@ CREATE TABLE IF NOT EXISTS users (
   -- 格式 v1:<salt-hex>:<hash-hex>，Node crypto.scrypt 派生
   password_hash VARCHAR(255) NOT NULL,
   role ENUM('admin', 'user') NOT NULL DEFAULT 'user',
+  -- 账号生命周期：active | disabled（管理端软删除）；不用 ENUM，取值由代码常量约束
+  status VARCHAR(16) NOT NULL DEFAULT 'active',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uk_username (username)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

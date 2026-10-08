@@ -7,13 +7,16 @@ vi.mock("@/lib/user-auth", () => ({
   generateInitialPassword: vi.fn(() => "jk mn qw ef".replace(/ /g, "") + "-2345-6789-abcd"),
   adminResetPassword: vi.fn(),
   userExists: vi.fn(),
+  getUserById: vi.fn(),
+  setUserStatus: vi.fn(),
+  deleteUserCascade: vi.fn(),
 }));
 
 vi.mock("@/lib/subscriptions", () => ({
   grantUsageByUid: vi.fn(),
 }));
 
-import { GET, POST, PATCH } from "@/app/api/admin/users/route";
+import { GET, POST, PATCH, DELETE } from "@/app/api/admin/users/route";
 import {
   getCurrentUser,
   listUsers,
@@ -21,12 +24,17 @@ import {
   generateInitialPassword,
   adminResetPassword,
   userExists,
+  getUserById,
+  setUserStatus,
+  deleteUserCascade,
 } from "@/lib/user-auth";
 import { grantUsageByUid } from "@/lib/subscriptions";
 
-const ADMIN = { id: "a1", username: "root", role: "admin" as const };
-const NORMAL_USER = { id: "u2", username: "bob", role: "user" as const };
+const ADMIN = { id: "a1", username: "root", role: "admin" as const, status: "active" as const };
+const NORMAL_USER = { id: "u2", username: "bob", role: "user" as const, status: "active" as const };
 const GENERATED = "abcd-efgh-jkmn-pqrs";
+const TARGET_USER = { id: "u9", username: "bob", role: "user" as const, status: "active" as const };
+const TARGET_ADMIN = { id: "a1", username: "root", role: "admin" as const, status: "active" as const };
 
 function jsonReq(body: unknown, method = "POST") {
   return new Request("http://localhost/api/admin/users", {
@@ -44,12 +52,15 @@ beforeEach(() => {
   vi.mocked(listUsers).mockResolvedValue([]);
   vi.mocked(userExists).mockResolvedValue(true);
   vi.mocked(grantUsageByUid).mockResolvedValue(8);
+  vi.mocked(getUserById).mockResolvedValue(TARGET_USER);
+  vi.mocked(setUserStatus).mockResolvedValue({ ok: true, status: "disabled" });
+  vi.mocked(deleteUserCascade).mockResolvedValue(undefined);
 });
 
 describe("POST /api/admin/users — 建号", () => {
   const table: {
     desc: string;
-    login?: { id: string; username: string; role: "admin" | "user" } | null;
+    login?: { id: string; username: string; role: "admin" | "user"; status: "active" | "disabled" } | null;
     body: unknown;
     setup?: () => void;
     status: number;
@@ -167,7 +178,7 @@ describe("PATCH /api/admin/users — 追加次数", () => {
 describe("PATCH /api/admin/users — 重置密码", () => {
   const table: {
     desc: string;
-    login?: { id: string; username: string; role: "admin" | "user" } | null;
+    login?: { id: string; username: string; role: "admin" | "user"; status: "active" | "disabled" } | null;
     body: unknown;
     setup?: () => void;
     status: number;
@@ -209,6 +220,115 @@ describe("PATCH /api/admin/users — 重置密码", () => {
   });
 });
 
+describe("PATCH /api/admin/users — 禁用/启用（软删除）", () => {
+  const badStatus: unknown[] = ["banned", "", 123, true];
+  for (const s of badStatus) {
+    it(`status=${JSON.stringify(s)} → 400 invalid_status，不落库`, async () => {
+      const res = await PATCH(jsonReq({ userId: "u9", status: s }, "PATCH"));
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toBe("invalid_status");
+      expect(setUserStatus).not.toHaveBeenCalled();
+    });
+  }
+
+  it("目标为 admin 账号 → 403 admin_protected，绝不改状态", async () => {
+    vi.mocked(getUserById).mockResolvedValueOnce(TARGET_ADMIN);
+    const res = await PATCH(jsonReq({ userId: "a1", status: "disabled" }, "PATCH"));
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe("admin_protected");
+    expect(setUserStatus).not.toHaveBeenCalled();
+  });
+
+  it("目标不存在 → 404", async () => {
+    vi.mocked(getUserById).mockResolvedValueOnce(null);
+    const res = await PATCH(jsonReq({ userId: "u404", status: "disabled" }, "PATCH"));
+    expect(res.status).toBe(404);
+    expect((await res.json()).error).toBe("user_not_found");
+    expect(setUserStatus).not.toHaveBeenCalled();
+  });
+
+  it("禁用成功 → {userId,status}，委托 setUserStatus（其内部清会话）", async () => {
+    const res = await PATCH(jsonReq({ userId: "u9", status: "disabled" }, "PATCH"));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ userId: "u9", status: "disabled" });
+    expect(setUserStatus).toHaveBeenCalledWith("u9", "disabled");
+    expect(grantUsageByUid).not.toHaveBeenCalled();
+    expect(adminResetPassword).not.toHaveBeenCalled();
+  });
+
+  it("启用成功 → 委托 setUserStatus active", async () => {
+    vi.mocked(setUserStatus).mockResolvedValueOnce({ ok: true, status: "active" });
+    const res = await PATCH(jsonReq({ userId: "u9", status: "active" }, "PATCH"));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ userId: "u9", status: "active" });
+    expect(setUserStatus).toHaveBeenCalledWith("u9", "active");
+  });
+
+  it("setUserStatus 竞态返 user_not_found → 404", async () => {
+    vi.mocked(setUserStatus).mockResolvedValueOnce({ ok: false, reason: "user_not_found" });
+    const res = await PATCH(jsonReq({ userId: "u9", status: "disabled" }, "PATCH"));
+    expect(res.status).toBe(404);
+    expect((await res.json()).error).toBe("user_not_found");
+  });
+
+  it("DB 异常 → 500", async () => {
+    vi.mocked(setUserStatus).mockRejectedValueOnce(new Error("db down"));
+    const res = await PATCH(jsonReq({ userId: "u9", status: "disabled" }, "PATCH"));
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toBe("server_error");
+  });
+});
+
+describe("DELETE /api/admin/users — 硬删除", () => {
+  it("未登录 → 401", async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(null);
+    const res = await DELETE(jsonReq({ userId: "u9" }, "DELETE"));
+    expect(res.status).toBe(401);
+  });
+
+  it("非 admin → 403", async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(NORMAL_USER);
+    const res = await DELETE(jsonReq({ userId: "u9" }, "DELETE"));
+    expect(res.status).toBe(403);
+  });
+
+  it("缺 userId → 400", async () => {
+    const res = await DELETE(jsonReq({}, "DELETE"));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("missing_user_id");
+  });
+
+  it("目标为 admin 账号 → 403 admin_protected，绝不删除", async () => {
+    vi.mocked(getUserById).mockResolvedValueOnce(TARGET_ADMIN);
+    const res = await DELETE(jsonReq({ userId: "a1" }, "DELETE"));
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe("admin_protected");
+    expect(deleteUserCascade).not.toHaveBeenCalled();
+  });
+
+  it("目标不存在 → 404", async () => {
+    vi.mocked(getUserById).mockResolvedValueOnce(null);
+    const res = await DELETE(jsonReq({ userId: "u404" }, "DELETE"));
+    expect(res.status).toBe(404);
+    expect((await res.json()).error).toBe("user_not_found");
+    expect(deleteUserCascade).not.toHaveBeenCalled();
+  });
+
+  it("成功 → 委托 deleteUserCascade，返回 {deleted}", async () => {
+    const res = await DELETE(jsonReq({ userId: "u9" }, "DELETE"));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ deleted: "u9" });
+    expect(deleteUserCascade).toHaveBeenCalledWith("u9");
+  });
+
+  it("事务失败 throw → 500 server_error（无半删状态，可重试）", async () => {
+    vi.mocked(deleteUserCascade).mockRejectedValueOnce(new Error("db down"));
+    const res = await DELETE(jsonReq({ userId: "u9" }, "DELETE"));
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toBe("server_error");
+  });
+});
+
 describe("GET /api/admin/users — 账号列表", () => {
   it("未登录 → 401", async () => {
     vi.mocked(getCurrentUser).mockResolvedValue(null);
@@ -217,7 +337,7 @@ describe("GET /api/admin/users — 账号列表", () => {
   });
 
   it("成功 → users 数组透传（含 usage 字段）", async () => {
-    const rows = [{ id: "u9", username: "alice", role: "user" as const, remainingUsage: 3, totalUsage: 8 }];
+    const rows = [{ id: "u9", username: "alice", role: "user" as const, status: "active" as const, remainingUsage: 3, totalUsage: 8 }];
     vi.mocked(listUsers).mockResolvedValue(rows);
     const res = await GET();
     expect(res.status).toBe(200);

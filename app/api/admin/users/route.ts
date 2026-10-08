@@ -6,12 +6,19 @@ import {
   adminResetPassword,
   listUsers,
   userExists,
+  getUserById,
+  setUserStatus,
+  deleteUserCascade,
+  type UserStatus,
 } from "@/lib/user-auth";
 import { grantUsageByUid } from "@/lib/subscriptions";
 
 // 与 users.username VARCHAR(32) 对齐
 const MAX_USERNAME_LENGTH = 32;
 const DUPLICATE_ENTRY = "ER_DUP_ENTRY";
+
+// 软删除可用状态（与 users.status 列取值一致）
+const VALID_STATUSES: UserStatus[] = ["active", "disabled"];
 
 // 单次发放/追加的报告次数边界
 const MIN_GRANT_TIMES = 1;
@@ -107,6 +114,37 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "missing_user_id" }, { status: 400 });
   }
 
+  // status 传入 = 禁用/启用（软删除）分支；与 addTimes/重置密码分支互斥，优先级最高
+  if (body.status !== undefined) {
+    const status = body.status as UserStatus;
+    if (!VALID_STATUSES.includes(status)) {
+      return NextResponse.json(
+        { error: "invalid_status", message: "status 仅支持 active/disabled" },
+        { status: 400 }
+      );
+    }
+    try {
+      const target = await getUserById(userId);
+      if (!target) {
+        return NextResponse.json({ error: "user_not_found" }, { status: 404 });
+      }
+      if (target.role === "admin") {
+        return NextResponse.json(
+          { error: "admin_protected", message: "管理员账号不可禁用或删除" },
+          { status: 403 }
+        );
+      }
+      const result = await setUserStatus(userId, status);
+      if (!result.ok) {
+        return NextResponse.json({ error: "user_not_found" }, { status: 404 });
+      }
+      return NextResponse.json({ userId, status });
+    } catch (error) {
+      console.error("[admin/users] setStatus failed:", error);
+      return NextResponse.json({ error: "server_error" }, { status: 500 });
+    }
+  }
+
   const parsed = parseGrantTimes(body.addTimes);
   if (!parsed.ok) {
     return NextResponse.json(
@@ -138,6 +176,39 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ userId, password: result.password });
   } catch (error) {
     console.error("[admin/users] reset failed:", error);
+    return NextResponse.json({ error: "server_error" }, { status: 500 });
+  }
+}
+
+/**
+ * 硬删除账号：连带清除内容数据（对话/报告/收藏/额度/会话），埋点保留。
+ * 事务失败返 500——绝不允许半删状态；管理员可安全重试。
+ */
+export async function DELETE(request: Request) {
+  const denied = await guardAdmin();
+  if (denied) return denied;
+
+  const body = await request.json().catch(() => ({}));
+  const userId = String(body.userId ?? "").trim();
+  if (userId.length === 0) {
+    return NextResponse.json({ error: "missing_user_id" }, { status: 400 });
+  }
+
+  try {
+    const target = await getUserById(userId);
+    if (!target) {
+      return NextResponse.json({ error: "user_not_found" }, { status: 404 });
+    }
+    if (target.role === "admin") {
+      return NextResponse.json(
+        { error: "admin_protected", message: "管理员账号不可禁用或删除" },
+        { status: 403 }
+      );
+    }
+    await deleteUserCascade(userId);
+    return NextResponse.json({ deleted: userId });
+  } catch (error) {
+    console.error("[admin/users] delete failed:", error);
     return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 }

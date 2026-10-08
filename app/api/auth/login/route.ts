@@ -57,6 +57,13 @@ export async function POST(request: Request) {
       );
     }
     clearLoginFailures(username);
+    // 禁用检查必须在密码验证之后：提前返回会让「禁用号」成为用户名枚举 oracle
+    if (user.status === "disabled") {
+      return NextResponse.json(
+        { error: "account_disabled", message: "账号已被禁用，请联系管理员" },
+        { status: 403 }
+      );
+    }
     await createSession(user.id);
     return NextResponse.json({ ok: true, username: user.username, role: user.role });
   } catch (error) {
