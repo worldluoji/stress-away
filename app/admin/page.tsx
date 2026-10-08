@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { LOGIN_ERROR_MESSAGES } from '@/app/components/LoginModal';
 import { Modal } from '@/app/components/ui/Modal';
+import { Button } from '@/app/components/ui/Button';
+import { Icon } from '@/app/components/ui/Icon';
 import { apiFetch } from '@/lib/request-api';
 
 interface UserSummary {
@@ -281,15 +283,15 @@ export default function AdminPage() {
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-[--background] flex items-center justify-center p-4">
-        <div className="w-full max-w-sm bg-[--card-bg] rounded-2xl p-6 border border-[var(--card-border)]">
-          <h1 className="text-xl font-semibold text-[--foreground] mb-6 text-center">
+      <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-4">
+        <div className="w-full max-w-sm bg-[var(--card-bg)] rounded-2xl p-6 border border-[var(--card-border)]">
+          <h1 className="text-xl font-semibold text-[var(--foreground)] mb-6 text-center">
             管理后台
           </h1>
 
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-[--foreground-secondary] block mb-1.5">
+              <label className="text-sm font-medium text-[var(--foreground-secondary)] block mb-1.5">
                 管理员账号
               </label>
               <input
@@ -299,12 +301,12 @@ export default function AdminPage() {
                 onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
                 placeholder="输入管理员账号"
                 autoComplete="username"
-                className="w-full px-4 py-3 bg-[--background-secondary] rounded-xl text-[--foreground] placeholder:text-[--foreground-tertiary] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
+                className="w-full px-4 py-3 bg-[var(--background-secondary)] rounded-xl text-[var(--foreground)] placeholder:text-[var(--foreground-tertiary)] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
               />
             </div>
 
             <div>
-              <label className="text-sm font-medium text-[--foreground-secondary] block mb-1.5">
+              <label className="text-sm font-medium text-[var(--foreground-secondary)] block mb-1.5">
                 密码
               </label>
               <input
@@ -314,7 +316,7 @@ export default function AdminPage() {
                 onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
                 placeholder="输入密码"
                 autoComplete="current-password"
-                className="w-full px-4 py-3 bg-[--background-secondary] rounded-xl text-[--foreground] placeholder:text-[--foreground-tertiary] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
+                className="w-full px-4 py-3 bg-[var(--background-secondary)] rounded-xl text-[var(--foreground)] placeholder:text-[var(--foreground-tertiary)] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
               />
             </div>
 
@@ -338,23 +340,23 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[--background] p-4">
+    <div className="min-h-screen bg-[var(--background)] p-4">
       <div className="max-w-md mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-xl font-semibold text-[--foreground]">
+          <h1 className="text-xl font-semibold text-[var(--foreground)]">
             管理后台
           </h1>
           <button
             onClick={handleLogout}
-            className="px-3 py-1.5 text-xs bg-[--background-secondary] rounded-lg text-[--foreground-secondary]"
+            className="px-3 py-1.5 text-xs bg-[var(--background-secondary)] rounded-lg text-[var(--foreground-secondary)]"
           >
             退出登录
           </button>
         </div>
 
         {/* Account Management */}
-        <div className="bg-[--card-bg] rounded-2xl p-5 border border-[var(--card-border)] space-y-4 mb-4">
-          <h3 className="text-sm font-medium text-[--foreground]">账号管理</h3>
+        <div className="bg-[var(--card-bg)] rounded-2xl p-5 border border-[var(--card-border)] space-y-4 mb-4">
+          <h3 className="text-sm font-medium text-[var(--foreground)]">账号管理</h3>
           {error && (
             <div className="bg-[#FF3B30]/10 text-[#FF3B30] px-4 py-3 rounded-xl text-sm">
               {error}
@@ -368,7 +370,7 @@ export default function AdminPage() {
               onKeyDown={(e) => e.key === 'Enter' && handleCreateAccount()}
               placeholder="新用户用户名"
               maxLength={32}
-              className="min-w-0 flex-1 px-3 py-2 bg-[--background-secondary] rounded-xl text-[--foreground] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
+              className="min-w-0 flex-1 px-3 py-2 bg-[var(--background-secondary)] rounded-xl text-[var(--foreground)] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
             />
             <input
               type="number"
@@ -378,7 +380,7 @@ export default function AdminPage() {
               placeholder="初始次数"
               min={1}
               max={999}
-              className="w-20 px-3 py-2 bg-[--background-secondary] rounded-xl text-[--foreground] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
+              className="w-20 px-3 py-2 bg-[var(--background-secondary)] rounded-xl text-[var(--foreground)] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
             />
             <button
               onClick={handleCreateAccount}
@@ -391,10 +393,10 @@ export default function AdminPage() {
           {createdAccount && (
             <div className="bg-[#34C759]/10 rounded-xl p-3 flex items-center justify-between gap-2">
               <div className="text-sm">
-                <span className="font-mono tracking-wider text-[--foreground]">
+                <span className="font-mono tracking-wider text-[var(--foreground)]">
                   {createdAccount.username} / {createdAccount.password}
                 </span>
-                <p className="text-xs text-[--foreground-tertiary] mt-1">密码仅此一次，请复制后发给用户</p>
+                <p className="text-xs text-[var(--foreground-tertiary)] mt-1">密码仅此一次，请复制后发给用户</p>
               </div>
               <button
                 onClick={() => navigator.clipboard.writeText(`${createdAccount.username} ${createdAccount.password}`)}
@@ -405,17 +407,17 @@ export default function AdminPage() {
             </div>
           )}
           {users.length === 0 ? (
-            <p className="text-sm text-[--foreground-tertiary] text-center py-2">暂无账号</p>
+            <p className="text-sm text-[var(--foreground-tertiary)] text-center py-2">暂无账号</p>
           ) : (
             <div className="space-y-2">
               {users.map((u) => (
                 <div
                   key={u.id}
-                  className="bg-[--background-secondary] rounded-xl p-3 space-y-2"
+                  className="bg-[var(--background-secondary)] rounded-xl p-3 space-y-2"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0 flex items-center gap-2">
-                      <span className="text-sm text-[--foreground] truncate">{u.username}</span>
+                      <span className="text-sm text-[var(--foreground)] truncate">{u.username}</span>
                       {u.role === 'admin' && (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-[#007AFF]/10 text-[#007AFF] shrink-0">管理员</span>
                       )}
@@ -429,7 +431,7 @@ export default function AdminPage() {
                       )}
                       <button
                         onClick={() => handleResetPassword(u.id)}
-                        className="px-2.5 py-1 text-xs bg-[--card-bg] rounded-lg text-[--foreground-secondary] border border-[var(--card-border)]"
+                        className="px-2.5 py-1 text-xs bg-[var(--card-bg)] rounded-lg text-[var(--foreground-secondary)] border border-[var(--card-border)]"
                       >
                         重置密码
                       </button>
@@ -437,13 +439,13 @@ export default function AdminPage() {
                         <>
                           <button
                             onClick={() => handleToggleStatus(u)}
-                            className="px-2.5 py-1 text-xs bg-[--card-bg] rounded-lg text-[--foreground-secondary] border border-[var(--card-border)]"
+                            className="px-2.5 py-1 text-xs bg-[var(--card-bg)] rounded-lg text-[var(--foreground-secondary)] border border-[var(--card-border)]"
                           >
                             {u.status === 'disabled' ? '启用' : '禁用'}
                           </button>
                           <button
                             onClick={() => setPendingDeleteUser(u)}
-                            className="px-2.5 py-1 text-xs bg-[--card-bg] rounded-lg text-[#FF3B30] border border-[#FF3B30]/30"
+                            className="px-2.5 py-1 text-xs bg-[var(--card-bg)] rounded-lg text-[#FF3B30] border border-[#FF3B30]/30"
                           >
                             删除
                           </button>
@@ -452,7 +454,7 @@ export default function AdminPage() {
                     </div>
                   </div>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-[--foreground-tertiary]">
+                    <span className="text-xs text-[var(--foreground-tertiary)]">
                       剩余 {u.remainingUsage} 次 · 累计发放 {u.totalUsage}
                     </span>
                     <div className="flex items-center gap-1.5 shrink-0">
@@ -466,7 +468,7 @@ export default function AdminPage() {
                         placeholder="+N"
                         min={1}
                         max={999}
-                        className="w-16 px-2 py-1 bg-[--card-bg] rounded-lg text-[--foreground] text-xs border border-[var(--card-border)] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
+                        className="w-16 px-2 py-1 bg-[var(--card-bg)] rounded-lg text-[var(--foreground)] text-xs border border-[var(--card-border)] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
                       />
                       <button
                         onClick={() => handleAddTimes(u.id)}
@@ -484,19 +486,19 @@ export default function AdminPage() {
         </div>
 
         {/* Report Funnel */}
-        <div className="bg-[--card-bg] rounded-2xl p-5 border border-[var(--card-border)] space-y-4">
+        <div className="bg-[var(--card-bg)] rounded-2xl p-5 border border-[var(--card-border)] space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-[--foreground]">报告付费漏斗</h3>
+            <h3 className="text-sm font-medium text-[var(--foreground)]">报告付费漏斗</h3>
             <button
               onClick={fetchFunnel}
-              className="px-3 py-1 text-xs bg-[--background-secondary] rounded-lg text-[--foreground]"
+              className="px-3 py-1 text-xs bg-[var(--background-secondary)] rounded-lg text-[var(--foreground)]"
             >
               刷新
             </button>
           </div>
 
           {!funnel ? (
-            <p className="text-sm text-[--foreground-tertiary] text-center py-4">暂无数据（需配置 MySQL）</p>
+            <p className="text-sm text-[var(--foreground-tertiary)] text-center py-4">暂无数据（需配置 MySQL）</p>
           ) : (
             <>
               {(() => {
@@ -507,22 +509,22 @@ export default function AdminPage() {
                       const step = funnel.funnel[s.key] ?? { count: 0, users: 0 };
                       return (
                         <div key={s.key} className="flex items-center gap-2">
-                          <span className="text-xs text-[--foreground-secondary] w-20 shrink-0">{s.label}</span>
-                          <div className="flex-1 h-3 bg-[--background-secondary] rounded-full overflow-hidden">
+                          <span className="text-xs text-[var(--foreground-secondary)] w-20 shrink-0">{s.label}</span>
+                          <div className="flex-1 h-3 bg-[var(--background-secondary)] rounded-full overflow-hidden">
                             <div
                               className="h-full bg-[#007AFF] rounded-full"
                               style={{ width: `${(step.count / max) * 100}%` }}
                             />
                           </div>
-                          <span className="text-xs text-[--foreground] w-12 text-right tabular-nums">{step.count}</span>
-                          <span className="text-xs text-[--foreground-tertiary] w-14 text-right">{step.users} 人</span>
+                          <span className="text-xs text-[var(--foreground)] w-12 text-right tabular-nums">{step.count}</span>
+                          <span className="text-xs text-[var(--foreground-tertiary)] w-14 text-right">{step.users} 人</span>
                         </div>
                       );
                     })}
                   </div>
                 );
               })()}
-              <div className="flex justify-between text-xs text-[--foreground-tertiary] pt-2 border-t border-[var(--card-border)]">
+              <div className="flex justify-between text-xs text-[var(--foreground-tertiary)] pt-2 border-t border-[var(--card-border)]">
                 <span>曝光→确认 {funnel.rates.confirmToView === null ? '—' : `${funnel.rates.confirmToView}%`}</span>
                 <span>确认→生成 {funnel.rates.generateToConfirm === null ? '—' : `${funnel.rates.generateToConfirm}%`}</span>
                 <span>生成→下载 {funnel.rates.downloadToGenerate === null ? '—' : `${funnel.rates.downloadToGenerate}%`}</span>
@@ -538,25 +540,29 @@ export default function AdminPage() {
           size="sm"
         >
           <div className="px-5 pb-5">
-            <p className="text-sm text-[--foreground-secondary] mb-4">
-              确定要删除账号「{pendingDeleteUser?.username}」吗？其对话历史、报告与剩余额度将一并清除，此操作不可恢复。
+            <div className="w-11 h-11 rounded-full bg-[var(--color-danger)]/10 flex items-center justify-center mb-3">
+              <Icon name="alert-circle" size={18} className="text-[var(--color-danger)]" />
+            </div>
+            <p className="text-sm text-[var(--foreground-secondary)] leading-relaxed mb-5">
+              确定要删除账号
+              <span className="font-medium text-[var(--foreground)]">「{pendingDeleteUser?.username}」</span>
+              吗？其对话历史、报告与剩余额度将一并清除，此操作不可恢复。
             </p>
             <div className="flex gap-2">
-              <button
-                onClick={() => setPendingDeleteUser(null)}
-                className="flex-1 py-3 bg-[--background-secondary] rounded-xl text-sm font-medium text-[--foreground]"
-              >
+              <Button variant="secondary" size="lg" fullWidth onClick={() => setPendingDeleteUser(null)}>
                 取消
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="danger"
+                size="lg"
+                fullWidth
                 onClick={() => {
                   if (pendingDeleteUser) handleDeleteUser(pendingDeleteUser.id);
                   setPendingDeleteUser(null);
                 }}
-                className="flex-1 py-3 bg-[#FF3B30] text-white rounded-xl text-sm font-medium"
               >
                 删除
-              </button>
+              </Button>
             </div>
           </div>
         </Modal>
