@@ -3,7 +3,7 @@ import { query, execute, isMySQLAvailable, queryWithLimit } from './db';
 
 export interface Conversation {
   id: string;
-  uid?: string;         // TCB user ID (if logged in)
+  uid?: string;         // 自建用户 ID（users.id，登录时才有）
   deviceId: string;     // Device fingerprint (fallback)
   title: string;
   scenarioId?: string;
@@ -42,7 +42,7 @@ function rowToConversation(row: ConversationRow): Conversation {
 // ==================== By UID (logged-in users) ====================
 
 export async function listConversationsByUid(uid: string): Promise<Conversation[]> {
-  if (!isMySQLAvailable) return [];
+  if (!isMySQLAvailable()) return [];
   try {
     const rows = await query<ConversationRow>(
       'SELECT * FROM conversations WHERE uid = ? ORDER BY created_at DESC LIMIT 50',
@@ -50,13 +50,13 @@ export async function listConversationsByUid(uid: string): Promise<Conversation[
     );
     return rows.map(rowToConversation);
   } catch (err) {
-
+    console.error('[conversations] listConversationsByUid failed:', err);
     return [];
   }
 }
 
 export async function saveConversationByUid(conv: Conversation, uid: string): Promise<void> {
-  if (!isMySQLAvailable) return;
+  if (!isMySQLAvailable()) return;
   try {
     await execute(
       `INSERT INTO conversations (id, uid, device_id, title, scenario_id, scenario_answers, messages, created_at, updated_at)
@@ -81,14 +81,14 @@ export async function saveConversationByUid(conv: Conversation, uid: string): Pr
       ]
     );
   } catch (err) {
-
+    console.error('[conversations] saveConversationByUid failed:', err);
   }
 }
 
 // ==================== By Device ID (anonymous users) ====================
 
 export async function listConversationsByDevice(deviceId: string): Promise<Conversation[]> {
-  if (!isMySQLAvailable) return [];
+  if (!isMySQLAvailable()) return [];
   try {
     const rows = await queryWithLimit<ConversationRow>(
       'SELECT * FROM conversations WHERE device_id = ? ORDER BY created_at DESC',
@@ -102,7 +102,7 @@ export async function listConversationsByDevice(deviceId: string): Promise<Conve
 }
 
 export async function saveConversation(conv: Conversation, uid?: string): Promise<void> {
-  if (!isMySQLAvailable) return;
+  if (!isMySQLAvailable()) return;
   try {
     await execute(
       `INSERT INTO conversations (id, uid, device_id, title, scenario_id, scenario_answers, messages, created_at, updated_at)
@@ -125,15 +125,15 @@ export async function saveConversation(conv: Conversation, uid?: string): Promis
         JSON.stringify(conv.messages),
         conv.createdAt,
         conv.updatedAt,
-      ]
+             ]
     );
   } catch (err) {
-
+    console.error('[conversations] saveConversation failed:', err);
   }
 }
 
 export async function getConversation(id: string): Promise<Conversation | null> {
-  if (!isMySQLAvailable) return null;
+  if (!isMySQLAvailable()) return null;
   try {
     const rows = await query<ConversationRow>('SELECT * FROM conversations WHERE id = ?', [id]);
     if (rows.length === 0) return null;
@@ -145,7 +145,7 @@ export async function getConversation(id: string): Promise<Conversation | null> 
 }
 
 export async function deleteConversation(id: string): Promise<void> {
-  if (!isMySQLAvailable) return;
+  if (!isMySQLAvailable()) return;
   try {
     await execute('DELETE FROM conversations WHERE id = ?', [id]);
   } catch (err) {
@@ -157,7 +157,7 @@ export async function updateConversation(
   id: string,
   updates: Partial<Conversation>
 ): Promise<void> {
-  if (!isMySQLAvailable) return;
+  if (!isMySQLAvailable()) return;
   try {
     const fields: string[] = [];
     const values: (string | number | null)[] = [];

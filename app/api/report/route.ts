@@ -1,0 +1,329 @@
+import { NextRequest, NextResponse } from "next/server";
+import { generateReport } from "@/lib/models";
+import {
+  computeCompensation,
+  type CompInput,
+  type DismissalType,
+} from "@/lib/compensation";
+import { checkRateLimit, checkDeviceIdSpoofing, RATE_LIMITS, extractClientInfo } from "@/lib/ratelimit";
+import { getAuthContext } from "@/lib/api-auth";
+import { isPaidUserByUid, getRemainingUsageByUid, consumeUsageByUid } from "@/lib/subscriptions";
+import { recordEvent } from "@/lib/usage-events";
+import { sanitizeMarkdown, stripThinkTags } from "@/lib/sanitize";
+import { saveLaborReport } from "@/lib/labor-reports";
+
+const MAX_NARRATIVE_LENGTH = 600;
+const MAX_ANSWER_LENGTH = 200;
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const VALID_DISMISSAL_TYPES: DismissalType[] = [
+  "mutual",
+  "no-fault-40",
+  "illegal",
+  "expired",
+  "forced-resign",
+];
+
+const DISCLAIMER =
+  "\n\n---\n*本报告由 AI 生成，不构成律师意见；赔偿金额为估算，实际以劳动仲裁委员会/法院认定为准。*";
+
+function validateBody(body: unknown): { comp: CompInput; intakeAnswers: Record<string, string>; narrative: string } | string {
+  if (typeof body !== "object" || body === null) return "请求体格式错误";
+  const { comp, intakeAnswers, narrative } = body as {
+    comp?: unknown;
+    intakeAnswers?: unknown;
+    narrative?: unknown;
+  };
+
+  if (typeof narrative !== "string" || narrative.trim().length === 0) {
+    return "缺少事件经过描述";
+  }
+  if (narrative.length > MAX_NARRATIVE_LENGTH) {
+    return `事件经过描述不能超过${MAX_NARRATIVE_LENGTH}字`;
+  }
+  if (typeof comp !== "object" || comp === null) return "缺少计算参数";
+
+  const c = comp as Record<string, unknown>;
+  if (typeof c.monthlyAvgWage !== "number" || !Number.isFinite(c.monthlyAvgWage) || c.monthlyAvgWage <= 0) {
+    return "月平均工资无效";
+  }
+  if (c.lastMonthWage !== undefined && (typeof c.lastMonthWage !== "number" || !Number.isFinite(c.lastMonthWage) || c.lastMonthWage <= 0)) {
+    return "上月工资无效";
+  }
+  if (typeof c.hiredAt !== "string" || !DATE_PATTERN.test(c.hiredAt) || isNaN(new Date(c.hiredAt).getTime())) {
+    return "入职日期格式无效";
+  }
+  if (typeof c.firedAt !== "string" || !DATE_PATTERN.test(c.firedAt) || isNaN(new Date(c.firedAt).getTime())) {
+    return "离职日期格式无效";
+  }
+  if (new Date(c.firedAt).getTime() < new Date(c.hiredAt).getTime()) {
+    return "离职日期不能早于入职日期";
+  }
+  if (typeof c.city !== "string" || c.city.trim().length === 0 || c.city.length > 20) {
+    return "城市无效";
+  }
+  if (!VALID_DISMISSAL_TYPES.includes(c.dismissalType as DismissalType)) {
+    return "解除类型无效";
+  }
+  if (c.overtimeHours !== undefined) {
+    const o = c.overtimeHours as Record<string, unknown>;
+    for (const k of ["weekday", "weekend", "holiday"]) {
+      const v = o?.[k];
+      if (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > 9999) {
+        return `加班时长无效（${k}）`;
+      }
+    }
+  }
+  if (c.unusedAnnualLeaveDays !== undefined &&
+      (typeof c.unusedAnnualLeaveDays !== "number" || !Number.isFinite(c.unusedAnnualLeaveDays) ||
+       c.unusedAnnualLeaveDays < 0 || c.unusedAnnualLeaveDays > 99)) {
+    return "未休年假天数无效";
+  }
+
+  const answers: Record<string, string> = {};
+  if (intakeAnswers !== undefined) {
+    if (typeof intakeAnswers !== "object" || intakeAnswers === null) return "基本情况格式错误";
+    for (const [k, v] of Object.entries(intakeAnswers as Record<string, unknown>)) {
+      if (typeof v !== "string" || v.length > MAX_ANSWER_LENGTH) {
+        return `基本情况回答无效（${k}）`;
+      }
+      answers[k] = v;
+    }
+  }
+
+  return {
+    comp: c as unknown as CompInput,
+    intakeAnswers: answers,
+    narrative,
+  };
+}
+
+/**
+ * @swagger
+ * /api/report:
+ *   post:
+ *     summary: 生成劳动维权方案报告（仅付费用户）
+ *     tags: [Report]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - comp
+ *               - narrative
+ *             properties:
+ *               comp:
+ *                 type: object
+ *               intakeAnswers:
+ *                 type: object
+ *               narrative:
+ *                 type: string
+ *               confirmPaid:
+ *                 type: boolean
+ *                 description: 付费用户在前端确认消耗1次报告额度时置 true；不传或 false 时返回 402 提示
+ *     responses:
+ *       200:
+ *         description: 报告与计算明细
+ *       402:
+ *         description: 付费用户需确认消耗1次额度（前端二次确认）
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   enum: [report_quota_confirm]
+ *                 message:
+ *                   type: string
+ *                 paidRemaining:
+ *                   type: number
+ *       403:
+ *         description: 无配额或非付费用户
+ *       429:
+ *         description: 请求过于频繁
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const { deviceId } = extractClientInfo(request);
+    const { ip } = extractClientInfo(request, deviceId);
+
+    const deviceIdCheck = await checkDeviceIdSpoofing(ip, deviceId);
+    if (!deviceIdCheck.allowed) {
+      return NextResponse.json(
+        { error: "device_id_rejected", message: "请求异常，已被拒绝" },
+        { status: 403 }
+      );
+    }
+
+    const auth = await getAuthContext(request);
+    if (!auth.uid) {
+      return NextResponse.json(
+        { error: "login_required", message: "请登录后生成维权报告" },
+        { status: 403 }
+      );
+    }
+    const paid = await isPaidUserByUid(auth.uid);
+    if (!paid) {
+      await recordEvent({ uid: auth.uid, deviceId, eventType: "paywall_block", meta: { reason: "paid_only" } });
+      return NextResponse.json(
+        { error: "paid_only", message: "维权报告为付费功能，次数由管理员发放，点击「如何购买」查看购买方式" },
+        { status: 403 }
+      );
+    }
+    const paidRemaining = await getRemainingUsageByUid(auth.uid);
+    if (paidRemaining <= 0) {
+      await recordEvent({ uid: auth.uid, deviceId, eventType: "paywall_block", meta: { reason: "no_quota" } });
+      return NextResponse.json(
+        { error: "no_quota", message: "报告次数已用完，点击「如何购买」查看购买方式" },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json();
+    const confirmPaid = (body as { confirmPaid?: boolean })?.confirmPaid === true;
+    if (!confirmPaid) {
+      return NextResponse.json(
+        {
+          error: "report_quota_confirm",
+          message: "本次生成将消耗 1 次报告额度",
+          paidRemaining,
+        },
+        { status: 402 }
+      );
+    }
+    // 限流只计真实生成：402 探测（confirmPaid=false）不占用 5次/60s 额度
+    const rateLimitResult = await checkRateLimit(deviceId, ip, RATE_LIMITS.report);
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        {
+          error: "rate_limit_exceeded",
+          message: "请求过于频繁，请稍后再试",
+          resetAt: rateLimitResult.resetAt,
+        },
+        {
+          status: 429,
+          headers: {
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": rateLimitResult.resetAt.toString(),
+            "Retry-After": Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000).toString(),
+          },
+        }
+      );
+    }
+
+    // 第二步前再查一次额度：防御 admin 撤销 / 并发用尽的 race condition
+    // 此时已确认用户意图，重查到 0 直接拒绝并要求刷新
+    const finalRemaining = await getRemainingUsageByUid(auth.uid);
+    if (finalRemaining <= 0) {
+      await recordEvent({ uid: auth.uid, deviceId, eventType: "paywall_block", meta: { reason: "no_quota" } });
+      return NextResponse.json(
+        { error: "no_quota", message: "报告次数已用完，点击「如何购买」查看购买方式" },
+        { status: 403 }
+      );
+    }
+    const parsed = validateBody(body);
+    if (typeof parsed === "string") {
+      return NextResponse.json({ error: "invalid_input", message: parsed }, { status: 400 });
+    }
+    const { comp, intakeAnswers, narrative } = parsed;
+
+    // 服务端重算，防止前端篡改金额；金额明细随 prompt 注入
+    const breakdown = computeCompensation(comp);
+
+    let rawReply: string;
+    try {
+      rawReply = await generateReport(breakdown, intakeAnswers, narrative);
+    } catch (error) {
+      console.error("[report] AI generation failed:", error);
+      const message =
+        error instanceof Error && error.name === "AbortError"
+          ? "AI 生成超时，请稍后再试"
+          : "AI 生成失败，请稍后再试";
+      return NextResponse.json({ error: "AI error", message }, { status: 500 });
+    }
+
+    try {
+      await consumeUsageByUid(auth.uid);
+      await recordEvent({ uid: auth.uid, deviceId, eventType: "report_generate" });
+    } catch (err) {
+      // consumeUsageByUid 现在会对真正的 DB 异常抛错（业务失败仍 return 0）。
+      // 这是极少数 edge case（admin 撤销并发 / MySQL 抖动）：AI 已生成、扣额度失败，
+      // 不能直接 throw 让 reply 丢失（用户看不到 AI 回复会困惑），也不能 silent-fail（产品损失）。
+      // 返 settle_failed 让前端展示报告 + 顶部错误横幅告知"次数扣除异常请联系客服"，
+      // 由 admin 从 console 拿 rawReply 手动补偿。
+      console.error("[report] consumeUsageByUid threw (DB error), reply returned for manual compensation:", err);
+      const replyOnSettleFail = sanitizeMarkdown(
+        stripThinkTags(rawReply) + DISCLAIMER
+      );
+      return NextResponse.json(
+        {
+          error: "settle_failed",
+          message: "报告已生成但次数扣除异常，请稍后刷新页面核对；如持续异常请联系客服补偿",
+          reply: replyOnSettleFail,
+          computation: breakdown,
+        },
+        { status: 500 }
+      );
+    }
+
+    const reply = sanitizeMarkdown(
+      stripThinkTags(rawReply) + DISCLAIMER
+    );
+
+    // 落库：付费用户的报告存为历史，便于刷新/关窗口后找回
+    let saveWarning: string | undefined;
+    try {
+      const saveResult = await saveLaborReport(
+        {
+          id: crypto.randomUUID(),
+          uid: auth.uid,
+          comp,
+          intakeAnswers,
+          narrative,
+          computation: breakdown,
+          reply,
+          createdAt: Date.now(),
+        },
+        auth.uid
+      );
+      if (saveResult === "skipped") {
+        saveWarning = "历史保存暂不可用，本次报告不会存入历史，请立即下载或复制保存";
+      }
+    } catch (err) {
+      console.error("[report] saveLaborReport failed:", err);
+      saveWarning = "报告已生成但保存到历史失败，刷新页面将无法找回，请复制全文或下载 Word 保存";
+    }
+
+    // consume 自愈校验：consume 后回查额度，若未减 1 则提示用户额度可能错位
+    //（覆盖 admin 在 AI 生成与 consume 之间撤销订阅导致 consume 业务失败返回 0 的 race 场景；
+    //  真正的 DB 错误现在由 settle_failed 分支处理，这里不重复）
+    try {
+      const afterRemaining = await getRemainingUsageByUid(auth.uid);
+      if (afterRemaining > paidRemaining - 1) {
+        console.error(
+          `[report] quota self-heal check failed: expected ${paidRemaining - 1}, got ${afterRemaining}`
+        );
+        saveWarning = saveWarning
+          ? `${saveWarning}；另外本次次数可能未正确扣除，请稍后刷新页面核对。`
+          : "本次次数可能未正确扣除，请稍后刷新页面核对。";
+      }
+    } catch (err) {
+      console.error("[report] quota self-heal check threw:", err);
+    }
+
+    return NextResponse.json(
+      { reply, computation: breakdown, warning: saveWarning },
+      {
+        headers: {
+          "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
+          "X-RateLimit-Reset": rateLimitResult.resetAt.toString(),
+        },
+      }
+    );
+  } catch (error) {
+    console.error("[report] Unexpected error:", error);
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+  }
+}

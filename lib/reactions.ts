@@ -35,7 +35,7 @@ export async function storeMessage(
   scenarioId?: string,
   createdAt?: number
 ): Promise<void> {
-  if (!isMySQLAvailable) return;
+  if (!isMySQLAvailable()) return;
   try {
     await execute(
       `INSERT INTO messages (conversation_id, message_index, message_id, role, content, scenario_id, created_at)
@@ -51,7 +51,7 @@ export async function storeMessage(
 // ==================== Reactions (likes) ====================
 
 export async function addReaction(uid: string, messageId: string): Promise<boolean> {
-  if (!isMySQLAvailable) return false;
+  if (!isMySQLAvailable()) return false;
   try {
     await execute(
       `INSERT IGNORE INTO message_reactions (uid, message_id, created_at) VALUES (?, ?, ?)`,
@@ -65,7 +65,7 @@ export async function addReaction(uid: string, messageId: string): Promise<boole
 }
 
 export async function removeReaction(uid: string, messageId: string): Promise<boolean> {
-  if (!isMySQLAvailable) return false;
+  if (!isMySQLAvailable()) return false;
   try {
     await execute(
       `DELETE FROM message_reactions WHERE uid = ? AND message_id = ?`,
@@ -79,7 +79,7 @@ export async function removeReaction(uid: string, messageId: string): Promise<bo
 }
 
 export async function isMessageLikedByUid(uid: string, messageId: string): Promise<boolean> {
-  if (!isMySQLAvailable) return false;
+  if (!isMySQLAvailable()) return false;
   try {
     const rows = await query<{ cnt: number }>(
       `SELECT COUNT(*) as cnt FROM message_reactions WHERE uid = ? AND message_id = ?`,
@@ -93,7 +93,7 @@ export async function isMessageLikedByUid(uid: string, messageId: string): Promi
 }
 
 export async function getLikedMessageIds(uid: string, messageIds: string[]): Promise<Set<string>> {
-  if (!isMySQLAvailable || messageIds.length === 0) return new Set();
+  if (!isMySQLAvailable() || messageIds.length === 0) return new Set();
   try {
     const placeholders = messageIds.map(() => '?').join(',');
     const rows = await query<{ message_id: string }>(
@@ -114,7 +114,7 @@ export async function getLikedMessages(uid: string, limit = 50, offset = 0): Pro
   scenarioId?: string;
   createdAt: number;
 }[]> {
-  if (!isMySQLAvailable) return [];
+  if (!isMySQLAvailable()) return [];
   try {
     const rows = await queryWithLimit<{
       message_id: string;
@@ -155,7 +155,7 @@ export async function saveMessage(
   content: string,
   scenarioId?: string
 ): Promise<boolean> {
-  if (!isMySQLAvailable) return false;
+  if (!isMySQLAvailable()) return false;
   try {
     await execute(
       `INSERT IGNORE INTO saved_messages (uid, message_id, conversation_id, message_index, content, scenario_id, created_at)
@@ -170,7 +170,7 @@ export async function saveMessage(
 }
 
 export async function unsaveMessage(uid: string, messageId: string): Promise<boolean> {
-  if (!isMySQLAvailable) return false;
+  if (!isMySQLAvailable()) return false;
   try {
     await execute(
       `DELETE FROM saved_messages WHERE uid = ? AND message_id = ?`,
@@ -184,7 +184,7 @@ export async function unsaveMessage(uid: string, messageId: string): Promise<boo
 }
 
 export async function isMessageSavedByUid(uid: string, messageId: string): Promise<boolean> {
-  if (!isMySQLAvailable) return false;
+  if (!isMySQLAvailable()) return false;
   try {
     const rows = await query<{ cnt: number }>(
       `SELECT COUNT(*) as cnt FROM saved_messages WHERE uid = ? AND message_id = ?`,
@@ -198,7 +198,7 @@ export async function isMessageSavedByUid(uid: string, messageId: string): Promi
 }
 
 export async function getSavedMessageIds(uid: string, messageIds: string[]): Promise<Set<string>> {
-  if (!isMySQLAvailable || messageIds.length === 0) return new Set();
+  if (!isMySQLAvailable() || messageIds.length === 0) return new Set();
   try {
     const placeholders = messageIds.map(() => '?').join(',');
     const rows = await query<{ message_id: string }>(
@@ -219,7 +219,7 @@ export async function getSavedMessages(uid: string, limit = 50, offset = 0): Pro
   scenarioId?: string;
   createdAt: number;
 }[]> {
-  if (!isMySQLAvailable) return [];
+  if (!isMySQLAvailable()) return [];
   try {
     const rows = await queryWithLimit<{
       message_id: string;

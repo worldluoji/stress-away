@@ -1,97 +1,94 @@
 /**
- * Usage quota check and consume - TCB user edition
+ * Usage quota — 自建账号版（管理端发放制）
  *
- * Priority:
- * 1. Logged-in user (uid) → check MySQL uid-based subscription
- * 2. Anonymous user → device-based free count (Redis)
+ * 模型：报告次数（subscriptions.remaining_usage）是"报告货币"，由管理员发放、永久有效；
+ * 对话为免费获客漏斗，登录用户每日 CHAT_FREE_PER_DAY 次免费，
+ * 超出后付费用户确认消耗 1 次购买次数继续对话。
  */
 
 import {
-  isPaidUserByUid,
-  getRemainingUsageByUid,
+  getSubscriptionByUid,
   consumeUsageByUid,
-  refundUsageByUid,
-  FREE_LIMIT_PER_DAY,
 } from './subscriptions';
-import {
-  getFreeCount,
-  incrementFreeCount,
-  decrementFreeCount,
-} from './redis';
+import { getFreeCount, incrementFreeCount } from './free-count';
+import { CHAT_FREE_PER_DAY, decideChatAction, type ChatAction } from './chat-quota';
 
 export interface UsageStatus {
   allowed: boolean;
   remaining: number;
   isPaid: boolean;
+  /** 累计发放次数 */
   total: number;
+  chatFreeRemaining: number;
+  chatFreeTotal: number;
 }
 
-/**
- * Check usage quota for a user session
- * @param uid TCB user ID (null = anonymous)
- * @param deviceId Device fingerprint (for anonymous free count)
- */
-export async function checkUsage(uid: string | null, deviceId: string | null): Promise<UsageStatus> {
-  // Paid user (logged in with claimed subscription)
-  if (uid) {
-    const paid = await isPaidUserByUid(uid);
-    if (paid) {
-      const remaining = await getRemainingUsageByUid(uid);
-      return {
-        allowed: remaining > 0,
-        remaining,
-        isPaid: true,
-        total: 100,
-      };
-    }
-  }
+/** 展示用额度状态（/api/usage） */
+export async function checkUsage(uid: string | null): Promise<UsageStatus> {
+  const chatFreeTotal = CHAT_FREE_PER_DAY;
 
-  // Logged-in but not paid: daily free count
-  if (uid) {
-    const current = await getFreeCount(deviceId || uid); // use uid as fallback key
-    if (current >= FREE_LIMIT_PER_DAY) {
-      return { allowed: false, remaining: 0, isPaid: false, total: FREE_LIMIT_PER_DAY };
-    }
+  if (!uid) {
     return {
-      allowed: true,
-      remaining: Math.max(0, FREE_LIMIT_PER_DAY - current),
+      allowed: false,
+      remaining: 0,
       isPaid: false,
-      total: FREE_LIMIT_PER_DAY,
+      total: 0,
+      chatFreeRemaining: 0,
+      chatFreeTotal,
     };
   }
 
-  // Anonymous: no free usage without login
-  return { allowed: false, remaining: 0, isPaid: false, total: 0 };
+  const freeUsed = await getFreeCount(uid);
+  const chatFreeRemaining = Math.max(0, chatFreeTotal - freeUsed);
+  // 单次读订阅（60s 缓存）即可推出全部额度状态
+  const sub = await getSubscriptionByUid(uid);
+  const remaining = sub?.remainingUsage ?? 0;
+
+  return {
+    allowed: chatFreeRemaining > 0 || remaining > 0,
+    remaining,
+    isPaid: remaining > 0,
+    total: sub?.totalUsage ?? 0,
+    chatFreeRemaining,
+    chatFreeTotal,
+  };
 }
 
-/**
- * Consume one usage quota
- * @param uid TCB user ID (null = anonymous)
- * @param deviceId Device fingerprint (for anonymous free count)
- */
-export { refundUsageByUid } from './subscriptions';
+export interface ChatQuotaResult {
+  action: ChatAction;
+  freeUsed: number;
+  paidRemaining: number;
+}
 
-export async function consumeOne(
-  uid: string | null,
-  deviceId: string | null
-): Promise<{ remaining: number; isPaid: boolean }> {
-  // Paid user first
-  if (uid) {
-    const paid = await isPaidUserByUid(uid);
-    if (paid) {
-      const remaining = await consumeUsageByUid(uid);
-      return { remaining, isPaid: true };
-    }
+/** 对话额度决策（API 路由在 parse body 拿到 confirmPaid 后调用） */
+export async function checkChatQuota(uid: string | null, confirmPaid: boolean): Promise<ChatQuotaResult> {
+  const freeUsed = uid ? await getFreeCount(uid) : 0;
+
+  let isPaid = false;
+  let paidRemaining = 0;
+  if (uid && freeUsed >= CHAT_FREE_PER_DAY) {
+    const sub = await getSubscriptionByUid(uid);
+    paidRemaining = sub?.remainingUsage ?? 0;
+    isPaid = paidRemaining > 0;
   }
 
-  // Logged-in but not paid: consume from daily free count
-  if (uid) {
-    await incrementFreeCount(deviceId || uid);
-    const current = await getFreeCount(deviceId || uid);
-    const remaining = Math.max(0, FREE_LIMIT_PER_DAY - current);
-    return { remaining, isPaid: false };
-  }
+  const action = decideChatAction({
+    loggedIn: !!uid,
+    freeUsed,
+    chatFreeLimit: CHAT_FREE_PER_DAY,
+    isPaid,
+    paidRemaining,
+    confirmPaid,
+  });
 
-  // Anonymous: not allowed
-  return { remaining: 0, isPaid: false };
+  return { action, freeUsed, paidRemaining };
+}
+
+/** AI 成功后结算：免费计数 +1 或扣 1 次购买次数 */
+export async function settleChat(uid: string, action: ChatAction): Promise<void> {
+  if (action === 'allow_paid') {
+    await consumeUsageByUid(uid);
+    return;
+  }
+  await incrementFreeCount(uid);
 }

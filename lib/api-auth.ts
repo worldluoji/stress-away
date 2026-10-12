@@ -1,46 +1,25 @@
 /**
- * API helper: extract uid from TCB session cookie
- * Used at the top of every API route that needs auth
+ * API helper: 从服务端会话 cookie 解析当前用户身份。
+ * 每个需要鉴权的 API route 顶部调用（await getAuthContext(request)）。
+ * 注意：绝不信任客户端自报的 uid 头——身份唯一来源是验签后的会话。
  */
-import { parseCookies, getUidFromRequest } from './auth';
+import { getCurrentUser, type UserRole } from './user-auth';
 
 export interface AuthContext {
   uid: string | null;
   deviceId: string | null;
+  role: UserRole | null;
   isLoggedIn: boolean;
 }
 
-/**
- * Extract auth context from Next.js request headers
- * Returns uid (from TCB session) and deviceId (from header)
- */
-export function getAuthContext(request: Request): AuthContext {
-  const cookieHeader = request.headers.get('cookie');
-  const cookies = parseCookies(cookieHeader);
-
-  // Prefer header (set by frontend after login) over cookie
-  const headerUid = request.headers.get('x-user-id') || null;
-  const cookieUid = getUidFromRequest(cookies);
-  const uid = headerUid || cookieUid;
-
+export async function getAuthContext(request: Request): Promise<AuthContext> {
+  const user = await getCurrentUser();
   const deviceId = request.headers.get('x-device-id') || null;
 
   return {
-    uid,
+    uid: user?.id ?? null,
     deviceId,
-    isLoggedIn: !!uid,
+    role: user?.role ?? null,
+    isLoggedIn: !!user,
   };
-}
-
-/**
- * Require auth - throws if not logged in
- */
-export function requireAuth(ctx: AuthContext): string {
-  if (!ctx.uid) {
-    throw new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-  return ctx.uid;
 }

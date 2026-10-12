@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { chatWithAI, type ChatMessage } from "@/lib/models";
 import { checkRateLimit, checkDeviceIdSpoofing, RATE_LIMITS, extractClientInfo } from "@/lib/ratelimit";
 import { getAuthContext } from "@/lib/api-auth";
-import { checkUsage, consumeOne } from "@/lib/subscription";
+import { checkChatQuota, settleChat, checkUsage } from "@/lib/subscription";
+import { CHAT_FREE_PER_DAY } from "@/lib/chat-quota";
+import { incrementChatCount } from "@/lib/usage-events";
 import { sanitizeMarkdown } from "@/lib/sanitize";
 
 /**
@@ -30,9 +32,12 @@ import { sanitizeMarkdown } from "@/lib/sanitize";
  *                       enum: [user, assistant]
  *                     content:
  *                       type: string
+ *               confirmPaid:
+ *                 type: boolean
+ *                 description: 免费额度用尽后，用户确认消耗1次购买额度
  *     responses:
  *       200:
- *         description: AI回复
+ *         description: AI回复（quota 为最新额度状态）
  *         content:
  *           application/json:
  *             schema:
@@ -40,8 +45,14 @@ import { sanitizeMarkdown } from "@/lib/sanitize";
  *               properties:
  *                 reply:
  *                   type: string
+ *                 quota:
+ *                   type: object
  *       400:
  *         description: 缺少必要参数
+ *       402:
+ *         description: 今日免费对话已用完，需 confirmPaid 确认后重发
+ *       403:
+ *         description: 未登录 / 未付费超免费额度 / 购买次数耗尽
  *       429:
  *         description: 请求过于频繁
  *       500:
@@ -82,19 +93,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check usage quota before processing chat
-    const auth = getAuthContext(request);
-    const usage = await checkUsage(auth.uid, deviceId);
-    if (!usage.allowed) {
-      return NextResponse.json(
-        { error: 'no_quota', message: usage.isPaid ? '次数已用完，请升级' : '请登录后使用' },
-        { status: 403 }
-      );
-    }
+    const auth = await getAuthContext(request);
 
-    // Parse body before consuming quota
+    // Parse body before quota decision (confirmPaid 参与决策)
     const body = await request.json();
-    const { messages, scenarioId } = body as { messages: ChatMessage[]; scenarioId?: string };
+    const { messages, scenarioId, confirmPaid } = body as {
+      messages: ChatMessage[];
+      scenarioId?: string;
+      confirmPaid?: boolean;
+    };
 
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json({ error: "Missing messages" }, { status: 400 });
@@ -121,7 +128,31 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Call AI first — only consume quota on success
+    // Chat quota: 每日免费额度优先，超出后需用户确认才扣购买次数
+    const quota = await checkChatQuota(auth.uid, confirmPaid === true);
+    if (quota.action === 'need_confirm') {
+      return NextResponse.json(
+        {
+          error: 'chat_quota_confirm',
+          message: '今日免费对话已用完，继续对话将消耗 1 次购买额度（该额度用于生成维权报告）',
+          freeUsed: quota.freeUsed,
+          chatFreeLimit: CHAT_FREE_PER_DAY,
+          paidRemaining: quota.paidRemaining,
+        },
+        { status: 402 }
+      );
+    }
+    if (quota.action.startsWith('blocked_')) {
+      const errorMap: Record<string, { code: string; message: string }> = {
+        blocked_not_logged_in: { code: 'login_required', message: '请登录后使用' },
+        blocked_not_paid: { code: 'free_exhausted', message: '今日免费对话已用完，购买报告次数后可继续对话并生成维权报告' },
+        blocked_paid_exhausted: { code: 'no_quota', message: '购买次数已用完，请购买后继续' },
+      };
+      const err = errorMap[quota.action];
+      return NextResponse.json({ error: err.code, message: err.message }, { status: 403 });
+    }
+
+    // Call AI first — only settle quota on success
     let rawReply: string;
     try {
       rawReply = await chatWithAI(messages, scenarioId);
@@ -130,12 +161,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "AI error" }, { status: 500 });
     }
 
-    // Consume AFTER AI success. If consume fails, still return the AI reply to the user.
+    // Settle AFTER AI success. If settle fails, still return the AI reply to the user.
+    // （chat 是免费引流场景，故意 silent-fail；report 是付费场景已返 settle_failed 区分处理）
     try {
-      await consumeOne(auth.uid, deviceId);
+      if (auth.uid) {
+        await settleChat(auth.uid, quota.action);
+      }
+      incrementChatCount(scenarioId ?? 'general', auth.uid, deviceId);
     } catch (err) {
-      // Quota consume failed after AI succeeded — still return AI's reply
-      // (the user got the response; quota will self-correct on next check)
+      console.error("[chat] settle failed (DB error), quota will self-heal on next /api/usage:", err);
     }
 
     const reply = sanitizeMarkdown(
@@ -145,8 +179,10 @@ export async function POST(request: NextRequest) {
         .trim()
     );
 
+    const usage = await checkUsage(auth.uid);
+
     return NextResponse.json(
-      { reply },
+      { reply, quota: usage },
       {
         headers: {
           'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
@@ -155,7 +191,7 @@ export async function POST(request: NextRequest) {
       }
     );
   } catch (error) {
-
+    console.error("[chat] Unexpected error:", error);
     return NextResponse.json(
       { error: "Internal error" },
       { status: 500 }

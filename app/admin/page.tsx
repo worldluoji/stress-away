@@ -1,235 +1,312 @@
 'use client';
 
-import { useState } from 'react';
-import { signInWithPassword, getCurrentUser } from '@/lib/tcb';
+import { useEffect, useState } from 'react';
+import { LOGIN_ERROR_MESSAGES } from '@/app/components/LoginModal';
+import { Modal } from '@/app/components/ui/Modal';
+import { Button } from '@/app/components/ui/Button';
+import { Icon } from '@/app/components/ui/Icon';
+import { apiFetch } from '@/lib/request-api';
 
-interface CodeInfo {
-  code: string;
-  used: boolean;
+interface UserSummary {
+  id: string;
+  username: string;
+  role: 'admin' | 'user';
+  status: 'active' | 'disabled';
+  remainingUsage: number;
+  totalUsage: number;
 }
 
-interface AdminCodeInfo {
-  code: string;
-  createdAt: number;
-  expiresAt: number;
-  totalTimes: number;
-  remainingTimes: number;
-  used: boolean;
-  deviceId?: string;
-  activationTime?: number;
+const CREATE_ERRORS: Record<string, string> = {
+  invalid_username: '用户名不合法（1-32 个字符）',
+  username_taken: '该用户名已存在',
+  invalid_times: '次数须为 1-999 的整数',
+  grant_failed: '账号已创建成功，但次数发放失败，请在列表中对该账号追加次数',
+  admin_protected: '管理员账号不可禁用或删除',
+  unauthorized: '登录已过期，请重新登录',
+};
+
+interface FunnelStep {
+  count: number;
+  users: number;
 }
 
-type Tab = 'order' | 'admin-code';
+interface FunnelData {
+  funnel: Record<string, FunnelStep>;
+  rates: {
+    confirmToView: number | null;
+    generateToConfirm: number | null;
+    downloadToGenerate: number | null;
+  };
+}
+
+const FUNNEL_STEPS: { key: string; label: string }[] = [
+  { key: 'calculator', label: '计算器' },
+  { key: 'loginGate', label: '登录墙' },
+  { key: 'paywallView', label: '付费墙曝光' },
+  { key: 'paywallBlock', label: '额度不足拦截' },
+  { key: 'paywallConfirm', label: '确认付费' },
+  { key: 'paywallCancel', label: '取消' },
+  { key: 'reportGenerate', label: '报告生成' },
+  { key: 'reportDownload', label: '报告下载' },
+];
 
 export default function AdminPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [tab, setTab] = useState<Tab>('order');
-  const [orderId, setOrderId] = useState('');
-  const [codes, setCodes] = useState<CodeInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
 
-  // Admin code state
-  const [adminCodes, setAdminCodes] = useState<AdminCodeInfo[]>([]);
-  const [adminCodePage, setAdminCodePage] = useState(1);
-  const [adminCodeTotal, setAdminCodeTotal] = useState(0);
-  const [newCodeTimes, setNewCodeTimes] = useState(50);
-  const [generatedCode, setGeneratedCode] = useState<string | null>(null);
+  const [funnel, setFunnel] = useState<FunnelData | null>(null);
+  const [users, setUsers] = useState<UserSummary[]>([]);
+  const [newUsername, setNewUsername] = useState('');
+  const [newUserTimes, setNewUserTimes] = useState('');
+  const [createdAccount, setCreatedAccount] = useState<{ username: string; password: string } | null>(null);
+  const [resetPasswords, setResetPasswords] = useState<Record<string, string>>({});
+  const [addTimesInput, setAddTimesInput] = useState<Record<string, string>>({});
+  const [pendingDeleteUser, setPendingDeleteUser] = useState<UserSummary | null>(null);
 
   const handleLogin = async () => {
     setError('');
     setLoading(true);
 
     try {
-      // 1. TCB login
-      await signInWithPassword(email, password);
-
-      // 2. Get uid from TCB session
-      const user = await getCurrentUser();
-      if (!user?.id) {
-        setError('登录失败，未获取到会话');
-        return;
-      }
-
-      // 3. Exchange TCB session for admin token
-      const res = await fetch('/api/admin/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Id': user.id,
-        },
-        body: JSON.stringify({ uid: user.id }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error === 'not_admin' ? '当前账号无管理权限' : data.error || '登录失败');
-        return;
-      }
-
-      setIsLoggedIn(true);
-      setPassword('');
-      setEmail('');
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('Invalid username') || msg.includes('wrong password')) {
-        setError('邮箱或密码错误');
-      } else if (msg.includes('fail to fetch') || msg.includes('fetch') || msg.includes('network') || msg.includes('Network')) {
-        setError('网络连接失败，请检查网络后重试');
-      } else if (msg) {
-        setError(msg);
-      } else {
-        setError('登录失败，请重试');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleQuery = async () => {
-    if (!orderId.trim()) {
-      setError('请输入订单号');
-      return;
-    }
-
-    setError('');
-    setSuccess('');
-    setCodes([]);
-    setLoading(true);
-
-    try {
-      const res = await fetch(`/api/admin/orders/${orderId.trim()}`);
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || '查询失败');
-        return;
-      }
-
-      setCodes(data.codes || []);
-      if (codes.length === 0) {
-        setSuccess('该订单暂无激活码');
-      }
-    } catch {
-      setError('网络错误');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRegenerate = async () => {
-    if (!orderId.trim()) {
-      setError('请输入订单号');
-      return;
-    }
-
-    setError('');
-    setSuccess('');
-    setLoading(true);
-
-    try {
-      const res = await fetch(`/api/admin/orders/${orderId.trim()}`, {
-        method: 'POST',
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || '生成失败');
-        return;
-      }
-
-      setCodes(data.codes || []);
-      setSuccess('新激活码已生成');
-    } catch {
-      setError('网络错误');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGenerateAdminCode = async () => {
-    setError('');
-    setSuccess('');
-    setGeneratedCode(null);
-    setLoading(true);
-
-    try {
-      const res = await fetch('/api/admin/codes', {
+      const res = await apiFetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ times: newCodeTimes }),
+        body: JSON.stringify({ username: username.trim(), password }),
       });
-      const data = await res.json();
-
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error || '生成失败');
+        setError(LOGIN_ERROR_MESSAGES[data.error] || data.message || '登录失败');
         return;
       }
-
-      setGeneratedCode(data.code);
-      setSuccess('激活码已生成');
-      // Refresh list
-      fetchAdminCodes(adminCodePage);
+      if (data.role !== 'admin') {
+        setError('当前账号无管理权限');
+        return;
+      }
+      setIsLoggedIn(true);
+      fetchFunnel();
+      fetchUsers();
     } catch {
-      setError('网络错误');
+      setError('网络连接失败，请检查网络后重试');
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchAdminCodes = async (page: number) => {
-    setError('');
-    setLoading(true);
-
+  const handleLogout = async () => {
     try {
-      const res = await fetch(`/api/admin/codes?page=${page}&limit=20`);
-      const data = await res.json();
+      await apiFetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      /* 登出失败仍回到登录页 */
+    }
+    setIsLoggedIn(false);
+    setPassword('');
+  };
 
+  const fetchFunnel = async () => {
+    try {
+      const res = await apiFetch('/api/admin/funnel');
+      if (res.ok) setFunnel(await res.json());
+    } catch {
+      // 静默：漏斗缺失不阻塞后台其它操作
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const res = await apiFetch('/api/admin/users');
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data.users || []);
+      }
+    } catch {
+      // 静默：列表加载失败不阻塞其它操作
+    }
+  };
+
+  const parseTimesInput = (raw: string): number | null => {
+    if (!raw.trim()) return null;
+    const n = Number(raw);
+    return Number.isInteger(n) && n >= 1 && n <= 999 ? n : null;
+  };
+
+  const handleCreateAccount = async () => {
+    setError('');
+    setCreatedAccount(null);
+    if (!newUsername.trim()) {
+      setError('请输入用户名');
+      return;
+    }
+    const times = parseTimesInput(newUserTimes);
+    if (newUserTimes.trim() && times === null) {
+      setError('初始次数须为 1-999 的整数');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await apiFetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: newUsername.trim(), ...(times !== null ? { times } : {}) }),
+      });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error || '获取失败');
+        setError(CREATE_ERRORS[data.error] || data.error || '创建失败');
         return;
       }
-
-      setAdminCodes(data.codes || []);
-      setAdminCodePage(data.page);
-      setAdminCodeTotal(data.total);
+      setCreatedAccount({ username: data.username, password: data.password });
+      setNewUsername('');
+      setNewUserTimes('');
+      fetchUsers();
     } catch {
       setError('网络错误');
     } finally {
       setLoading(false);
     }
   };
+
+  const handleResetPassword = async (userId: string) => {
+    setError('');
+    try {
+      const res = await apiFetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error === 'user_not_found' ? '该账号不存在，请刷新列表' : '重置失败');
+        return;
+      }
+      setResetPasswords((prev) => ({ ...prev, [userId]: data.password }));
+    } catch {
+      setError('网络错误');
+    }
+  };
+
+  const handleToggleStatus = async (u: UserSummary) => {
+    setError('');
+    const status = u.status === 'disabled' ? 'active' : 'disabled';
+    try {
+      const res = await apiFetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: u.id, status }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(
+          data.error === 'user_not_found'
+            ? '该账号不存在，请刷新列表'
+            : CREATE_ERRORS[data.error] || '操作失败'
+        );
+        return;
+      }
+      fetchUsers();
+    } catch {
+      setError('网络错误');
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    setError('');
+    try {
+      const res = await apiFetch('/api/admin/users', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(
+          data.error === 'user_not_found'
+            ? '该账号不存在，请刷新列表'
+            : CREATE_ERRORS[data.error] || '删除失败'
+        );
+        return;
+      }
+      fetchUsers();
+    } catch {
+      setError('网络错误');
+    }
+  };
+
+  const handleAddTimes = async (userId: string) => {
+    setError('');
+    const addTimes = parseTimesInput(addTimesInput[userId] ?? '');
+    if (addTimes === null) {
+      setError('追加次数须为 1-999 的整数');
+      return;
+    }
+    try {
+      const res = await apiFetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, addTimes }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(
+          data.error === 'user_not_found'
+            ? '该账号不存在，请刷新列表'
+            : CREATE_ERRORS[data.error] || '发放失败'
+        );
+        return;
+      }
+      setAddTimesInput((prev) => ({ ...prev, [userId]: '' }));
+      fetchUsers();
+    } catch {
+      setError('网络错误');
+    }
+  };
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await apiFetch('/api/auth/me');
+        if (res.ok) {
+          const me = await res.json();
+          if (me.role === 'admin') {
+            setIsLoggedIn(true);
+            fetchFunnel();
+            fetchUsers();
+          }
+        }
+      } catch {
+        /* 未登录/网络异常：停留在登录表单 */
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-[--background] flex items-center justify-center p-4">
-        <div className="w-full max-w-sm bg-[--card-bg] rounded-2xl p-6 border border-[var(--card-border)]">
-          <h1 className="text-xl font-semibold text-[--foreground] mb-6 text-center">
+      <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-4">
+        <div className="w-full max-w-sm bg-[var(--card-bg)] rounded-2xl p-6 border border-[var(--card-border)]">
+          <h1 className="text-xl font-semibold text-[var(--foreground)] mb-6 text-center">
             管理后台
           </h1>
 
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-[--foreground-secondary] block mb-1.5">
-                管理员邮箱
+              <label className="text-sm font-medium text-[var(--foreground-secondary)] block mb-1.5">
+                管理员账号
               </label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                placeholder="输入管理员邮箱"
+                placeholder="输入管理员账号"
                 autoComplete="username"
-                className="w-full px-4 py-3 bg-[--background-secondary] rounded-xl text-[--foreground] placeholder:text-[--foreground-tertiary] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
+                className="w-full px-4 py-3 bg-[var(--background-secondary)] rounded-xl text-[var(--foreground)] placeholder:text-[var(--foreground-tertiary)] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
               />
             </div>
 
             <div>
-              <label className="text-sm font-medium text-[--foreground-secondary] block mb-1.5">
+              <label className="text-sm font-medium text-[var(--foreground-secondary)] block mb-1.5">
                 密码
               </label>
               <input
@@ -239,7 +316,7 @@ export default function AdminPage() {
                 onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
                 placeholder="输入密码"
                 autoComplete="current-password"
-                className="w-full px-4 py-3 bg-[--background-secondary] rounded-xl text-[--foreground] placeholder:text-[--foreground-tertiary] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
+                className="w-full px-4 py-3 bg-[var(--background-secondary)] rounded-xl text-[var(--foreground)] placeholder:text-[var(--foreground-tertiary)] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
               />
             </div>
 
@@ -251,7 +328,7 @@ export default function AdminPage() {
 
             <button
               onClick={handleLogin}
-              disabled={loading || !email.trim() || !password.trim()}
+              disabled={loading || !username.trim() || !password.trim()}
               className="w-full py-3.5 bg-[#007AFF] text-white rounded-xl text-sm font-medium disabled:opacity-40 disabled:active:scale-100 transition-all active:scale-[0.98]"
             >
               {loading ? '登录中...' : '登录'}
@@ -263,228 +340,232 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[--background] p-4">
+    <div className="min-h-screen bg-[var(--background)] p-4">
       <div className="max-w-md mx-auto">
-        <h1 className="text-xl font-semibold text-[--foreground] mb-6">
-          管理后台
-        </h1>
-
-        {/* Tab Switcher */}
-        <div className="flex gap-2 p-1 bg-[--background-secondary] rounded-xl mb-4">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-xl font-semibold text-[var(--foreground)]">
+            管理后台
+          </h1>
           <button
-            onClick={() => setTab('order')}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-              tab === 'order'
-                ? 'bg-[--card-bg] text-[--foreground] shadow-sm'
-                : 'text-[--foreground-tertiary]'
-            }`}
+            onClick={handleLogout}
+            className="px-3 py-1.5 text-xs bg-[var(--background-secondary)] rounded-lg text-[var(--foreground-secondary)]"
           >
-            订单管理
-          </button>
-          <button
-            onClick={() => { setTab('admin-code'); fetchAdminCodes(1); }}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-              tab === 'admin-code'
-                ? 'bg-[--card-bg] text-[--foreground] shadow-sm'
-                : 'text-[--foreground-tertiary]'
-            }`}
-          >
-            激活码管理
+            退出登录
           </button>
         </div>
 
-        {/* Order Management Tab */}
-        {tab === 'order' && (
-          <div className="bg-[--card-bg] rounded-2xl p-5 border border-[var(--card-border)] space-y-4">
-            <div>
-              <label className="text-sm font-medium text-[--foreground-secondary] block mb-1.5">
-                订单号
-              </label>
-              <input
-                type="text"
-                value={orderId}
-                onChange={(e) => setOrderId(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleQuery()}
-                placeholder="输入面包多订单号"
-                className="w-full px-4 py-3 bg-[--background-secondary] rounded-xl text-[--foreground] placeholder:text-[--foreground-tertiary] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
-              />
+        {/* Account Management */}
+        <div className="bg-[var(--card-bg)] rounded-2xl p-5 border border-[var(--card-border)] space-y-4 mb-4">
+          <h3 className="text-sm font-medium text-[var(--foreground)]">账号管理</h3>
+          {error && (
+            <div className="bg-[#FF3B30]/10 text-[#FF3B30] px-4 py-3 rounded-xl text-sm">
+              {error}
             </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={handleQuery}
-                disabled={loading || !orderId.trim()}
-                className="flex-1 py-3 bg-[#007AFF] text-white rounded-xl text-sm font-medium disabled:opacity-40 disabled:active:scale-100 transition-all active:scale-[0.98]"
-              >
-                {loading ? '查询中...' : '查询'}
-              </button>
-              <button
-                onClick={handleRegenerate}
-                disabled={loading || !orderId.trim()}
-                className="flex-1 py-3 bg-[#FF9500] text-white rounded-xl text-sm font-medium disabled:opacity-40 disabled:active:scale-100 transition-all active:scale-[0.98]"
-              >
-                {loading ? '生成中...' : '重新生成'}
-              </button>
-            </div>
-
-            {error && (
-              <div className="bg-[#FF3B30]/10 text-[#FF3B30] px-4 py-3 rounded-xl text-sm">
-                {error}
-              </div>
-            )}
-
-            {success && (
-              <div className="bg-[#34C759]/10 text-[#34C759] px-4 py-3 rounded-xl text-sm">
-                {success}
-              </div>
-            )}
-
-            {codes.length > 0 && (
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium text-[--foreground-secondary]">
-                  当前激活码
-                </h3>
-                {codes.map((code, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between bg-[--background-secondary] rounded-xl p-3"
-                  >
-                    <span className="font-mono text-base tracking-wider text-[--foreground]">
-                      {code.code}
-                    </span>
-                    <span
-                      className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                        code.used
-                          ? 'bg-[--apple-gray-light]/30 text-[--foreground-tertiary]'
-                          : 'bg-[#34C759]/10 text-[#34C759]'
-                      }`}
-                    >
-                      {code.used ? '已使用' : '未使用'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
+          )}
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newUsername}
+              onChange={(e) => setNewUsername(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleCreateAccount()}
+              placeholder="新用户用户名"
+              maxLength={32}
+              className="min-w-0 flex-1 px-3 py-2 bg-[var(--background-secondary)] rounded-xl text-[var(--foreground)] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
+            />
+            <input
+              type="number"
+              value={newUserTimes}
+              onChange={(e) => setNewUserTimes(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleCreateAccount()}
+              placeholder="初始次数"
+              min={1}
+              max={999}
+              className="w-20 px-3 py-2 bg-[var(--background-secondary)] rounded-xl text-[var(--foreground)] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
+            />
+            <button
+              onClick={handleCreateAccount}
+              disabled={loading || !newUsername.trim()}
+              className="px-4 py-2.5 bg-[#007AFF] text-white rounded-xl text-sm font-medium disabled:opacity-40 disabled:active:scale-100 transition-all active:scale-[0.98] shrink-0"
+            >
+              创建账号
+            </button>
           </div>
-        )}
-
-        {/* Admin Code Management Tab */}
-        {tab === 'admin-code' && (
-          <div className="space-y-4">
-            {/* Generate New Code */}
-            <div className="bg-[--card-bg] rounded-2xl p-5 border border-[var(--card-border)] space-y-4">
-              <h3 className="text-sm font-medium text-[--foreground]">生成新激活码</h3>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  value={newCodeTimes}
-                  onChange={(e) => setNewCodeTimes(parseInt(e.target.value, 10) || 50)}
-                  min={1}
-                  max={200}
-                  className="w-24 px-3 py-2 bg-[--background-secondary] rounded-xl text-[--foreground] text-[15px] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
-                />
-                <span className="text-sm text-[--foreground-tertiary] self-center">次</span>
-                <button
-                  onClick={handleGenerateAdminCode}
-                  disabled={loading}
-                  className="flex-1 py-2.5 bg-[#007AFF] text-white rounded-xl text-sm font-medium disabled:opacity-40 disabled:active:scale-100 transition-all active:scale-[0.98]"
-                >
-                  {loading ? '生成中...' : '生成'}
-                </button>
+          {createdAccount && (
+            <div className="bg-[#34C759]/10 rounded-xl p-3 flex items-center justify-between gap-2">
+              <div className="text-sm">
+                <span className="font-mono tracking-wider text-[var(--foreground)]">
+                  {createdAccount.username} / {createdAccount.password}
+                </span>
+                <p className="text-xs text-[var(--foreground-tertiary)] mt-1">密码仅此一次，请复制后发给用户</p>
               </div>
-              {generatedCode && (
-                <div className="bg-[#34C759]/10 rounded-xl p-3 flex items-center justify-between">
-                  <div>
-                    <span className="font-mono text-lg tracking-wider text-[--foreground]">{generatedCode}</span>
-                    <p className="text-xs text-[--foreground-tertiary] mt-1">有效期30天，可复制给用户</p>
-                  </div>
-                  <button
-                    onClick={() => navigator.clipboard.writeText(generatedCode)}
-                    className="text-[#007AFF] text-sm font-medium"
-                  >
-                    复制
-                  </button>
-                </div>
-              )}
+              <button
+                onClick={() => navigator.clipboard.writeText(`${createdAccount.username} ${createdAccount.password}`)}
+                className="text-[#007AFF] text-sm font-medium shrink-0"
+              >
+                复制
+              </button>
             </div>
-
-            {/* Admin Codes List */}
-            <div className="bg-[--card-bg] rounded-2xl p-5 border border-[var(--card-border)] space-y-4">
-              <h3 className="text-sm font-medium text-[--foreground]">激活码列表</h3>
-
-              {error && (
-                <div className="bg-[#FF3B30]/10 text-[#FF3B30] px-4 py-3 rounded-xl text-sm">
-                  {error}
-                </div>
-              )}
-
-              {adminCodes.length === 0 && !loading ? (
-                <p className="text-sm text-[--foreground-tertiary] text-center py-4">暂无激活码</p>
-              ) : (
-                <div className="space-y-2">
-                  {adminCodes.map((code) => (
-                    <div
-                      key={code.code}
-                      className="bg-[--background-secondary] rounded-xl p-3 space-y-1"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-mono text-sm tracking-wider text-[--foreground]">
-                          {code.code}
-                        </span>
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                            code.used
-                              ? 'bg-[#007AFF]/10 text-[#007AFF]'
-                              : 'bg-[#34C759]/10 text-[#34C759]'
-                          }`}
-                        >
-                          {code.used ? '已使用' : '未使用'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs text-[--foreground-tertiary]">
-                        <span>剩余 {code.remainingTimes}/{code.totalTimes} 次</span>
-                        <span>过期 {new Date(code.expiresAt).toLocaleDateString('zh-CN')}</span>
-                      </div>
-                      {code.deviceId && (
-                        <div className="text-xs text-[--foreground-tertiary]">
-                          设备: {code.deviceId.slice(0, 8)}...
-                        </div>
+          )}
+          {users.length === 0 ? (
+            <p className="text-sm text-[var(--foreground-tertiary)] text-center py-2">暂无账号</p>
+          ) : (
+            <div className="space-y-2">
+              {users.map((u) => (
+                <div
+                  key={u.id}
+                  className="bg-[var(--background-secondary)] rounded-xl p-3 space-y-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex items-center gap-2">
+                      <span className="text-sm text-[var(--foreground)] truncate">{u.username}</span>
+                      {u.role === 'admin' && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-[#007AFF]/10 text-[#007AFF] shrink-0">管理员</span>
+                      )}
+                      {u.role !== 'admin' && u.status === 'disabled' && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-[#FF3B30]/10 text-[#FF3B30] shrink-0">已禁用</span>
                       )}
                     </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Pagination */}
-              {adminCodeTotal > 0 && (
-                <div className="flex items-center justify-between pt-2">
-                  <span className="text-xs text-[--foreground-tertiary]">
-                    共 {adminCodeTotal} 个
-                  </span>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => fetchAdminCodes(adminCodePage - 1)}
-                      disabled={adminCodePage <= 1}
-                      className="px-3 py-1 text-xs bg-[--background-secondary] rounded-lg text-[--foreground] disabled:opacity-40"
-                    >
-                      上一页
-                    </button>
-                    <span className="px-3 py-1 text-xs text-[--foreground-tertiary]">
-                      第 {adminCodePage} 页
+                    <div className="flex items-center gap-2 shrink-0">
+                      {resetPasswords[u.id] && (
+                        <span className="font-mono text-xs text-[#34C759]">{resetPasswords[u.id]}</span>
+                      )}
+                      <button
+                        onClick={() => handleResetPassword(u.id)}
+                        className="px-2.5 py-1 text-xs bg-[var(--card-bg)] rounded-lg text-[var(--foreground-secondary)] border border-[var(--card-border)]"
+                      >
+                        重置密码
+                      </button>
+                      {u.role !== 'admin' && (
+                        <>
+                          <button
+                            onClick={() => handleToggleStatus(u)}
+                            className="px-2.5 py-1 text-xs bg-[var(--card-bg)] rounded-lg text-[var(--foreground-secondary)] border border-[var(--card-border)]"
+                          >
+                            {u.status === 'disabled' ? '启用' : '禁用'}
+                          </button>
+                          <button
+                            onClick={() => setPendingDeleteUser(u)}
+                            className="px-2.5 py-1 text-xs bg-[var(--card-bg)] rounded-lg text-[#FF3B30] border border-[#FF3B30]/30"
+                          >
+                            删除
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-[var(--foreground-tertiary)]">
+                      剩余 {u.remainingUsage} 次 · 累计发放 {u.totalUsage}
                     </span>
-                    <button
-                      onClick={() => fetchAdminCodes(adminCodePage + 1)}
-                      disabled={adminCodePage * 20 >= adminCodeTotal}
-                      className="px-3 py-1 text-xs bg-[--background-secondary] rounded-lg text-[--foreground] disabled:opacity-40"
-                    >
-                      下一页
-                    </button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <input
+                        type="number"
+                        value={addTimesInput[u.id] ?? ''}
+                        onChange={(e) =>
+                          setAddTimesInput((prev) => ({ ...prev, [u.id]: e.target.value }))
+                        }
+                        onKeyDown={(e) => e.key === 'Enter' && handleAddTimes(u.id)}
+                        placeholder="+N"
+                        min={1}
+                        max={999}
+                        className="w-16 px-2 py-1 bg-[var(--card-bg)] rounded-lg text-[var(--foreground)] text-xs border border-[var(--card-border)] focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
+                      />
+                      <button
+                        onClick={() => handleAddTimes(u.id)}
+                        disabled={loading}
+                        className="px-2.5 py-1 text-xs bg-[#007AFF] text-white rounded-lg font-medium disabled:opacity-40"
+                      >
+                        加次数
+                      </button>
+                    </div>
                   </div>
                 </div>
-              )}
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Report Funnel */}
+        <div className="bg-[var(--card-bg)] rounded-2xl p-5 border border-[var(--card-border)] space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-[var(--foreground)]">报告付费漏斗</h3>
+            <button
+              onClick={fetchFunnel}
+              className="px-3 py-1 text-xs bg-[var(--background-secondary)] rounded-lg text-[var(--foreground)]"
+            >
+              刷新
+            </button>
+          </div>
+
+          {!funnel ? (
+            <p className="text-sm text-[var(--foreground-tertiary)] text-center py-4">暂无数据（需配置 MySQL）</p>
+          ) : (
+            <>
+              {(() => {
+                const max = Math.max(...FUNNEL_STEPS.map((s) => funnel.funnel[s.key]?.count ?? 0), 1);
+                return (
+                  <div className="space-y-2">
+                    {FUNNEL_STEPS.map((s) => {
+                      const step = funnel.funnel[s.key] ?? { count: 0, users: 0 };
+                      return (
+                        <div key={s.key} className="flex items-center gap-2">
+                          <span className="text-xs text-[var(--foreground-secondary)] w-20 shrink-0">{s.label}</span>
+                          <div className="flex-1 h-3 bg-[var(--background-secondary)] rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-[#007AFF] rounded-full"
+                              style={{ width: `${(step.count / max) * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-[var(--foreground)] w-12 text-right tabular-nums">{step.count}</span>
+                          <span className="text-xs text-[var(--foreground-tertiary)] w-14 text-right">{step.users} 人</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+              <div className="flex justify-between text-xs text-[var(--foreground-tertiary)] pt-2 border-t border-[var(--card-border)]">
+                <span>曝光→确认 {funnel.rates.confirmToView === null ? '—' : `${funnel.rates.confirmToView}%`}</span>
+                <span>确认→生成 {funnel.rates.generateToConfirm === null ? '—' : `${funnel.rates.generateToConfirm}%`}</span>
+                <span>生成→下载 {funnel.rates.downloadToGenerate === null ? '—' : `${funnel.rates.downloadToGenerate}%`}</span>
+              </div>
+            </>
+          )}
+        </div>
+
+        <Modal
+          open={pendingDeleteUser !== null}
+          onClose={() => setPendingDeleteUser(null)}
+          title="删除账号"
+          size="sm"
+        >
+          <div className="px-5 pb-5">
+            <div className="w-11 h-11 rounded-full bg-[var(--color-danger)]/10 flex items-center justify-center mb-3">
+              <Icon name="alert-circle" size={18} className="text-[var(--color-danger)]" />
+            </div>
+            <p className="text-sm text-[var(--foreground-secondary)] leading-relaxed mb-5">
+              确定要删除账号
+              <span className="font-medium text-[var(--foreground)]">「{pendingDeleteUser?.username}」</span>
+              吗？其对话历史、报告与剩余额度将一并清除，此操作不可恢复。
+            </p>
+            <div className="flex gap-2">
+              <Button variant="secondary" size="lg" fullWidth onClick={() => setPendingDeleteUser(null)}>
+                取消
+              </Button>
+              <Button
+                variant="danger"
+                size="lg"
+                fullWidth
+                onClick={() => {
+                  if (pendingDeleteUser) handleDeleteUser(pendingDeleteUser.id);
+                  setPendingDeleteUser(null);
+                }}
+              >
+                删除
+              </Button>
             </div>
           </div>
-        )}
+        </Modal>
       </div>
     </div>
   );

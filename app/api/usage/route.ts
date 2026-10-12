@@ -5,7 +5,7 @@ import { checkRateLimit, checkDeviceIdSpoofing, RATE_LIMITS, extractClientInfo }
 
 export async function GET(request: NextRequest) {
   try {
-    const { uid, deviceId } = getAuthContext(request);
+    const { uid, deviceId } = await getAuthContext(request);
 
     if (!deviceId) {
       return NextResponse.json({ error: 'Device ID required' }, { status: 400 });
@@ -40,8 +40,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // uid first, then deviceId fallback (anonymous free count)
-    const usage = await checkUsage(uid, deviceId);
+    const usage = await checkUsage(uid);
 
     return NextResponse.json(usage, {
       headers: {

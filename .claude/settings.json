@@ -26,14 +26,14 @@
     ],
     "ask": [
       "Bash(git:push:*)",
-      "Bash(git:commit:*)"
+      "Bash(git:commit:*)",
+      "Bash(rm:*)",
+      "WebFetch"
     ],
     "deny": [
       "Read(./.env*)",
       "Read(*.pem)",
-      "Read(*.key)",
-      "Bash(rm:*)",
-      "WebFetch"
+      "Read(*.key)"
     ]
   }
 }

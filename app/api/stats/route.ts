@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'rate_limit_exceeded' }, { status: 429 });
     }
 
-    if (!isMySQLAvailable) {
+    if (!isMySQLAvailable()) {
       return NextResponse.json({
         totalChats: 0,
         activeDays: 0,
