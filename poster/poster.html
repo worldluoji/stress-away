@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>反PUA手册 · 闲鱼主图</title>
+<style>
+  :root {
+    --brand: #007AFF;
+    --brand-alt: #AF52DE;
+    --fg: #FFFFFF;
+    --fg-2: rgba(255, 255, 255, 0.72);
+    --fg-3: rgba(255, 255, 255, 0.46);
+    --glass: rgba(255, 255, 255, 0.06);
+    --stroke: rgba(255, 255, 255, 0.13);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { width: 1080px; height: 1080px; }
+
+  body {
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", "Hiragino Sans GB", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    color: var(--fg);
+    background: #0A0A16;
+  }
+
+  .poster {
+    position: relative;
+    width: 1080px;
+    height: 1080px;
+    overflow: hidden;
+    padding: 68px 72px 60px;
+    display: flex;
+    flex-direction: column;
+    background:
+      radial-gradient(760px circle at 10% 4%, rgba(0, 122, 255, 0.38), transparent 62%),
+      radial-gradient(820px circle at 94% 96%, rgba(175, 82, 222, 0.34), transparent 64%),
+      radial-gradient(520px circle at 78% 18%, rgba(90, 140, 255, 0.16), transparent 70%),
+      linear-gradient(158deg, #0A0A16 0%, #120E28 52%, #180F2C 100%);
+  }
+
+  .grad-text {
+    background: linear-gradient(96deg, #3D9BFF 0%, #AF52DE 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* ---------- 品牌条 ---------- */
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .logo {
+    width: 54px;
+    height: 54px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--brand) 0%, var(--brand-alt) 100%);
+    box-shadow: 0 8px 24px rgba(0, 122, 255, 0.35);
+    flex: none;
+  }
+
+  .brand-name {
+    font-size: 25px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .brand-sub {
+    font-size: 17px;
+    font-weight: 400;
+    color: var(--fg-3);
+    margin-top: 3px;
+  }
+
+  .brand-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 17px;
+    font-weight: 600;
+    color: #8FC4FF;
+    padding: 10px 18px;
+    border-radius: 999px;
+    background: rgba(0, 122, 255, 0.16);
+    border: 1px solid rgba(0, 122, 255, 0.34);
+    white-space: nowrap;
+  }
+
+  /* ---------- 标题 ---------- */
+  .headline {
+    margin-top: 54px;
+  }
+
+  h1 {
+    font-size: 78px;
+    line-height: 1.16;
+    font-weight: 800;
+    letter-spacing: -1px;
+  }
+
+  .sub {
+    margin-top: 22px;
+    font-size: 26px;
+    line-height: 1.5;
+    color: var(--fg-2);
+    font-weight: 400;
+    max-width: 880px;
+  }
+
+  /* ---------- 结果卡 ---------- */
+  .card {
+    margin-top: 40px;
+    border-radius: 28px;
+    background: var(--glass);
+    border: 1px solid var(--stroke);
+    backdrop-filter: blur(18px);
+    padding: 30px 32px 28px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  }
+
+  .card-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    font-size: 16px;
+    color: var(--fg-3);
+  }
+
+  .card-head .tag {
+    color: #C9B8FF;
+    font-weight: 600;
+  }
+
+  .card-input {
+    margin-top: 18px;
+    font-size: 21px;
+    color: var(--fg-2);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--fg-3);
+    display: inline-block;
+  }
+
+  .rows { margin-top: 18px; }
+
+  .row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 13px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .row-label { font-size: 22px; color: var(--fg-2); }
+
+  .row-value {
+    font-size: 34px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .row-note {
+    margin-top: 16px;
+    font-size: 17px;
+    color: var(--fg-3);
+  }
+
+  .note-chip {
+    display: inline-block;
+    padding: 5px 12px;
+    border-radius: 8px;
+    background: rgba(52, 199, 89, 0.14);
+    border: 1px solid rgba(52, 199, 89, 0.3);
+    color: #7BE39B;
+    font-weight: 600;
+    margin-right: 10px;
+  }
+
+  /* ---------- 卖点 ---------- */
+  .features {
+    margin-top: 38px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .feature {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    font-size: 23px;
+    line-height: 1.4;
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .tick {
+    width: 28px;
+    height: 28px;
+    border-radius: 9px;
+    flex: none;
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--brand) 0%, var(--brand-alt) 100%);
+  }
+
+  /* ---------- 底部 ---------- */
+  .footer {
+    margin-top: auto;
+    padding-top: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 16px;
+    color: rgba(255, 255, 255, 0.55);
+  }
+
+  .footer .sep { color: rgba(255, 255, 255, 0.2); margin: 0 10px; }
+</style>
+</head>
+<body>
+  <div class="poster">
+    <div class="brand">
+      <div class="logo">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" />
+          <path d="M9 18h6" />
+          <path d="M10 22h4" />
+        </svg>
+      </div>
+      <div>
+        <div class="brand-name">反PUA手册</div>
+        <div class="brand-sub">AI 职场维权助手 · 附 12 类职场反PUA话术</div>
+      </div>
+      <div class="brand-right">免费 · 无需登录</div>
+    </div>
+
+    <div class="headline">
+      <h1>被裁员？<br /><span class="grad-text">先算算你该拿多少钱</span></h1>
+      <p class="sub">免费估算 N+1 / 2N 法定赔偿，一键生成维权方案与仲裁申请书</p>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="tag">赔偿金估算 · 示例</span>
+        <span>依据《劳动合同法》第 47 条</span>
+      </div>
+      <div class="card-input">
+        <span>入职 3 年</span><i class="dot"></i><span>月薪 ¥15,000</span>
+      </div>
+      <div class="rows">
+        <div class="row">
+          <span class="row-label">经济补偿 N</span>
+          <span class="row-value grad-text">¥45,000</span>
+        </div>
+        <div class="row">
+          <span class="row-label">违法解除 2N（第 87 条）</span>
+          <span class="row-value grad-text">¥90,000</span>
+        </div>
+      </div>
+      <div class="row-note">
+        <span class="note-chip">还可能叠加</span>加班费 · 未休年假折算 · 代通知金
+      </div>
+    </div>
+
+    <div class="features">
+      <div class="feature">
+        <span class="tick">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+        </span>
+        <span>依据《劳动合同法》第 40 / 47 / 87 条即时估算</span>
+      </div>
+      <div class="feature">
+        <span class="tick">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+        </span>
+        <span>五段式维权报告：赔偿核对 · 证据清单 · 仲裁流程 · 申请书草稿</span>
+      </div>
+      <div class="feature">
+        <span class="tick">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+        </span>
+        <span>支持下载 Word，可直接提交仲裁</span>
+      </div>
+    </div>
+
+    <div class="footer">
+      <span>30 城社平工资自动匹配</span>
+      <span>AI 生成，不构成律师意见，以仲裁认定为准</span>
+    </div>
+  </div>
+</body>
+</html>

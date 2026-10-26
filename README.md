@@ -240,8 +240,27 @@ docker run --rm -p 3000:3000 --env-file .env.production stress-away:latest
 │   └── migrations/
 │       ├── 001_initial.sql         # MySQL 全量最终态建表语句（合并基线，仅全新安装）
 │       └── 002_add_users_status.sql # 增量：users.status 账号生命周期列 + event_type 漂移补丁（存量库执行）
+├── poster/
+│   ├── poster.html                    # 闲鱼主图海报源文件（1080×1080 固定画布）
+│   ├── render.swift                   # HTML → PNG 渲染器（macOS WKWebView 快照，无需第三方依赖）
+│   └── out/                           # 渲染产物（poster-1080@2x.png / poster-1080.png / poster-1080.jpg）
 └── spec.md                            # 详细规格文档
 ```
+
+## 宣传物料
+
+`poster/` 是闲鱼商品主图（1:1 方图）的可复现源文件，不参与应用构建。
+
+```bash
+cd poster
+swift render.swift poster.html out/poster-1080@2x.png 2 ghost   # 输出 2160×2160 PNG
+sips -Z 1080 out/poster-1080@2x.png --out out/poster-1080.png   # 缩到 1080×1080
+sips -s format jpeg -s formatOptions 88 out/poster-1080.png --out out/poster-1080.jpg  # 上传用 JPG
+```
+
+- `render.swift` 依赖 macOS 自带的 Swift + WKWebView：把 HTML 按 1080×1080 布局渲染后快照成 PNG，窗口以 `alphaValue = 0` 的方式"不可见但已合成"，避免闪屏同时保证快照速度（隐藏或移出屏幕的窗口会退化到 20s 以上）。
+- 海报文案须与实际功能一致：赔偿估算依据《劳动合同法》第 40 / 47 / 87 条，报告为五段式（赔偿核对 / 证据清单 / 仲裁流程 / 申请书草稿 / 风险与谈判策略），并保留"AI 生成、不构成律师意见、以仲裁认定为准"免责语。
+- 闲鱼主图规则：1:1 正方形、建议 1080×1080、单张 ≤2MB，且不得含二维码、微信号、外链或水印——因此海报只写"免费 · 无需登录"，价格与联系方式交由平台字段承载。
 
 ## 环境变量
 

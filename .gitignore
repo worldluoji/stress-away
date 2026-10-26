@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# poster render artifacts (regenerable via poster/render.swift)
+/poster/out/
+
 # production
 /build
 
