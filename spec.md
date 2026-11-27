@@ -1,12 +1,12 @@
 # 反PUA手册 Spec
 
-> **状态：维护模式（2026-10-12 起）。** 服务保持在线，停止推广与新功能开发。两次付费验证失败（话术付费、闲鱼线索通），归档版本 `v1.0-archived`。
+> **状态：开源作品集（2026-11 起）。** 仅供学习与演示，不构成法律意见。
 
 ## 概念与愿景
 
-反PUA手册 是高压青年的职场维权与应对助手。核心付费能力：当用户遭遇裁员/欠薪/违法解除时，免费估算法定赔偿（N+1/2N/代通知金/加班费/年假折算），付费生成完整维权方案报告（赔偿明细核对、证据清单、仲裁流程时间线、仲裁申请书草稿、谈判策略）。辅以免费的职场反PUA应对话术作为获客漏斗。
+反PUA手册 是高压青年的职场维权与应对助手。核心能力：当用户遭遇裁员/欠薪/违法解除时，免费估算法定赔偿（N+1/2N/代通知金/加班费/年假折算），并生成完整维权方案参考稿（赔偿明细核对、证据清单、仲裁流程时间线、仲裁申请书草稿、谈判策略）。辅以职场反PUA应对话术。项目现为开源演示，不构成法律意见。
 
-**变现逻辑**：情绪宣泄不付费，"帮用户拿回钱"付费——预期回款数千至数万元 vs 单份报告 ¥9.9–29.9。
+**定位**：用于展示全栈工程实践的开源作品集项目；报告与话术均为 AI 生成的参考内容。
 
 ## 技术栈
 
@@ -16,7 +16,7 @@
 - **AI**: DeepSeek V4 Flash / MiniMax 2.7
 - **存储**: MySQL 8.0（账号/会话/订阅/对话/事件/kv_store）+ 进程内内存（限流/防爆破/订阅读缓存）+ LocalStorage（客户端缓存）
 - **账号体系**: 自建（scrypt 密码哈希 + sessions 表 + httpOnly Cookie），无第三方登录 SDK、无 JWT
-- **变现**: 管理端发放制（管理员给用户账号加报告次数，无自助支付/激活码/面包多）
+- **额度**: 管理端发放制（部署者给演示账号配置报告次数，无收款渠道）
 - **测试**: Vitest（表格驱动单元测试，`pnpm test`）
 - **部署**: Docker (multi-stage, Next.js standalone, node:22-alpine)
 
@@ -26,7 +26,7 @@
 - [x] 赔偿金计算器：免费无门槛，纯客户端实时估算；规则依据《劳动合同法》第40/47/87条——取整（≥6个月按1年、<6个月半月）、高薪双封顶（基数3×社平、年限≤12）、2N替代N、代通知金按上月工资（仅第40条未提前30日书面通知）、加班费150%/200%/300%（时薪=月薪÷21.75÷8）、未休年假补发200%；`lib/compensation.ts` 纯函数 + 表格驱动测试
 - [x] 社平工资封顶表：`lib/social-wage.ts` 内置 30 个高频城市，每条 `WageRecord { wage, effectiveDate, sourceUrl, sourceLabel, isEstimate }`；`isEstimate` 标记是否经人社局核对（默认 `true`，人工核对后改 `false`）；未收录城市按三级查表链 `城市表 → 省会代理 → 用户自填` 处理（详见 `getSocialWageContext`），省份映射见 `lib/cities.ts`；`SOCIAL_WAGE_DATA_AS_OF` 为全局时效 floor；年度人工更新，不做自动 pipeline
   - 表单交互：城市输入框下方提示「未收录城市会自动回退到所属省份平均值」；并列折叠 details「选填：自定义社平工资」可输入本地数值（>0 才生效）；结果卡末尾按 `breakdown.wageSource.source` 分支展示「city/province/user/uncovered」对应文案，city/province 分支含人社局来源链接
-- [x] 维权方案报告：付费功能（仅 `isPaid` 用户，否则 403 `paid_only`），消耗 1 次报告额度；金额由服务端 `computeCompensation` 重算后注入 prompt，防篡改；AI 五段式输出；`labor-report` 计入 scenario_stats 统计
+- [x] 维权方案报告：需登录且有演示额度（无额度则 403 `paid_only`），消耗 1 次演示额度；金额由服务端 `computeCompensation` 重算后注入 prompt，防篡改；AI 五段式输出；`labor-report` 计入 scenario_stats 统计
 - [x] 免责声明：计算器旁 / 报告页脚（route 层固定拼接）/ 首页页脚三处，标注"AI生成、不构成律师意见、以仲裁认定为准"
 
 ### 核心功能
@@ -41,19 +41,18 @@
 - [x] 自建账号体系：用户名+密码，**无自助注册**，账号由管理员在 `/admin`「账号管理」创建并一次性发放初始密码（`xxxx-xxxx-xxxx` 去易混淆字符）；详见「账号与会话」章节
 - [x] 管理员账号幂等引导：`ADMIN_USERNAME/ADMIN_PASSWORD` 齐备时首次登录自动建号/升格，登录后走同一套 `/api/auth/login`（按 role 区分入口）
 
-### 订阅与额度发放（管理端发放制）
-- [x] 免费对话：登录用户每天 10 次免费对话（按 uid 计数，不消耗购买次数）；超出后付费用户确认消耗 1 次购买额度可继续对话（402 → `confirmPaid` 重发），未付费用户 403 引导「如何购买」
-- [x] 购买指引：命中未付费/无额度时弹「如何购买」指引卡（展示管理员微信号，线下收款后由管理员在后台加次数；**无自助激活码输入框**）
+### 额度发放（管理端演示配置）
+- [x] 免费对话：登录用户每天 10 次免费对话（按 uid 计数，不消耗演示额度）；超出后有额度用户确认消耗 1 次演示额度可继续对话（402 → `confirmPaid` 重发），无额度用户 403 提示额度说明
+- [x] 额度说明：命中无额度时弹「关于报告额度」说明卡（说明额度由部署者配置，无收款渠道）
 - [x] 设备标识：基于 FingerprintJS 的设备 ID（限流/deviceId 防伪维度）
-- [x] 使用追踪：对话优先消耗每日免费额度，报告生成与超额对话扣购买次数
-- [x] 管理后台：账号管理（建号可写入初始次数 / +N 追加次数 / 列表显示剩余与累计发放 / 重置密码 / 禁用-启用（软删除）/ 硬删除带二次确认弹窗，管理员账号本身不可禁用或删除），报告付费漏斗卡片（`GET /api/admin/funnel`）
+- [x] 使用追踪：对话优先消耗每日免费额度，报告生成与超额对话扣演示额度
+- [x] 管理后台：账号管理（建号可写入初始次数 / +N 追加次数 / 列表显示剩余与累计发放 / 重置密码 / 禁用-启用（软删除）/ 硬删除带二次确认弹窗，管理员账号本身不可禁用或删除），使用漏斗卡片（`GET /api/admin/funnel`）
 
-### 次数发放模型（管理端发放制，替代激活码）
+### 次数发放模型（管理端演示配置）
 
 **核心语义：**
-- 报告次数（`subscriptions.remaining_usage`）即"报告货币"，由管理员在 `/admin`「账号管理」直接发放，**永久有效、无过期概念**
-- 付费判定 = `remaining_usage > 0`（`isPaidUserByUid` 单条件）
-- 激活码体系（生成码/兑换码/多码叠加/30 天过期/订单码）已整体退役，`admin_activation_codes` 表删除
+- 报告次数（`subscriptions.remaining_usage`）是演示额度，由部署者在 `/admin`「账号管理」直接配置，**永久有效、无过期概念**
+- 有额度判定 = `remaining_usage > 0`（`isPaidUserByUid` 单条件）
 
 **发放（`grantUsageByUid(uid, addTimes)`）：**
 - 单条原子 upsert：`INSERT … ON DUPLICATE KEY UPDATE total_usage += addTimes, remaining_usage += addTimes`，回读发放后剩余并失效 60s 读缓存
@@ -87,7 +86,7 @@
 - `subscriptions`：订阅额度（uid 主键、device_id、`total_usage` 累计发放、`remaining_usage` 剩余），次数永久有效
 - `conversations`：对话历史（JSON 存储，最多50条）
 - `messages` / `message_reactions` / `saved_messages`：消息索引、点赞、收藏
-- `usage_events`：使用事件（场景浏览/聊天/复制 + 报告付费漏斗：calculator/login_gate/paywall_view/paywall_block/paywall_confirm/paywall_cancel/report_generate/report_download）。`event_type` 列为 **VARCHAR(32) 而非 ENUM**——ENUM 会把新增事件名静默丢弃导致漏斗数据丢失，事件类型只可增不可减（已删 `activate`/`activate_success`，历史行保留不影响聚合）
+- `usage_events`：使用事件（场景浏览/聊天/复制 + 使用漏斗：calculator/login_gate/paywall_view/paywall_block/paywall_confirm/paywall_cancel/report_generate/report_download）。`event_type` 列为 **VARCHAR(32) 而非 ENUM**——ENUM 会把新增事件名静默丢弃导致漏斗数据丢失，事件类型只可增不可减（已删 `activate`/`activate_success`，历史行保留不影响聚合）
 - `scenario_stats`：场景统计数据（视图数/聊天数/复制数）
 - `kv_store`：短期持久状态 KV（每日免费对话计数、deviceId 防伪，key + value + expires_at）
 
@@ -108,7 +107,7 @@
 **LocalStorage（客户端）**
 - 前端对话缓存（临时，不影响 MySQL 持久化）
 
-### 账号与会话（自建，替代 TCB）
+### 账号与会话（自建）
 
 **账号（users 表）：**
 - `id VARCHAR(64)` 主键 = `crypto.randomUUID()`，即全站业务语义中的 `uid`（subscriptions/labor_reports/conversations 等表的 uid 列直接引用，无需迁移）
@@ -155,7 +154,7 @@
   - 构建时变量（`NEXT_PUBLIC_*`）：在 `pnpm build` 阶段从项目根的 `.env.production` 读取并内联到客户端 JS bundle
   - 运行时变量（API keys、数据库密码等）：通过 `docker run --env-file .env.production` 注入；服务端代码 `process.env` 在请求时读取
   - **镜像安全**：Next.js 16 standalone 模式会自动将 `.env.production` 复制到 `.next/standalone/`，Dockerfile 在 runner 阶段显式 `rm` 掉它，避免敏感文件残留
-- **外部依赖**（不打包进镜像）：MySQL 8.0（账号体系自建，已无 TCB 等第三方鉴权服务）
+- **外部依赖**（不打包进镜像）：MySQL 8.0（账号体系自建，无第三方鉴权服务）
 
 ## 文件结构
 
@@ -164,7 +163,7 @@
 │   ├── admin/page.tsx                 # 管理后台
 │   ├── api/
 │   │   ├── admin/
-│   │   │   ├── funnel/route.ts       # 报告付费漏斗统计（管理员）
+│   │   │   ├── funnel/route.ts       # 报告使用漏斗统计（管理员）
 │   │   │   └── users/route.ts        # 账号管理：建号/发放次数/重置密码/禁用启用/硬删除/列表（管理员）
 │   │   ├── auth/
 │   │   │   ├── login/route.ts        # 统一登录（防爆破/防枚举 + 会话 cookie）
@@ -174,7 +173,7 @@
 │   │   ├── docs/route.ts              # API 文档
 │   │   ├── events/route.ts            # 客户端埋点上报（漏斗事件白名单）
 │   │   ├── labor-reports/             # 维权报告历史列表/单条/删除
-│   │   ├── report/route.ts            # 维权方案报告（付费，服务端重算）
+│   │   ├── report/route.ts            # 维权方案报告（需演示额度，服务端重算）
 │   │   ├── scenarios/                # 场景模板 API
 │   │   └── usage/                    # 额度查询（GET）
 │   ├── components/
@@ -182,11 +181,11 @@
 │   │   ├── HistoryPanel.tsx           # 历史记录面板
 │   │   ├── LaborHistoryPanel.tsx      # 维权报告历史抽屉（降级空态/删除二次确认）
 │   │   ├── LoginModal.tsx             # 登录弹窗 + useAuth（数据源 /api/auth/me）
-│   │   ├── ReportPanel.tsx            # 维权报告生成面板（含目录 chip 导航 + 自管「如何购买」指引）
+│   │   ├── ReportPanel.tsx            # 维权报告生成面板（含目录 chip 导航 + 额度说明）
 │   │   ├── markdown.tsx               # 网页端 markdown 渲染共享配置（remark-gfm + 组件样式 + 禁用元素 + 标题锚点/目录提取）
 │   │   ├── ScenarioCard.tsx          # 场景卡片
 │   │   ├── ScenarioModal.tsx          # 场景详情弹窗
-│   │   └── ui/PurchaseGuide.tsx       # 「如何购买」指引卡（微信号展示，无自助输入）
+│   │   └── ui/QuotaGuide.tsx          # 演示额度说明卡（无收款渠道）
 │   ├── docs/page.tsx                 # API 文档页
 │   ├── labor/page.tsx                # 劳动维权主页
 │   └── page.tsx                      # 主页
@@ -236,9 +235,9 @@
 
 ### GET /api/usage
 
-查询当前用户的额度状态（购买次数 = 报告货币，管理端发放、永久有效；对话另有每日免费额度）。
+查询当前用户的额度状态（演示额度由部署者配置、永久有效；对话另有每日免费额度）。
 
-Headers: `x-device-id` + 会话 Cookie（uid 取自验签会话；未登录 `uid=null`，返回未付费视角）
+Headers: `x-device-id` + 会话 Cookie（uid 取自验签会话；未登录 `uid=null`，返回无额度视角）
 
 响应（`total` = 累计发放次数，`remaining` = 当前剩余）：
 ```json
@@ -247,7 +246,7 @@ Headers: `x-device-id` + 会话 Cookie（uid 取自验签会话；未登录 `uid
 
 ### POST /api/chat
 
-AI 对话。登录用户每日 10 次免费；免费额度用尽后，付费用户需带 `confirmPaid: true` 重发以消耗 1 次购买额度。
+AI 对话。登录用户每日 10 次免费；免费额度用尽后，有额度用户需带 `confirmPaid: true` 重发以消耗 1 次演示额度。
 
 Headers: `x-device-id` + 会话 Cookie（uid 来自验签会话，不再接受 `X-User-Id` 头）
 
@@ -261,11 +260,11 @@ Headers: `x-device-id` + 会话 Cookie（uid 来自验签会话，不再接受 `
 { "reply": "…", "quota": { "allowed": true, "remaining": 5, "isPaid": true, "total": 100, "chatFreeRemaining": 0, "chatFreeTotal": 10 } }
 ```
 
-错误：402 `chat_quota_confirm`（免费额度用尽且未确认，附 `message`/`freeUsed`/`paidRemaining`，前端确认后带 `confirmPaid: true` 重发）、403 `login_required`（未登录）、403 `free_exhausted`（未付费超每日免费额度）、403 `no_quota`（购买次数耗尽）、400 输入非法、429 限流、500 AI 失败（不结算额度）。
+错误：402 `chat_quota_confirm`（免费额度用尽且未确认，附 `message`/`freeUsed`/`paidRemaining`，前端确认后带 `confirmPaid: true` 重发）、403 `login_required`（未登录）、403 `free_exhausted`（无额度用户超每日免费额度）、403 `no_quota`（演示额度耗尽）、400 输入非法、429 限流、500 AI 失败（不结算额度）。
 
 ### POST /api/report
 
-生成劳动维权方案报告。仅付费用户；服务端重算赔偿金额后注入 prompt。
+生成劳动维权方案参考稿。需登录且有演示额度；服务端重算赔偿金额后注入 prompt。
 
 Headers: `x-device-id` + 会话 Cookie（uid 来自验签会话，不再接受 `X-User-Id` 头）
 
@@ -290,7 +289,7 @@ Headers: `x-device-id` + 会话 Cookie（uid 来自验签会话，不再接受 `
 
 `dismissalType` 枚举：`mutual | no-fault-40 | illegal | expired | forced-resign`。
 
-`confirmPaid`：付费用户首次调用置 `false`（默认，探测请求不计 /api/report 限流），后端返回 402 `report_quota_confirm` 并附 `paidRemaining`；前端弹出自绘确认 Modal（展示剩余额度 N→N-1 与预计回款金额），用户确认后置 `true` 重发（此时才消耗限流额度）；取消不上报生成。不传等同于 `false`。
+`confirmPaid`：付费用户首次调用置 `false`（默认，探测请求不计 /api/report 限流），后端返回 402 `report_quota_confirm` 并附 `paidRemaining`；前端弹出自绘确认 Modal（展示剩余额度 N→N-1 与估算可主张金额），用户确认后置 `true` 重发（此时才消耗限流额度）；取消不上报生成。不传等同于 `false`。
 
 响应：
 ```json
@@ -300,7 +299,7 @@ Headers: `x-device-id` + 会话 Cookie（uid 来自验签会话，不再接受 `
 }
 ```
 
-错误：402 `report_quota_confirm`（付费用户需确认消耗 1 次额度，body 含 `paidRemaining`，前端确认后带 `confirmPaid: true` 重发）、403 `login_required`（无有效会话）、403 `paid_only`（非付费用户）、403 `no_quota`（次数用完）、400 `invalid_input`、429 限流、500 `AI error`（生成失败，不扣额度）、500 `settle_failed`（报告已生成但扣量 DB 异常，body 仍带 `reply`，前端展示报告并提示联系客服补偿）。
+错误：402 `report_quota_confirm`（付费用户需确认消耗 1 次额度，body 含 `paidRemaining`，前端确认后带 `confirmPaid: true` 重发）、403 `login_required`（无有效会话）、403 `paid_only`（无演示额度）、403 `no_quota`（演示额度用完）、400 `invalid_input`、429 限流、500 `AI error`（生成失败，不扣额度）、500 `settle_failed`（报告已生成但扣量 DB 异常，body 仍带 `reply`，前端展示报告并提示刷新核对）。
 
 漏斗记账：两个 403 拦截分支（`paid_only`/`no_quota`）由**服务端**记录 `paywall_block`（`meta.reason` 区分原因；比客户端上报更可靠，且 uid 已知），前端无需也**不允许**上报该事件。
 
@@ -308,7 +307,7 @@ Headers: `x-device-id` + 会话 Cookie（uid 来自验签会话，不再接受 `
 
 ### POST /api/events
 
-客户端埋点上报（报告付费漏斗等）。fire-and-forget，落库失败不阻塞。
+客户端埋点上报（报告使用漏斗等）。fire-and-forget，落库失败不阻塞。
 
 Headers: `x-device-id`（必须）+ 会话 Cookie（可选，uid 取自验签会话，不再接受 `X-User-Id` 头）；复用 `/api/usage` 限流档位（30 次/分钟）+ deviceId 防伪。
 
@@ -317,7 +316,7 @@ Headers: `x-device-id`（必须）+ 会话 Cookie（可选，uid 取自验签会
 { "eventType": "paywall_confirm", "meta": { "city": "北京" } }
 ```
 
-`eventType` 白名单（仅客户端可报，服务端事件如 `report_generate/paywall_block` 不在列，防伪造；已退役的 `activate/activate_success` 不在枚举内 → 客户端上报一律 400）：`calculator | paywall_view | paywall_confirm | paywall_cancel | report_download | login_gate`。
+`eventType` 白名单（仅客户端可报，服务端事件如 `report_generate/paywall_block` 不在列，防伪造）：`calculator | paywall_view | paywall_confirm | paywall_cancel | report_download | login_gate`。
 
 响应：204（成功，无 body）。
 
@@ -453,7 +452,7 @@ Mac Word 对 docx 库输出比 Pages/WPS 严格得多，会因各种 OOXML schem
 
 ### GET /api/admin/funnel
 
-报告付费漏斗统计（`requireAdmin()` 会话守卫）。
+报告使用漏斗统计（`requireAdmin()` 会话守卫）。
 
 响应：
 ```json
@@ -472,7 +471,7 @@ Mac Word 对 docx 库输出比 Pages/WPS 严格得多，会因各种 OOXML schem
 }
 ```
 
-`count` 为事件次数，`users` 按 `COALESCE(uid, device_id)` 去重；分母为 0 时对应转化率为 `null`。无 MySQL 时全部降级为 0/`null`，不报错。`/admin` 页面登录态下以"报告付费漏斗"卡片展示。
+`count` 为事件次数，`users` 按 `COALESCE(uid, device_id)` 去重；分母为 0 时对应转化率为 `null`。无 MySQL 时全部降级为 0/`null`，不报错。`/admin` 页面登录态下以"报告使用漏斗"卡片展示。
 
 ## 环境变量
 
