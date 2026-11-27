@@ -101,7 +101,7 @@ function validateBody(body: unknown): { comp: CompInput; intakeAnswers: Record<s
  * @swagger
  * /api/report:
  *   post:
- *     summary: 生成劳动维权方案报告（仅付费用户）
+ *     summary: 生成劳动维权方案报告（需登录且有演示额度）
  *     tags: [Report]
  *     requestBody:
  *       required: true
@@ -121,12 +121,12 @@ function validateBody(body: unknown): { comp: CompInput; intakeAnswers: Record<s
  *                 type: string
  *               confirmPaid:
  *                 type: boolean
- *                 description: 付费用户在前端确认消耗1次报告额度时置 true；不传或 false 时返回 402 提示
+ *                 description: 有额度用户在前端确认消耗1次演示额度时置 true；不传或 false 时返回 402 提示
  *     responses:
  *       200:
  *         description: 报告与计算明细
  *       402:
- *         description: 付费用户需确认消耗1次额度（前端二次确认）
+ *         description: 有额度用户需确认消耗1次额度（前端二次确认）
  *         content:
  *           application/json:
  *             schema:
@@ -140,7 +140,7 @@ function validateBody(body: unknown): { comp: CompInput; intakeAnswers: Record<s
  *                 paidRemaining:
  *                   type: number
  *       403:
- *         description: 无配额或非付费用户
+ *         description: 无额度或未登录用户
  *       429:
  *         description: 请求过于频繁
  */
@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
     if (!paid) {
       await recordEvent({ uid: auth.uid, deviceId, eventType: "paywall_block", meta: { reason: "paid_only" } });
       return NextResponse.json(
-        { error: "paid_only", message: "维权报告为付费功能，次数由管理员发放，点击「如何购买」查看购买方式" },
+        { error: "paid_only", message: "报告为演示功能，需登录并使用部署者配置的额度，详见 README" },
         { status: 403 }
       );
     }
@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
     if (paidRemaining <= 0) {
       await recordEvent({ uid: auth.uid, deviceId, eventType: "paywall_block", meta: { reason: "no_quota" } });
       return NextResponse.json(
-        { error: "no_quota", message: "报告次数已用完，点击「如何购买」查看购买方式" },
+        { error: "no_quota", message: "演示额度已用完，请联系部署者或查看 README" },
         { status: 403 }
       );
     }
@@ -187,7 +187,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: "report_quota_confirm",
-          message: "本次生成将消耗 1 次报告额度",
+          message: "本次生成将消耗 1 次演示额度",
           paidRemaining,
         },
         { status: 402 }
@@ -219,7 +219,7 @@ export async function POST(request: NextRequest) {
     if (finalRemaining <= 0) {
       await recordEvent({ uid: auth.uid, deviceId, eventType: "paywall_block", meta: { reason: "no_quota" } });
       return NextResponse.json(
-        { error: "no_quota", message: "报告次数已用完，点击「如何购买」查看购买方式" },
+        { error: "no_quota", message: "演示额度已用完，请联系部署者或查看 README" },
         { status: 403 }
       );
     }
@@ -251,7 +251,7 @@ export async function POST(request: NextRequest) {
       // consumeUsageByUid 现在会对真正的 DB 异常抛错（业务失败仍 return 0）。
       // 这是极少数 edge case（admin 撤销并发 / MySQL 抖动）：AI 已生成、扣额度失败，
       // 不能直接 throw 让 reply 丢失（用户看不到 AI 回复会困惑），也不能 silent-fail（产品损失）。
-      // 返 settle_failed 让前端展示报告 + 顶部错误横幅告知"次数扣除异常请联系客服"，
+      // 返 settle_failed 让前端展示报告 + 顶部横幅告知"额度扣除异常，请刷新核对"，
       // 由 admin 从 console 拿 rawReply 手动补偿。
       console.error("[report] consumeUsageByUid threw (DB error), reply returned for manual compensation:", err);
       const replyOnSettleFail = sanitizeMarkdown(
@@ -260,7 +260,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: "settle_failed",
-          message: "报告已生成但次数扣除异常，请稍后刷新页面核对；如持续异常请联系客服补偿",
+          message: "报告已生成但额度扣除异常，请刷新页面核对；如持续异常请查看服务端日志",
           reply: replyOnSettleFail,
           computation: breakdown,
         },
@@ -272,7 +272,7 @@ export async function POST(request: NextRequest) {
       stripThinkTags(rawReply) + DISCLAIMER
     );
 
-    // 落库：付费用户的报告存为历史，便于刷新/关窗口后找回
+    // 落库：登录用户的报告存为历史，便于刷新/关窗口后找回
     let saveWarning: string | undefined;
     try {
       const saveResult = await saveLaborReport(
@@ -306,8 +306,8 @@ export async function POST(request: NextRequest) {
           `[report] quota self-heal check failed: expected ${paidRemaining - 1}, got ${afterRemaining}`
         );
         saveWarning = saveWarning
-          ? `${saveWarning}；另外本次次数可能未正确扣除，请稍后刷新页面核对。`
-          : "本次次数可能未正确扣除，请稍后刷新页面核对。";
+          ? `${saveWarning}；另外本次额度可能未正确扣除，请稍后刷新页面核对。`
+          : "本次额度可能未正确扣除，请稍后刷新页面核对。";
       }
     } catch (err) {
       console.error("[report] quota self-heal check threw:", err);

@@ -1,5 +1,5 @@
 /**
- * 维权方案报告持久化（uid-scoped，付费用户专属）。
+ * 维权方案报告持久化（uid-scoped，登录用户专属）。
  * AI 成功 + consumeUsageByUid 后由 /api/report 写入；
  * 客户端 /labor 抽屉读取历史并复用 docx 下载。
  */

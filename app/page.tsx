@@ -7,7 +7,7 @@ import type { ChatMessage } from "@/lib/models";
 import { generateMessageId } from "@/lib/models";
 import { generateConversationId, generateTitle, type Conversation } from "@/lib/storage";
 import { getDeviceId } from "@/lib/utils";
-import { PurchaseGuide } from "./components/ui/PurchaseGuide";
+import { QuotaGuide } from "./components/ui/QuotaGuide";
 import { remarkPlugins, markdownComponents, disallowedElements } from "./components/markdown";
 import dynamic from 'next/dynamic';
 const LoginModal = dynamic(() => import('./components/LoginModal').then(m => ({ default: m.LoginModal })), { ssr: false });
@@ -350,7 +350,7 @@ export default function Home() {
       });
       let data = await res.json();
 
-      // 402：今日免费对话已用完，需用户确认消耗购买额度后重发
+      // 402：今日免费对话已用完，需用户确认后消耗演示额度重发
       if (res.status === 402 && data.error === "chat_quota_confirm") {
         const confirmed = window.confirm(data.message);
         if (!confirmed) {
@@ -470,7 +470,7 @@ export default function Home() {
                   variant="primary"
                   onClick={() => setShowGuide(true)}
                 >
-                  购买次数
+                  额度说明
                 </Button>
               )}
             </div>
@@ -523,8 +523,8 @@ export default function Home() {
       )}
 
       {/* Purchase Guide Modal */}
-      <Modal open={showGuide} onClose={() => setShowGuide(false)} title="如何购买" size="md">
-        <PurchaseGuide />
+      <Modal open={showGuide} onClose={() => setShowGuide(false)} title="关于报告额度" size="md">
+        <QuotaGuide />
       </Modal>
 
       {/* Chat Area */}
@@ -542,7 +542,7 @@ export default function Home() {
                   被裁员？先算算你该拿多少钱
                 </h2>
                 <p className="text-sm text-[var(--foreground-tertiary)] max-w-xs mx-auto mb-6 leading-relaxed">
-                  免费估算 N+1 / 2N 法定赔偿，一键生成维权方案与仲裁申请书
+                  免费估算 N+1 / 2N 法定赔偿，一键生成维权方案参考稿（AI 生成，仅供参考）
                 </p>
                 <Link
                   href="/labor"
@@ -615,7 +615,7 @@ export default function Home() {
           {isInitializing && (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
               <Spinner size={28} />
-              <span className="text-xs text-[var(--foreground-tertiary)]">加载历史与额度…</span>
+              <span className="text-xs text-[var(--foreground-tertiary)]">加载历史与演示额度…</span>
             </div>
           )}
 
@@ -762,7 +762,7 @@ export default function Home() {
                     setInput(newUserText);
                   }
                 }}
-                placeholder={usage?.allowed ? "输入职场困境..." : "今日次数已用完"}
+                placeholder={usage?.allowed ? "输入职场困境..." : "今日免费额度已用完"}
                 disabled={loading || (!usage?.allowed && !isInitializing)}
                 autoComplete="off"
                 autoCorrect="off"
@@ -785,6 +785,9 @@ export default function Home() {
               {loading ? <Spinner size={18} /> : <Icon name="send" size={18} strokeWidth={2.2} />}
             </button>
           </form>
+          <p className="mt-2 text-center text-[11px] text-[var(--foreground-tertiary)]">
+            内容由 AI 生成，仅供学习参考，不构成法律意见；劳动权益以仲裁机构/法院认定为准。
+          </p>
           <style jsx global>{`
             input[type="text"] {
               -webkit-appearance: none;

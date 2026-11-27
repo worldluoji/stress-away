@@ -24,27 +24,27 @@ describe("decideChatAction — 对话额度决策", () => {
       want: "blocked_not_paid",
     },
     {
-      desc: "付费用户在免费额度内仍走免费",
+      desc: "有额度用户在免费额度内仍走免费",
       input: { loggedIn: true, freeUsed: 0, chatFreeLimit: CHAT_FREE_PER_DAY, isPaid: true, paidRemaining: 5, confirmPaid: false },
       want: "allow_free",
     },
     {
-      desc: "付费用户超限未确认需弹窗",
+      desc: "有额度用户超限未确认需弹窗",
       input: { loggedIn: true, freeUsed: 10, chatFreeLimit: CHAT_FREE_PER_DAY, isPaid: true, paidRemaining: 5, confirmPaid: false },
       want: "need_confirm",
     },
     {
-      desc: "付费用户超限已确认扣次数",
+      desc: "有额度用户超限已确认扣次数",
       input: { loggedIn: true, freeUsed: 10, chatFreeLimit: CHAT_FREE_PER_DAY, isPaid: true, paidRemaining: 5, confirmPaid: true },
       want: "allow_paid",
     },
     {
-      desc: "付费但报告额度为0(已确认)仍拒绝",
+      desc: "有额度但报告额度为0(已确认)仍拒绝",
       input: { loggedIn: true, freeUsed: 10, chatFreeLimit: CHAT_FREE_PER_DAY, isPaid: true, paidRemaining: 0, confirmPaid: true },
       want: "blocked_paid_exhausted",
     },
     {
-      desc: "付费但报告额度为0(未确认)不得误弹确认",
+      desc: "有额度但报告额度为0(未确认)不得误弹确认",
       input: { loggedIn: true, freeUsed: 10, chatFreeLimit: CHAT_FREE_PER_DAY, isPaid: true, paidRemaining: 0, confirmPaid: false },
       want: "blocked_paid_exhausted",
     },

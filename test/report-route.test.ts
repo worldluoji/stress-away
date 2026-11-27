@@ -100,7 +100,7 @@ describe("POST /api/report — 两段确认与门禁", () => {
     expect((await res.json()).error).toBe("login_required");
   });
 
-  it("非付费用户 → 403 paid_only", async () => {
+  it("无额度用户 → 403 paid_only", async () => {
     (isPaidUserByUid as ReturnType<typeof vi.fn>).mockResolvedValue(false);
     const res = await callPOST(makeBody());
     expect(res.status).toBe(403);

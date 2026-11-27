@@ -2,8 +2,8 @@
  * stress-away Subscriptions — 管理端发放制
  *
  * 订阅主键: uid (自建用户 ID，users.id)
- * 变现模型：管理员在后台直接给账号发放报告次数（grantUsageByUid），
- * 激活码体系已退役；次数永久有效，付费判定 = remaining_usage > 0。
+ * 额度模型：部署者在后台给账号配置报告次数（grantUsageByUid），
+ * 次数永久有效；有额度判定 = remaining_usage > 0。
  */
 
 import { query, execute, withTransaction, txQuery, txExecute, isMySQLAvailable } from './db';

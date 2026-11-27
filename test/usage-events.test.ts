@@ -15,7 +15,7 @@ afterEach(() => {
 describe("getReportFunnel — 无 MySQL 降级", () => {
   const emptyStep = { count: 0, users: 0 };
 
-  it("无 MySQL 配置时各漏斗步骤返回全 0（8 步，激活码已退役）", async () => {
+  it("无 MySQL 配置时各漏斗步骤返回全 0（8 步）", async () => {
     const { getReportFunnel } = await import("../lib/usage-events");
     const funnel = await getReportFunnel();
     expect(funnel).toEqual({

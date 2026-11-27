@@ -42,9 +42,9 @@ interface FunnelData {
 const FUNNEL_STEPS: { key: string; label: string }[] = [
   { key: 'calculator', label: '计算器' },
   { key: 'loginGate', label: '登录墙' },
-  { key: 'paywallView', label: '付费墙曝光' },
+  { key: 'paywallView', label: '额度提示曝光' },
   { key: 'paywallBlock', label: '额度不足拦截' },
-  { key: 'paywallConfirm', label: '确认付费' },
+  { key: 'paywallConfirm', label: '确认生成' },
   { key: 'paywallCancel', label: '取消' },
   { key: 'reportGenerate', label: '报告生成' },
   { key: 'reportDownload', label: '报告下载' },
@@ -488,7 +488,7 @@ export default function AdminPage() {
         {/* Report Funnel */}
         <div className="bg-[var(--card-bg)] rounded-2xl p-5 border border-[var(--card-border)] space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-[var(--foreground)]">报告付费漏斗</h3>
+            <h3 className="text-sm font-medium text-[var(--foreground)]">报告使用漏斗</h3>
             <button
               onClick={fetchFunnel}
               className="px-3 py-1 text-xs bg-[var(--background-secondary)] rounded-lg text-[var(--foreground)]"

@@ -1,7 +1,7 @@
 /**
  * 自建账号体系：scrypt 密码哈希 + sessions 表会话（token 只存 SHA-256）+ httpOnly cookie。
  * uid 即 users.id（crypto.randomUUID()），业务表（subscriptions/labor_reports 等）
- * 的 uid 列直接引用它。替代原腾讯云 TCB 客户端登录。
+ * 的 uid 列直接引用它。
  */
 import {
   createHash,

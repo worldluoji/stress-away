@@ -13,7 +13,7 @@ import { Spinner } from "./ui/Spinner";
 import { ErrorBanner } from "./ui/ErrorBanner";
 import { EmptyState } from "./ui/EmptyState";
 import { Modal } from "./ui/Modal";
-import { PurchaseGuide } from "./ui/PurchaseGuide";
+import { QuotaGuide } from "./ui/QuotaGuide";
 import { Card } from "./ui/Card";
 import { Icon } from "./ui/Icon";
 import { markdownToDocxBlob, triggerDocxDownload } from "@/lib/report-docx";
@@ -111,7 +111,7 @@ export function ReportPanel({ comp, uid, onRequireLogin, onUsageChanged }: Props
       if (data.error === "settle_failed" && data.reply) {
         setReport(data.reply);
         setRawReply(data.reply);
-        setWarning(data.message || "次数扣除异常，请联系客服补偿");
+        setWarning(data.message || "额度扣除异常，请刷新后核对");
         onUsageChanged?.();
         return;
       }
@@ -173,35 +173,35 @@ export function ReportPanel({ comp, uid, onRequireLogin, onUsageChanged }: Props
 
   return (
     <div className="space-y-4">
-      <Modal open={pendingConfirm !== null} onClose={handleCancelConfirm} title="确认生成维权报告" size="sm">
+      <Modal open={pendingConfirm !== null} onClose={handleCancelConfirm} title="确认生成报告" size="sm">
         <div className="px-5 pt-6 pb-5">
           <h3 className="text-base font-semibold text-[var(--foreground)] mb-4">确认生成维权报告</h3>
           <div className="space-y-3 text-sm">
             <div className="flex items-center justify-between rounded-xl bg-[var(--background-secondary)] px-4 py-3">
-              <span className="text-[var(--foreground-secondary)]">剩余报告额度</span>
+              <span className="text-[var(--foreground-secondary)]">剩余演示额度</span>
               <span className="font-semibold text-[var(--foreground)]">
                 {pendingConfirm?.paidRemaining} 次 → 本次后 {Math.max((pendingConfirm?.paidRemaining ?? 1) - 1, 0)} 次
               </span>
             </div>
             {comp && (
               <div className="flex items-center justify-between rounded-xl bg-[var(--background-secondary)] px-4 py-3">
-                <span className="text-[var(--foreground-secondary)]">预计回款</span>
+                <span className="text-[var(--foreground-secondary)]">估算可主张金额</span>
                 <span className="font-semibold text-[var(--color-brand)]">
                   ¥{computeCompensation(comp).total.toLocaleString("zh-CN")}
                 </span>
               </div>
             )}
             <p className="text-xs text-[var(--foreground-tertiary)] leading-relaxed">
-              报告包含：赔偿明细核对 · 证据清单 · 仲裁流程时间线 · 仲裁申请书草稿 · 谈判策略
+              报告包含：赔偿明细核对 · 证据清单 · 仲裁流程时间线 · 仲裁申请书草稿 · 谈判策略（AI 生成，仅供参考，提交前请律师复核）
             </p>
-            <p className="text-xs text-[var(--foreground-tertiary)]">每日 10 次免费对话不受影响。</p>
+            <p className="text-xs text-[var(--foreground-tertiary)]">每日 10 次免费对话不受影响；报告仅供学习参考，不构成法律意见。</p>
           </div>
           <div className="flex gap-2 mt-5">
             <Button variant="ghost" size="lg" fullWidth onClick={handleCancelConfirm}>
               取消
             </Button>
             <Button variant="primary" size="lg" fullWidth onClick={runGeneration}>
-              确认生成（-1 次）
+              确认生成（消耗 1 次额度）
             </Button>
           </div>
         </div>
@@ -209,7 +209,7 @@ export function ReportPanel({ comp, uid, onRequireLogin, onUsageChanged }: Props
       <div>
         <h3 className="text-base font-semibold text-[var(--foreground)] mb-1">生成完整维权方案报告</h3>
         <p className="text-xs text-[var(--foreground-tertiary)]">
-          赔偿明细核对 + 证据清单 + 仲裁流程时间线 + 仲裁申请书草稿 + 谈判策略（消耗 1 次报告额度，每日 10 次免费对话不受影响）
+          赔偿明细核对 + 证据清单 + 仲裁流程时间线 + 仲裁申请书草稿 + 谈判策略（消耗 1 次演示额度；AI 生成，仅供参考）
         </p>
       </div>
 
@@ -240,12 +240,12 @@ export function ReportPanel({ comp, uid, onRequireLogin, onUsageChanged }: Props
         <ErrorBanner
           message={error}
           onAction={gate === "purchase" ? () => setShowGuide(true) : gate === "login" ? onRequireLogin : undefined}
-          actionLabel={gate === "login" ? "去登录" : "如何购买"}
+          actionLabel={gate === "login" ? "去登录" : "额度说明"}
         />
       )}
 
-      <Modal open={showGuide} onClose={() => setShowGuide(false)} title="如何购买" size="md">
-        <PurchaseGuide />
+      <Modal open={showGuide} onClose={() => setShowGuide(false)} title="关于报告额度" size="md">
+        <QuotaGuide />
       </Modal>
 
       {loading ? (
@@ -329,7 +329,7 @@ export function ReportPanel({ comp, uid, onRequireLogin, onUsageChanged }: Props
         <EmptyState
           icon="file-text"
           title="先完成上方估算"
-          description="填写工资、入职日期和离职情形后，可生成完整的维权方案与仲裁申请书草稿"
+          description="填写工资、入职日期和离职情形后，可生成维权方案参考稿（AI 生成，仅供参考）"
         />
       )}
     </div>

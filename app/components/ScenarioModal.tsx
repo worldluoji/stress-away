@@ -228,7 +228,7 @@ ${scenario.description}\n`;
             跳过，直接输入
           </button>
           <p className="text-xs text-[var(--foreground-tertiary)] text-center">
-            定制生成将消耗 1 次对话次数
+            定制生成将消耗 1 次对话额度（登录用户每日有免费额度）
           </p>
         </div>
       </div>

@@ -13,7 +13,7 @@ export function ErrorBanner({
   message,
   onRetry,
   onAction,
-  actionLabel = "如何购买",
+  actionLabel = "额度说明",
   variant = "inline",
   tone = "error",
 }: Props) {

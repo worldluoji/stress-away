@@ -126,7 +126,7 @@ export default function LaborPage() {
                   {usage.remaining} 份报告
                 </>
               ) : (
-                <>报告次数由管理员发放</>
+                <>报告次数由部署者配置</>
               )}
             </Badge>
           )}
@@ -161,7 +161,7 @@ export default function LaborPage() {
           <Section
             step={2}
             title="生成维权方案报告"
-            description="赔偿核对 + 证据清单 + 仲裁申请书草稿（消耗 1 次报告额度）"
+            description="赔偿核对 + 证据清单 + 仲裁申请书草稿（消耗 1 次演示额度，仅供参考）"
             icon="file-text"
           >
             <ReportPanel
@@ -173,8 +173,8 @@ export default function LaborPage() {
           </Section>
 
           <footer className="text-center text-xs text-[var(--foreground-tertiary)] pb-4">
-            各地封顶基数见计算器结果页「数据来源」，实际权益以劳动仲裁委员会/法院认定为准。
-            {user ? "" : " 维权报告次数由管理员发放，需登录使用。"}
+            各地封顶基数见计算器结果页「数据来源」。报告与建议均由 AI 生成，仅供学习参考，不构成法律意见；实际权益以劳动仲裁委员会/法院认定为准。
+            {user ? "" : " 报告需登录并使用演示额度。"}
           </footer>
         </div>
       </main>

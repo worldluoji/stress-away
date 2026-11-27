@@ -1,8 +1,8 @@
 /**
  * 对话额度决策（纯函数，零 IO）
  *
- * 模型：对话是免费获客漏斗，登录用户每日 CHAT_FREE_PER_DAY 次免费；
- * 超出后付费用户可确认消耗 1 次购买次数（报告货币）继续对话。
+ * 模型：对话是免费功能，账号用户每日 CHAT_FREE_PER_DAY 次免费；
+ * 超出后有额度用户可确认消耗 1 次演示额度继续对话。
  */
 
 export const CHAT_FREE_PER_DAY = parseInt(process.env.CHAT_FREE_PER_DAY || '10', 10);

@@ -131,7 +131,7 @@ describe("consumeUsageByUid — 发放制新语义：无状态/过期概念", ()
   });
 });
 
-describe("isPaidUserByUid / getRemainingUsageByUid — remaining>0 即付费", () => {
+describe("isPaidUserByUid / getRemainingUsageByUid — remaining>0 即有额度", () => {
   const cases: {
     desc: string;
     row: unknown[];
@@ -142,7 +142,7 @@ describe("isPaidUserByUid / getRemainingUsageByUid — remaining>0 即付费", (
     { desc: "remaining 0", row: [{ uid: "u", remaining_usage: 0, total_usage: 0 }], wantPaid: false, wantRemaining: 0 },
     { desc: "remaining 1", row: [{ uid: "u", remaining_usage: 1, total_usage: 9 }], wantPaid: true, wantRemaining: 1 },
     {
-      desc: "remaining 1 但旧 expires_at 已过期 → 仍付费",
+      desc: "remaining 1 但旧 expires_at 已过期 → 仍有额度",
       row: [{ uid: "u", remaining_usage: 1, total_usage: 9, expires_at: "1000" }],
       wantPaid: true,
       wantRemaining: 1,

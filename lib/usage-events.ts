@@ -195,7 +195,7 @@ export async function getTotalUsage(): Promise<{
   }
 }
 
-// ==================== 报告付费漏斗 ====================
+// ==================== 报告使用漏斗 ====================
 
 export interface FunnelStep {
   count: number;

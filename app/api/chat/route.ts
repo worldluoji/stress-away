@@ -34,7 +34,7 @@ import { sanitizeMarkdown } from "@/lib/sanitize";
  *                       type: string
  *               confirmPaid:
  *                 type: boolean
- *                 description: 免费额度用尽后，用户确认消耗1次购买额度
+ *                 description: 免费额度用尽后，用户确认消耗1次演示额度
  *     responses:
  *       200:
  *         description: AI回复（quota 为最新额度状态）
@@ -52,7 +52,7 @@ import { sanitizeMarkdown } from "@/lib/sanitize";
  *       402:
  *         description: 今日免费对话已用完，需 confirmPaid 确认后重发
  *       403:
- *         description: 未登录 / 未付费超免费额度 / 购买次数耗尽
+ *         description: 未登录 / 无额度用户超免费额度 / 演示额度耗尽
  *       429:
  *         description: 请求过于频繁
  *       500:
@@ -128,13 +128,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Chat quota: 每日免费额度优先，超出后需用户确认才扣购买次数
+    // Chat quota: 每日免费额度优先，超出后需用户确认才扣演示额度
     const quota = await checkChatQuota(auth.uid, confirmPaid === true);
     if (quota.action === 'need_confirm') {
       return NextResponse.json(
         {
           error: 'chat_quota_confirm',
-          message: '今日免费对话已用完，继续对话将消耗 1 次购买额度（该额度用于生成维权报告）',
+          message: '今日免费对话已用完，继续对话将消耗 1 次演示额度（该额度也用于生成报告）',
           freeUsed: quota.freeUsed,
           chatFreeLimit: CHAT_FREE_PER_DAY,
           paidRemaining: quota.paidRemaining,
@@ -145,8 +145,8 @@ export async function POST(request: NextRequest) {
     if (quota.action.startsWith('blocked_')) {
       const errorMap: Record<string, { code: string; message: string }> = {
         blocked_not_logged_in: { code: 'login_required', message: '请登录后使用' },
-        blocked_not_paid: { code: 'free_exhausted', message: '今日免费对话已用完，购买报告次数后可继续对话并生成维权报告' },
-        blocked_paid_exhausted: { code: 'no_quota', message: '购买次数已用完，请购买后继续' },
+        blocked_not_paid: { code: 'free_exhausted', message: '今日免费对话已用完；演示额度由部署者配置，详见 README' },
+        blocked_paid_exhausted: { code: 'no_quota', message: '演示额度已用完，请联系部署者或查看 README' },
       };
       const err = errorMap[quota.action];
       return NextResponse.json({ error: err.code, message: err.message }, { status: 403 });
@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Settle AFTER AI success. If settle fails, still return the AI reply to the user.
-    // （chat 是免费引流场景，故意 silent-fail；report 是付费场景已返 settle_failed 区分处理）
+    // （chat 为免费对话场景，故意 silent-fail；report 场景已返 settle_failed 区分处理）
     try {
       if (auth.uid) {
         await settleChat(auth.uid, quota.action);

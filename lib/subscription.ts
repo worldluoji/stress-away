@@ -1,9 +1,9 @@
 /**
  * Usage quota — 自建账号版（管理端发放制）
  *
- * 模型：报告次数（subscriptions.remaining_usage）是"报告货币"，由管理员发放、永久有效；
+ * 模型：报告次数（subscriptions.remaining_usage）是演示额度，由部署者发放、永久有效；
  * 对话为免费获客漏斗，登录用户每日 CHAT_FREE_PER_DAY 次免费，
- * 超出后付费用户确认消耗 1 次购买次数继续对话。
+ * 超出后用户确认消耗 1 次演示额度继续对话。
  */
 
 import {
@@ -84,7 +84,7 @@ export async function checkChatQuota(uid: string | null, confirmPaid: boolean): 
   return { action, freeUsed, paidRemaining };
 }
 
-/** AI 成功后结算：免费计数 +1 或扣 1 次购买次数 */
+/** AI 成功后结算：免费计数 +1 或扣 1 次演示额度 */
 export async function settleChat(uid: string, action: ChatAction): Promise<void> {
   if (action === 'allow_paid') {
     await consumeUsageByUid(uid);

@@ -198,7 +198,7 @@ export function MyStatsPanel({ onClose }: MyStatsPanelProps) {
 
           <div className="text-center pt-4 mt-4 border-t border-[var(--card-border)]">
             <p className="text-xs text-[var(--foreground-tertiary)]">
-              遇到问题？联系客服微信 <span className="text-[var(--color-brand)]">jmst_cute</span>
+              数据仅保存在你部署的服务端，使用说明见项目 README
             </p>
           </div>
         </div>

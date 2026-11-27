@@ -188,7 +188,7 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
             {loading ? '登录中...' : '登录'}
           </button>
 
-          <p className="text-xs text-[#8e8e93] text-center">账号由管理员发放，如需开通请联系客服</p>
+          <p className="text-xs text-[#8e8e93] text-center">演示账号由部署者创建，本地运行步骤见 README</p>
         </form>
       </div>
     </div>
